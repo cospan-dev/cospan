@@ -1,0 +1,30 @@
+# Production reverse proxy with automatic TLS via Let's Encrypt.
+# Usage: caddy run --config Caddyfile
+
+cospan.dev {
+	# Frontend (SvelteKit)
+	reverse_proxy /* localhost:3002
+
+	# AppView XRPC endpoints
+	reverse_proxy /xrpc/* localhost:3000
+
+	# OAuth endpoints
+	reverse_proxy /oauth/* localhost:3000
+
+	# Client metadata + JWKS
+	reverse_proxy /oauth/client-metadata.json localhost:3000
+	reverse_proxy /.well-known/jwks.json localhost:3000
+
+	# SSE events
+	reverse_proxy /xrpc/dev.cospan.sync.subscribeEvents localhost:3000
+}
+
+node.cospan.dev {
+	# Node XRPC endpoints
+	reverse_proxy /xrpc/* localhost:3001
+
+	# Git smart HTTP protocol
+	reverse_proxy /*/info/refs localhost:3001
+	reverse_proxy /*/git-upload-pack localhost:3001
+	reverse_proxy /*/git-receive-pack localhost:3001
+}

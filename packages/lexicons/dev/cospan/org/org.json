@@ -1,0 +1,20 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.org",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["name", "createdAt"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 128 },
+          "description": { "type": "string", "maxLength": 2560 },
+          "avatar": { "type": "blob", "accept": ["image/png", "image/jpeg"], "maxSize": 1000000 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.repo.pull",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["repo", "title", "targetRef", "sourceRef", "createdAt"],
+        "properties": {
+          "repo": { "type": "string", "format": "at-uri" },
+          "title": { "type": "string", "maxLength": 512 },
+          "body": { "type": "string", "maxLength": 100000 },
+          "targetRef": { "type": "string", "maxLength": 256 },
+          "sourceRef": { "type": "string", "maxLength": 256 },
+          "sourceRepo": { "type": "string", "format": "at-uri" },
+          "mergePreview": { "type": "ref", "ref": "#mergePreview" },
+          "mentions": {
+            "type": "array",
+            "items": { "type": "string", "format": "did" },
+            "maxLength": 50
+          },
+          "references": {
+            "type": "array",
+            "items": { "type": "string", "format": "at-uri" },
+            "maxLength": 50
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    },
+    "mergePreview": {
+      "type": "object",
+      "properties": {
+        "mergedSchemaId": { "type": "string", "maxLength": 64 },
+        "migrationFromSourceId": { "type": "string", "maxLength": 64 },
+        "migrationFromTargetId": { "type": "string", "maxLength": 64 },
+        "lensId": { "type": "string", "maxLength": 64 },
+        "lensQuality": { "type": "number" },
+        "conflictCount": { "type": "integer" },
+        "conflicts": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "#mergeConflict" },
+          "maxLength": 200
+        },
+        "breakingChanges": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "dev.cospan.vcs.refUpdate#breakingChange" },
+          "maxLength": 100
+        }
+      }
+    },
+    "mergeConflict": {
+      "type": "object",
+      "required": ["kind", "element"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "knownValues": [
+            "vertexModifiedBoth", "edgeModifiedBoth", "constraintModifiedBoth",
+            "vertexRemovedModified", "edgeRemovedModified", "hyperEdgeConflict",
+            "variantConflict", "orderingConflict", "nsidConflict",
+            "requiredFieldConflict", "recursionPointConflict",
+            "coercionConflict", "mergerConflict", "defaultConflict",
+            "policyConflict", "nominalConflict"
+          ]
+        },
+        "element": { "type": "string", "maxLength": 256 },
+        "oursValue": { "type": "string", "maxLength": 4096 },
+        "theirsValue": { "type": "string", "maxLength": 4096 },
+        "baseValue": { "type": "string", "maxLength": 4096 },
+        "description": { "type": "string", "maxLength": 1024 }
+      }
+    }
+  }
+}

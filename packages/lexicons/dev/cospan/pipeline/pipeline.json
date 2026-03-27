@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.pipeline",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["repo", "commitId", "status", "createdAt"],
+        "properties": {
+          "repo": { "type": "string", "format": "at-uri" },
+          "commitId": { "type": "string", "maxLength": 64 },
+          "ref": { "type": "string", "maxLength": 256 },
+          "status": { "type": "string", "knownValues": ["pending", "running", "passed", "failed", "cancelled"] },
+          "algebraicChecks": { "type": "ref", "ref": "#algebraicChecks" },
+          "workflows": {
+            "type": "array",
+            "items": { "type": "ref", "ref": "#workflow" },
+            "maxLength": 50
+          },
+          "createdAt": { "type": "string", "format": "datetime" },
+          "completedAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    },
+    "algebraicChecks": {
+      "type": "object",
+      "properties": {
+        "gatTypeCheck": { "type": "string", "knownValues": ["passed", "failed", "skipped"] },
+        "equationVerification": { "type": "string", "knownValues": ["passed", "failed", "skipped"] },
+        "lensLawCheck": { "type": "string", "knownValues": ["passed", "failed", "skipped"] },
+        "breakingChangeCheck": { "type": "string", "knownValues": ["none", "nonBreaking", "breaking"] }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "required": ["name", "status"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "knownValues": ["pending", "running", "passed", "failed", "cancelled"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.org.member",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["org", "member", "role", "createdAt"],
+        "properties": {
+          "org": { "type": "string", "format": "at-uri" },
+          "member": { "type": "string", "format": "did" },
+          "role": { "type": "string", "knownValues": ["owner", "admin", "member"] },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

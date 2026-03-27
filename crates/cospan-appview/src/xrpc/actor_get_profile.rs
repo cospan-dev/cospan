@@ -1,0 +1,25 @@
+use std::sync::Arc;
+
+use axum::Json;
+use axum::extract::{Query, State};
+use serde::Deserialize;
+
+use crate::db;
+use crate::error::AppError;
+use crate::state::AppState;
+
+#[derive(Deserialize)]
+pub struct Params {
+    pub did: String,
+}
+
+pub async fn handler(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<Params>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let profile = db::actor_profile::get(&state.db, &params.did)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("profile for {} not found", params.did)))?;
+
+    Ok(Json(serde_json::to_value(profile).unwrap()))
+}

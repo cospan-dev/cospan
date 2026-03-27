@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.repo.pull.comment",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["pull", "body", "createdAt"],
+        "properties": {
+          "pull": { "type": "string", "format": "at-uri" },
+          "body": { "type": "string", "maxLength": 100000 },
+          "schemaRefs": {
+            "type": "array",
+            "items": { "type": "ref", "ref": "dev.cospan.repo.issue#schemaRef" },
+            "maxLength": 20
+          },
+          "reviewDecision": {
+            "type": "string",
+            "knownValues": ["approve", "requestChanges", "comment"]
+          },
+          "mentions": {
+            "type": "array",
+            "items": { "type": "string", "format": "did" },
+            "maxLength": 50
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.repo.dependency",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["sourceRepo", "targetRepo", "morphismId", "createdAt"],
+        "properties": {
+          "sourceRepo": { "type": "string", "format": "at-uri" },
+          "targetRepo": { "type": "string", "format": "at-uri" },
+          "morphismId": { "type": "string", "maxLength": 64 },
+          "sourceProtocol": { "type": "string", "maxLength": 128 },
+          "targetProtocol": { "type": "string", "maxLength": 128 },
+          "description": { "type": "string", "maxLength": 2560 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.repo.pull.state",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["pull", "state", "createdAt"],
+        "properties": {
+          "pull": { "type": "string", "format": "at-uri" },
+          "state": { "type": "string", "knownValues": ["open", "closed", "merged"] },
+          "mergeCommitId": { "type": "string", "maxLength": 64 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

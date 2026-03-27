@@ -1,0 +1,20 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.repo.issue.state",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["issue", "state", "createdAt"],
+        "properties": {
+          "issue": { "type": "string", "format": "at-uri" },
+          "state": { "type": "string", "knownValues": ["open", "closed"] },
+          "reason": { "type": "string", "maxLength": 1024 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

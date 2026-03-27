@@ -1,0 +1,7 @@
+{
+  "name": "cospan",
+  "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

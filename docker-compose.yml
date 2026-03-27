@@ -1,0 +1,79 @@
+services:
+  db:
+    image: postgres:17
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: cospan
+      POSTGRES_USER: cospan
+      POSTGRES_PASSWORD: cospan
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cospan"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  node:
+    build:
+      context: .
+      dockerfile: crates/cospan-node/Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - node-data:/data
+    environment:
+      NODE_DID: "did:plc:localdev"
+      NODE_LISTEN: "0.0.0.0:3001"
+      COSPAN_DATA_DIR: /data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  appview:
+    build:
+      context: .
+      dockerfile: crates/cospan-appview/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://cospan:cospan@db:5432/cospan
+      JETSTREAM_URL: wss://jetstream2.us-east.bsky.network/subscribe
+      APPVIEW_LISTEN: "0.0.0.0:3000"
+      REDIS_URL: redis://redis:6379
+      PUBLIC_URL: http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      PUBLIC_API_URL: http://appview:3000
+    depends_on:
+      - appview
+
+volumes:
+  pg-data:
+  redis-data:
+  node-data:

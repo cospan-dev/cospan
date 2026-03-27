@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.label.definition",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["repo", "name", "color", "createdAt"],
+        "properties": {
+          "repo": { "type": "string", "format": "at-uri" },
+          "name": { "type": "string", "maxLength": 64 },
+          "color": { "type": "string", "maxLength": 7 },
+          "description": { "type": "string", "maxLength": 256 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

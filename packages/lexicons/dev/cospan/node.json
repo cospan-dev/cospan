@@ -1,0 +1,18 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.node",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["createdAt"],
+        "properties": {
+          "publicEndpoint": { "type": "string", "format": "uri" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

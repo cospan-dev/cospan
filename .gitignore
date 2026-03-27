@@ -1,0 +1,17 @@
+/target
+.env
+.env.local
+node_modules/
+.svelte-kit/
+.turbo/
+dist/
+build/
+*.swp
+*.swo
+*~
+.DS_Store
+planning/
+PROGRESS.md
+/generated/
+.claude/
+pnpm-lock.yaml

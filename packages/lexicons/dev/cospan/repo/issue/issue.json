@@ -1,0 +1,49 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.repo.issue",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["repo", "title", "createdAt"],
+        "properties": {
+          "repo": { "type": "string", "format": "at-uri" },
+          "title": { "type": "string", "maxLength": 512 },
+          "body": { "type": "string", "maxLength": 100000 },
+          "schemaRefs": {
+            "type": "array",
+            "items": { "type": "ref", "ref": "#schemaRef" },
+            "maxLength": 50
+          },
+          "labels": {
+            "type": "array",
+            "items": { "type": "string", "format": "at-uri" },
+            "maxLength": 20
+          },
+          "mentions": {
+            "type": "array",
+            "items": { "type": "string", "format": "did" },
+            "maxLength": 50
+          },
+          "references": {
+            "type": "array",
+            "items": { "type": "string", "format": "at-uri" },
+            "maxLength": 50
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    },
+    "schemaRef": {
+      "type": "object",
+      "required": ["commitId", "elementPath"],
+      "properties": {
+        "commitId": { "type": "string", "maxLength": 64 },
+        "elementPath": { "type": "string", "maxLength": 512 },
+        "elementKind": { "type": "string", "knownValues": ["vertex", "edge", "constraint", "hyperEdge"] }
+      }
+    }
+  }
+}

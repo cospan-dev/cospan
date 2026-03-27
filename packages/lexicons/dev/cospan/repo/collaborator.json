@@ -1,0 +1,20 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.repo.collaborator",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["repo", "did", "role", "createdAt"],
+        "properties": {
+          "repo": { "type": "string", "format": "at-uri" },
+          "did": { "type": "string", "format": "did" },
+          "role": { "type": "string", "knownValues": ["owner", "maintainer", "contributor", "reader"] },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}
