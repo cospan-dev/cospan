@@ -30,10 +30,26 @@ const WANTED_COLLECTIONS: &[&str] = &[
     "dev.cospan.org.member",
     "dev.cospan.pipeline",
     // Tangled interop
-    "sh.tangled.repo.issue",
     "sh.tangled.feed.star",
+    "sh.tangled.feed.reaction",
     "sh.tangled.graph.follow",
+    "sh.tangled.repo",
+    "sh.tangled.repo.issue",
+    "sh.tangled.repo.issue.comment",
+    "sh.tangled.repo.issue.state",
     "sh.tangled.repo.pull",
+    "sh.tangled.repo.pull.comment",
+    "sh.tangled.repo.pull.status",
+    "sh.tangled.repo.collaborator",
+    "sh.tangled.knot",
+    "sh.tangled.knot.member",
+    "sh.tangled.spindle",
+    "sh.tangled.spindle.member",
+    "sh.tangled.actor.profile",
+    "sh.tangled.label.definition",
+    "sh.tangled.pipeline",
+    "sh.tangled.pipeline.status",
+    "sh.tangled.git.refUpdate",
 ];
 
 /// Classify an error as retryable or permanent.
