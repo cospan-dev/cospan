@@ -84,9 +84,58 @@ async fn actor_profile_upsert_and_get(pool: PgPool) {
 
 // ─── Repos ───────────────────────────────────────────────────────
 
+/// Insert a prerequisite node so repos can satisfy the node_did FK.
+async fn insert_test_node(pool: &PgPool) {
+    let now = Utc::now();
+    db::node::upsert(
+        pool,
+        &db::node::NodeRow {
+            did: "did:plc:node1".to_string(),
+            rkey: "self".to_string(),
+            public_endpoint: Some("https://node1.example.com".to_string()),
+            created_at: now,
+            indexed_at: now,
+        },
+    )
+    .await
+    .unwrap();
+}
+
+/// Insert a prerequisite repo so child tables (ref_updates, issues, stars) can satisfy FKs.
+async fn insert_test_repo(pool: &PgPool, did: &str, name: &str) {
+    let now = Utc::now();
+    insert_test_node(pool).await;
+    db::repo::upsert(
+        pool,
+        &db::repo::RepoRow {
+            did: did.to_string(),
+            rkey: "rkey1".to_string(),
+            name: name.to_string(),
+            description: None,
+            protocol: "typescript".to_string(),
+            node_did: "did:plc:node1".to_string(),
+            node_url: "https://node1.example.com".to_string(),
+            default_branch: "main".to_string(),
+            visibility: "public".to_string(),
+            source_repo: None,
+            star_count: 0,
+            fork_count: 0,
+            open_issue_count: 0,
+            open_mr_count: 0,
+            source: "cospan".to_string(),
+            source_uri: None,
+            created_at: now,
+            indexed_at: now,
+        },
+    )
+    .await
+    .unwrap();
+}
+
 #[sqlx::test(migrator = "cospan_appview::MIGRATOR")]
 async fn repo_upsert_get_and_list_recent(pool: PgPool) {
     let now = Utc::now();
+    insert_test_node(&pool).await;
 
     let repo = db::repo::RepoRow {
         did: "did:plc:alice".to_string(),
@@ -158,6 +207,7 @@ async fn repo_upsert_get_and_list_recent(pool: PgPool) {
 #[sqlx::test(migrator = "cospan_appview::MIGRATOR")]
 async fn ref_update_upsert_and_list_for_repo(pool: PgPool) {
     let now = Utc::now();
+    insert_test_repo(&pool, "did:plc:alice", "my-project").await;
 
     let update = db::ref_update::RefUpdateRow {
         id: 0,
@@ -212,6 +262,7 @@ async fn ref_update_upsert_and_list_for_repo(pool: PgPool) {
 #[sqlx::test(migrator = "cospan_appview::MIGRATOR")]
 async fn issue_upsert_get_and_list_for_repo(pool: PgPool) {
     let now = Utc::now();
+    insert_test_repo(&pool, "did:plc:bob", "my-project").await;
 
     let issue = db::issue::IssueRow {
         did: "did:plc:alice".to_string(),
@@ -267,6 +318,7 @@ async fn issue_upsert_get_and_list_for_repo(pool: PgPool) {
 #[sqlx::test(migrator = "cospan_appview::MIGRATOR")]
 async fn star_upsert_and_list_by_user_with_count(pool: PgPool) {
     let now = Utc::now();
+    insert_test_node(&pool).await;
 
     // First, create the repo to star
     let repo = db::repo::RepoRow {
