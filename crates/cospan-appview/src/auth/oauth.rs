@@ -48,7 +48,10 @@ async fn client_metadata(State(state): State<Arc<AppState>>) -> impl IntoRespons
         "logo_uri": format!("{}/assets/logo.png", config.public_url),
         "tos_uri": format!("{}/tos", config.public_url),
         "policy_uri": format!("{}/privacy", config.public_url),
-        "redirect_uris": [config.redirect_uri],
+        "redirect_uris": [
+            format!("{}/", config.public_url),
+            config.redirect_uri,
+        ],
         "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],
         "scope": "atproto",
