@@ -54,7 +54,7 @@ async fn client_metadata(State(state): State<Arc<AppState>>) -> impl IntoRespons
         ],
         "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],
-        "scope": "atproto",
+        "scope": "atproto transition:generic",
         "application_type": "web",
         "token_endpoint_auth_method": "none",
         "dpop_bound_access_tokens": true,

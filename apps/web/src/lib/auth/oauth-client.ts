@@ -40,7 +40,7 @@ export async function getOAuthClient(): Promise<BrowserOAuthClient> {
 
 export async function login(handle: string): Promise<void> {
 	const client = await getOAuthClient();
-	const url = await client.authorize(handle, { scope: 'atproto' });
+	const url = await client.authorize(handle, { scope: 'atproto transition:generic' });
 	window.location.assign(url.toString());
 }
 
