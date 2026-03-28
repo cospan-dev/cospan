@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
+	import BackLink from '$lib/components/shared/BackLink.svelte';
 	import { formatDate } from '$lib/utils/time.js';
 
 	let { data } = $props();
@@ -91,4 +92,6 @@
 			</a>
 		</div>
 	{/if}
+
+	<BackLink href="{basePath}/releases" label="Back to releases" />
 </section>

@@ -66,7 +66,7 @@
 </svelte:head>
 
 <section class="mx-auto max-w-2xl">
-	<h1 class="mb-6 text-2xl font-semibold text-text-primary">Create a new repository</h1>
+	<h1 class="mb-6 text-xl font-semibold text-text-primary">Create a new repository</h1>
 
 	{#if !auth.authenticated}
 		<div class="rounded-lg border border-border bg-surface-1 p-8 text-center">

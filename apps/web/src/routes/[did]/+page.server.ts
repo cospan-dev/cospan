@@ -25,15 +25,23 @@ async function fetchBlueskyProfile(did: string) {
 }
 
 export const load: PageServerLoad = async ({ params }) => {
-	// Try Cospan profile first, fall back to Bluesky public API
-	let profile = null;
+	// Always fetch Bluesky profile for avatar and social stats
+	const bskyProfile = await fetchBlueskyProfile(params.did);
+
+	// Try Cospan profile for any Cospan-specific fields
+	let cospanProfile = null;
 	try {
-		profile = await getProfile({ did: params.did });
+		cospanProfile = await getProfile({ did: params.did });
 	} catch {}
 
-	if (!profile) {
-		profile = await fetchBlueskyProfile(params.did);
-	}
+	// Merge: Bluesky provides avatar/stats, Cospan overrides if it has data
+	const profile = bskyProfile
+		? {
+				...bskyProfile,
+				...(cospanProfile?.displayName ? { displayName: cospanProfile.displayName } : {}),
+				...(cospanProfile?.description ? { description: cospanProfile.description } : {}),
+			}
+		: cospanProfile;
 
 	let repos = { items: [] as any[], cursor: null as string | null };
 	try {

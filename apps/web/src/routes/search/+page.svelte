@@ -17,7 +17,7 @@
 </svelte:head>
 
 <section>
-	<h1 class="mb-6 text-2xl font-semibold text-text-primary">Search Repositories</h1>
+	<h1 class="mb-6 text-xl font-semibold text-text-primary">Search Repositories</h1>
 
 	<div class="mb-8 max-w-xl">
 		<SearchBar

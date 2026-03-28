@@ -22,3 +22,12 @@ body {
 	color: var(--color-text-primary);
 	font-family: var(--font-sans);
 }
+
+/* Hide scrollbar for horizontal scroll areas while keeping scroll behavior */
+.scrollbar-none {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+	display: none;
+}

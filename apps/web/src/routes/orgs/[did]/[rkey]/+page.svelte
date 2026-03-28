@@ -18,7 +18,7 @@
 			<span>{data.org.name}</span>
 		</div>
 
-		<div class="mt-4 flex items-center gap-4">
+		<div class="mt-4 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
 			{#if data.org.avatarUrl}
 				<img
 					src={data.org.avatarUrl}
@@ -56,7 +56,7 @@
 		{:else}
 			<ul class="divide-y divide-border">
 				{#each data.members.items as member (member.did)}
-					<li class="flex items-center justify-between px-4 py-3">
+					<li class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
 						<div class="flex items-center gap-3">
 							<a
 								href="/{member.did}"

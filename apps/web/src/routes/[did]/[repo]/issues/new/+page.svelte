@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { getAuth } from '$lib/stores/auth.svelte';
 	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
+	import BackLink from '$lib/components/shared/BackLink.svelte';
 
 	let auth = $derived(getAuth());
 	let did = $derived($page.params.did);
@@ -108,4 +109,6 @@
 			</div>
 		</form>
 	{/if}
+
+	<BackLink href="{basePath}/issues" label="Back to issues" />
 </section>

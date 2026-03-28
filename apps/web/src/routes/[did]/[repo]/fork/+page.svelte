@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { getAuth } from '$lib/stores/auth.svelte';
 	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
+	import BackLink from '$lib/components/shared/BackLink.svelte';
 
 	let { data } = $props();
 
@@ -117,4 +118,6 @@
 			</button>
 		</div>
 	</div>
+
+	<BackLink href="/{data.did}/{data.repoName}" />
 </section>

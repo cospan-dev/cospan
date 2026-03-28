@@ -22,7 +22,7 @@
 </svelte:head>
 
 <section>
-	<h1 class="mb-2 text-2xl font-semibold text-text-primary">Explore</h1>
+	<h1 class="mb-2 text-xl font-semibold text-text-primary">Explore</h1>
 	<p class="mb-6 text-sm text-text-secondary">
 		Discover repositories across protocols on the AT Protocol network.
 	</p>
@@ -67,7 +67,7 @@
 
 		{#if data.trending.items.length === 0}
 			<p class="py-8 text-center text-sm text-text-secondary">
-				{activeProtocol ? `No ${activeProtocol} repositories found.` : 'No repositories yet. Be the first to create one.'}
+				{activeProtocol ? `No ${activeProtocol} repositories found.` : 'No repositories yet.'}
 			</p>
 		{:else}
 			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
