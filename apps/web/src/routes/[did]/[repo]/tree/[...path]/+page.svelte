@@ -1,7 +1,9 @@
 <script lang="ts">
 	import FileTree from '$lib/components/repo/FileTree.svelte';
 	import CodeView from '$lib/components/repo/CodeView.svelte';
+	import RepoTabBar from '$lib/components/repo/RepoTabBar.svelte';
 	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
+	import BackLink from '$lib/components/shared/BackLink.svelte';
 
 	let { data } = $props();
 
@@ -43,36 +45,12 @@
 	</div>
 
 	<!-- Repo nav tabs -->
-	<div class="mb-6 flex items-center gap-1 border-b border-border">
-		<a
-			href="{basePath}/tree"
-			class="border-b-2 border-accent px-4 py-2 text-sm font-medium text-text-primary"
-		>
-			Code
-		</a>
-		<a
-			href="{basePath}/issues"
-			class="border-b-2 border-transparent px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-		>
-			Issues
-			{#if data.repo.openIssueCount > 0}
-				<span class="ml-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-xs">
-					{data.repo.openIssueCount}
-				</span>
-			{/if}
-		</a>
-		<a
-			href="{basePath}/pulls"
-			class="border-b-2 border-transparent px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-		>
-			Merge Requests
-			{#if data.repo.openMrCount > 0}
-				<span class="ml-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-xs">
-					{data.repo.openMrCount}
-				</span>
-			{/if}
-		</a>
-	</div>
+	<RepoTabBar
+		{basePath}
+		activeTab="code"
+		openIssueCount={data.repo.openIssueCount}
+		openMrCount={data.repo.openMrCount}
+	/>
 
 	<!-- Error message -->
 	{#if data.error}
@@ -94,15 +72,5 @@
 	{/if}
 
 	<!-- Back to repo link -->
-	<div class="mt-6">
-		<a
-			href={basePath}
-			class="inline-flex items-center gap-1.5 text-sm text-accent transition-colors hover:text-accent-hover"
-		>
-			<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-			</svg>
-			Back to repository
-		</a>
-	</div>
+	<BackLink href={basePath} />
 </section>

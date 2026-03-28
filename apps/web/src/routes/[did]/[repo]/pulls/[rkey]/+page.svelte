@@ -1,6 +1,8 @@
 <script lang="ts">
 	import StateBadge from '$lib/components/shared/StateBadge.svelte';
+	import RepoTabBar from '$lib/components/repo/RepoTabBar.svelte';
 	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
+	import BackLink from '$lib/components/shared/BackLink.svelte';
 	import KeyboardShortcuts from '$lib/components/shared/KeyboardShortcuts.svelte';
 	import { timeAgo } from '$lib/utils/time.js';
 
@@ -25,17 +27,19 @@
 <KeyboardShortcuts {basePath} />
 
 <section>
-	<div class="mb-6">
-		<Breadcrumb {crumbs} />
+	<Breadcrumb {crumbs} />
 
-		<div class="mt-3 flex items-start gap-3">
+	<div class="mt-3 mb-6">
+		<RepoTabBar {basePath} activeTab="pulls" />
+
+		<div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
 			<h1 class="text-2xl font-semibold text-text-primary">{data.pull.title}</h1>
-			<div class="mt-1">
+			<div class="shrink-0">
 				<StateBadge state={data.pull.state} />
 			</div>
 		</div>
 
-		<div class="mt-2 flex items-center gap-3 text-sm text-text-secondary">
+		<div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
 			<span>
 				{data.pull.creatorHandle ?? data.pull.creatorDid} wants to merge
 			</span>
@@ -106,7 +110,7 @@
 			<div class="space-y-4">
 				{#each data.comments.items as comment (comment.rkey)}
 					<div class="rounded-lg border border-border bg-surface-1">
-						<div class="flex items-center gap-2 border-b border-border px-4 py-2">
+						<div class="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
 							<span class="text-sm font-medium text-text-primary">
 								{comment.creatorHandle ?? comment.creatorDid}
 							</span>
@@ -134,15 +138,5 @@
 		{/if}
 	</div>
 
-	<div class="mt-6">
-		<a
-			href={basePath}
-			class="inline-flex items-center gap-1.5 text-sm text-accent transition-colors hover:text-accent-hover"
-		>
-			<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-			</svg>
-			Back to repository
-		</a>
-	</div>
+	<BackLink href="{basePath}/pulls" label="Back to merge requests" />
 </section>

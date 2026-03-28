@@ -1,5 +1,6 @@
 <script lang="ts">
 	import CommitList from '$lib/components/repo/CommitList.svelte';
+	import RepoTabBar from '$lib/components/repo/RepoTabBar.svelte';
 	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
 	import KeyboardShortcuts from '$lib/components/shared/KeyboardShortcuts.svelte';
 	import StarButton from '$lib/components/shared/StarButton.svelte';
@@ -36,7 +37,7 @@
 		<div class="mb-6">
 			<Breadcrumb {crumbs} />
 
-			<div class="mt-3 flex items-center justify-between">
+			<div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div class="flex items-center gap-3">
 					<h1 class="text-xl font-semibold text-text-primary">{data.repo.name}</h1>
 					<span class="rounded-full bg-surface-2 px-2 py-0.5 font-mono text-xs text-text-secondary">
@@ -63,62 +64,13 @@
 			{/if}
 		</div>
 
-		<div class="mb-6 flex items-center gap-1 border-b border-border overflow-x-auto">
-			<a
-				href={basePath}
-				class="border-b-2 border-accent px-4 py-2 text-sm font-medium text-text-primary"
-			>
-				Code
-			</a>
-			<a
-				href="{basePath}/issues"
-				class="border-b-2 border-transparent px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-			>
-				Issues
-				{#if data.repo.openIssueCount > 0}
-					<span class="ml-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-xs">
-						{data.repo.openIssueCount}
-					</span>
-				{/if}
-			</a>
-			<a
-				href="{basePath}/pulls"
-				class="border-b-2 border-transparent px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-			>
-				Merge Requests
-				{#if data.repo.openMrCount > 0}
-					<span class="ml-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-xs">
-						{data.repo.openMrCount}
-					</span>
-				{/if}
-			</a>
-			<a
-				href="{basePath}/branches"
-				class="border-b-2 border-transparent px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-			>
-				Branches
-			</a>
-			<a
-				href="{basePath}/tags"
-				class="border-b-2 border-transparent px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-			>
-				Tags
-			</a>
-			<a
-				href="{basePath}/compare"
-				class="border-b-2 border-transparent px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-			>
-				Compare
-			</a>
-			{#if isOwner}
-				<a
-					href="{basePath}/settings"
-					class="border-b-2 border-transparent px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-				>
-					Settings
-				</a>
-			{/if}
-		</div>
+		<RepoTabBar
+			{basePath}
+			activeTab="code"
+			openIssueCount={data.repo.openIssueCount}
+			openMrCount={data.repo.openMrCount}
+			{isOwner}
+		/>
 
 		<!-- Browse Code button -->
 		<div class="mb-6">

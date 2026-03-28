@@ -28,10 +28,10 @@
 	</p>
 
 	<!-- Protocol filters -->
-	<div class="mb-8 flex flex-wrap items-center gap-2">
+	<div class="mb-8 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
 		<a
 			href="/"
-			class="rounded-full border px-3 py-1 text-xs font-medium transition-colors
+			class="shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors
 				{!activeProtocol
 					? 'border-accent bg-accent/10 text-accent'
 					: 'border-border text-text-secondary hover:border-accent/30 hover:text-text-primary'}"
@@ -41,7 +41,7 @@
 		{#each protocols as proto (proto.value)}
 			<a
 				href="/?protocol={proto.value}"
-				class="rounded-full border px-3 py-1 text-xs font-medium transition-colors
+				class="shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors
 					{activeProtocol === proto.value
 						? 'border-accent bg-accent/10 text-accent'
 						: 'border-border text-text-secondary hover:border-accent/30 hover:text-text-primary'}"

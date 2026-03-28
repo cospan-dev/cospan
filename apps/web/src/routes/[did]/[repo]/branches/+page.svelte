@@ -1,5 +1,8 @@
 <script lang="ts">
+	import RepoTabBar from '$lib/components/repo/RepoTabBar.svelte';
 	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
+	import BackLink from '$lib/components/shared/BackLink.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 
 	let { data } = $props();
 
@@ -23,28 +26,18 @@
 <section>
 	<Breadcrumb {crumbs} />
 
-	<div class="mt-4 flex items-center justify-between">
-		<h1 class="text-xl font-semibold text-text-primary">Branches</h1>
-		<div class="flex items-center gap-2">
-			<a
-				href="{basePath}/tags"
-				class="rounded-md border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-accent hover:text-text-primary"
-			>
-				Tags
-			</a>
-		</div>
-	</div>
+	<h1 class="mt-3 mb-6 text-xl font-semibold text-text-primary">Branches</h1>
+
+	<RepoTabBar {basePath} activeTab="branches" />
 
 	{#if data.branches.length === 0}
-		<div class="mt-8 flex flex-col items-center gap-3 py-12 text-text-secondary">
-			<svg class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6z" />
-			</svg>
-			<p class="text-sm">No branches found.</p>
-			<p class="text-xs">The node may be unreachable, or this repository has not been initialized.</p>
-		</div>
+		<EmptyState
+			icon="branch"
+			message="No branches found."
+			description="The node may be unreachable, or this repository has not been initialized."
+		/>
 	{:else}
-		<div class="mt-4 rounded-lg border border-border bg-surface-1">
+		<div class="rounded-lg border border-border bg-surface-1">
 			<ul class="divide-y divide-border">
 				{#each data.branches as branch (branch.name)}
 					<li class="flex items-center justify-between gap-4 px-4 py-3">
@@ -67,4 +60,6 @@
 			</ul>
 		</div>
 	{/if}
+
+	<BackLink href={basePath} />
 </section>

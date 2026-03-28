@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import RepoTabBar from '$lib/components/repo/RepoTabBar.svelte';
 	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
+	import BackLink from '$lib/components/shared/BackLink.svelte';
 
 	let { data } = $props();
 
@@ -43,13 +45,16 @@
 <section>
 	<Breadcrumb {crumbs} />
 
-	<h1 class="mt-4 text-xl font-semibold text-text-primary">Compare refs</h1>
-	<p class="mt-1 text-sm text-text-secondary">
+	<h1 class="mt-3 mb-6 text-xl font-semibold text-text-primary">Compare refs</h1>
+
+	<RepoTabBar {basePath} activeTab="compare" />
+
+	<p class="mb-4 text-sm text-text-secondary">
 		Select two branches or tags to compare their targets.
 	</p>
 
 	<!-- Ref selectors -->
-	<div class="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end">
+	<div class="flex flex-col gap-4 sm:flex-row sm:items-end">
 		<div class="flex-1">
 			<label for="base-ref" class="block text-xs font-medium text-text-secondary mb-1">Base</label>
 			<select
@@ -157,7 +162,7 @@
 						Structural diff viewer will be displayed here once the panproto-wasm module
 						is integrated. For now, the commit objects can be inspected individually.
 					</p>
-					<div class="mt-3 flex gap-2">
+					<div class="mt-3 flex flex-wrap gap-2">
 						<a
 							href="{basePath}/commit/{baseTarget}"
 							class="rounded-md border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-accent hover:text-text-primary"
@@ -175,13 +180,16 @@
 			{/if}
 		</div>
 	{:else if data.refs.length === 0}
-		<div class="mt-8 flex flex-col items-center gap-3 py-12 text-text-secondary">
-			<p class="text-sm">No refs available for comparison.</p>
-			<p class="text-xs">The node may be unreachable, or this repository has no branches.</p>
+		<div class="mt-6">
+			<p class="py-8 text-center text-sm text-text-secondary">
+				No refs available for comparison. The node may be unreachable.
+			</p>
 		</div>
 	{:else if baseRef && headRef && baseRef === headRef}
 		<div class="mt-6 rounded-md bg-conflict/10 px-3 py-2 text-sm text-conflict">
 			Please select two different refs to compare.
 		</div>
 	{/if}
+
+	<BackLink href={basePath} />
 </section>

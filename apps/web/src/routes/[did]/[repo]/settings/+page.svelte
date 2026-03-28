@@ -2,6 +2,8 @@
 	import { goto } from '$app/navigation';
 	import { getAuth } from '$lib/stores/auth.svelte';
 	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
+	import RepoTabBar from '$lib/components/repo/RepoTabBar.svelte';
+	import BackLink from '$lib/components/shared/BackLink.svelte';
 
 	let { data } = $props();
 
@@ -188,6 +190,10 @@
 <section>
 	<Breadcrumb {crumbs} />
 
+	<h1 class="mt-3 mb-6 text-xl font-semibold text-text-primary">Repository Settings</h1>
+
+	<RepoTabBar {basePath} activeTab="settings" isOwner={true} />
+
 	{#if !isOwner}
 		<div class="mt-8 flex flex-col items-center gap-3 py-12 text-text-secondary">
 			<p class="text-sm">You do not have permission to view these settings.</p>
@@ -199,8 +205,6 @@
 			</a>
 		</div>
 	{:else}
-		<h1 class="mt-4 text-xl font-semibold text-text-primary">Repository Settings</h1>
-
 		<!-- General -->
 		<div class="mt-6 rounded-lg border border-border bg-surface-1 p-5">
 			<h2 class="text-sm font-semibold text-text-primary">General</h2>
@@ -430,4 +434,6 @@
 			</div>
 		</div>
 	{/if}
+
+	<BackLink href={basePath} />
 </section>
