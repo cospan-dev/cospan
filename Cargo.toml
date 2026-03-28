@@ -29,7 +29,10 @@ panproto-mig = { git = "https://github.com/panproto/panproto.git", tag = "v0.18.
 panproto-expr = { git = "https://github.com/panproto/panproto.git", tag = "v0.18.1" }
 panproto-expr-parser = { git = "https://github.com/panproto/panproto.git", tag = "v0.18.1" }
 panproto-xrpc = { git = "https://github.com/panproto/panproto.git", tag = "v0.18.1" }
-panproto-parse = { git = "https://github.com/panproto/panproto.git", tag = "v0.18.1", features = ["group-all"] }
+panproto-parse = { git = "https://github.com/panproto/panproto.git", tag = "v0.18.1", features = [
+    "group-core", "group-web", "group-systems", "group-jvm", "group-scripting",
+    "group-data", "group-functional", "group-devops", "group-mobile",
+] }
 panproto-git = { git = "https://github.com/panproto/panproto.git", tag = "v0.18.1" }
 panproto-project = { git = "https://github.com/panproto/panproto.git", tag = "v0.18.1" }
 git2 = "0.20"
