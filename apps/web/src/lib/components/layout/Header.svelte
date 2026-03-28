@@ -45,7 +45,8 @@
 <header class="border-b border-border bg-surface-1">
 	<nav class="mx-auto flex h-12 max-w-6xl items-center justify-between px-4">
 		<div class="flex items-center gap-6">
-			<a href="/" class="text-lg font-semibold tracking-tight text-text-primary">
+			<a href="/" class="flex items-center gap-2 text-lg font-semibold tracking-tight text-text-primary">
+				<img src="/logo-dark.svg" alt="" class="h-6 w-6" />
 				Cospan
 			</a>
 			<div class="hidden items-center gap-4 sm:flex">
