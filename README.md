@@ -177,6 +177,10 @@ cargo run -p cospan-codegen
 cd apps/web && pnpm dev
 ```
 
+## Acknowledgments
+
+Cospan was architected and implemented with substantial assistance from Claude Code.
+
 ## License
 
 [AGPL-3.0-or-later](LICENSE)
