@@ -40,11 +40,19 @@ export async function listStars(params?: {
 	return { items: raw.stars ?? [], cursor: raw.cursor ?? null, totalCount: raw.totalCount ?? 0 };
 }
 
-export function listFollows(params: {
+export async function listFollows(params: {
 	did: string;
 	direction: 'followers' | 'following';
 	limit?: number;
 	cursor?: string;
 }): Promise<FollowListResponse> {
-	return xrpcQuery<FollowListResponse>('dev.cospan.graph.follow.list', params);
+	const raw = await xrpcQuery<{ follows: Follow[]; cursor: string | null; totalCount: number }>(
+		'dev.cospan.graph.follow.list',
+		params
+	);
+	return {
+		items: raw.follows ?? (raw as any).items ?? [],
+		cursor: raw.cursor ?? null,
+		totalCount: raw.totalCount ?? 0
+	};
 }

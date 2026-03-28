@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.3.0
+
+### Frontend UX revamp
+
+- Mobile responsive header with hamburger menu (nav links, search, auth hidden on small screens)
+- Horizontal scroll for tab bars and protocol filters on mobile
+- Stacked layout for profile pages on small screens
+- Consistent breadcrumb and tab bar across all repo sub-pages
+- Consistent empty states with icons and CTAs on all list pages
+- Fixed followers, following, and stars pages (API response key mapping)
+- Homogeneous design patterns: consistent spacing, text sizes, card styles, and form layouts across all 31 routes
+- Error page improvements
+- Logo integrated into header and favicon (dark mode optimized with light strokes)
+
+### Auth improvements
+
+- Production OAuth with `token_endpoint_auth_method: "none"` for browser client
+- Root URL added to `redirect_uris` for proper callback handling
+- `transition:generic` scope for write permissions (create issues, stars, follows)
+
+### Deployment fixes
+
+- Pre-built Docker images on GHCR (no compilation on the server)
+- Fixed Caddyfile syntax for production reverse proxy
+- Fixed node container permissions for `/data` volume
+- Fixed web container missing `@sveltejs/kit` runtime dependency
+- Rust 1.88+ in Dockerfiles (MSRV for home, time crates)
+
 ## v0.2.0
 
 ### Tangled interop

@@ -15,7 +15,7 @@ async function fetchBlueskyProfile(did: string) {
 				displayName: data.displayName ?? null,
 				handle: data.handle ?? did,
 				description: data.description ?? null,
-				avatar: data.avatar ?? null,
+				avatarUrl: data.avatar ?? null,
 				followerCount: 0,
 				followingCount: 0,
 				repoCount: 0,
