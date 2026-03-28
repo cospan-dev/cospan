@@ -56,7 +56,8 @@
 
 <section>
 	<div class="flex items-center justify-between">
-		<h1 class="text-xl font-semibold text-text-primary">Notifications</h1>
+		<h1 class="mb-2 text-xl font-semibold text-text-primary">Notifications</h1>
+		<p class="mb-6 text-sm text-text-secondary">Updates from repositories and users you follow.</p>
 		{#if notifications.some((n) => !n.isRead)}
 			<button
 				onclick={handleMarkAllRead}

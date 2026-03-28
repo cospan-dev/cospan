@@ -78,7 +78,8 @@
 </svelte:head>
 
 <section class="mx-auto max-w-2xl">
-	<h1 class="mb-6 text-xl font-semibold text-text-primary">Create a new repository</h1>
+	<h1 class="mb-2 text-xl font-semibold text-text-primary">New repository</h1>
+	<p class="mb-6 text-sm text-text-secondary">Create a repository to store and collaborate on schemas.</p>
 
 	{#if !auth.authenticated}
 		<div class="rounded-lg border border-border bg-surface-1 p-8 text-center">

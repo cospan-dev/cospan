@@ -28,7 +28,7 @@
 </svelte:head>
 
 <section>
-	<h1 class="text-xl font-semibold text-text-primary">Activity Feed</h1>
+	<h1 class="mb-2 text-xl font-semibold text-text-primary">Activity Feed</h1>
 	<p class="mt-1 text-sm text-text-secondary">
 		Recent activity from users and repositories you follow.
 	</p>
