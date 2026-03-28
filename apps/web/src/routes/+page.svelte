@@ -1,20 +1,38 @@
 <script lang="ts">
 	import RepoCard from '$lib/components/repo/RepoCard.svelte';
+	import { ALL_LANGUAGES } from '$lib/data/languages';
+	import { goto } from '$app/navigation';
 
 	let { data } = $props();
 
-	const protocols: { value: string; label: string; color: string }[] = [
-		{ value: 'typescript', label: 'TypeScript', color: 'oklch(0.65 0.15 230)' },
-		{ value: 'python', label: 'Python', color: 'oklch(0.65 0.15 90)' },
-		{ value: 'rust', label: 'Rust', color: 'oklch(0.60 0.18 30)' },
-		{ value: 'go', label: 'Go', color: 'oklch(0.65 0.15 195)' },
-		{ value: 'protobuf', label: 'Protobuf', color: 'oklch(0.65 0.12 145)' },
-		{ value: 'graphql', label: 'GraphQL', color: 'oklch(0.55 0.20 330)' },
-		{ value: 'sql', label: 'SQL', color: 'oklch(0.65 0.10 260)' },
-		{ value: 'atproto_lexicon', label: 'ATProto', color: 'oklch(0.65 0.15 250)' },
-	];
-
 	let activeProtocol = $derived(data.protocol);
+	let searchQuery = $state('');
+	let showDropdown = $state(false);
+
+	let filtered = $derived(
+		searchQuery.trim()
+			? ALL_LANGUAGES.filter((l) =>
+					l.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+					l.value.toLowerCase().includes(searchQuery.toLowerCase())
+				).slice(0, 20)
+			: []
+	);
+
+	function selectProtocol(value: string) {
+		showDropdown = false;
+		searchQuery = '';
+		goto(`/?protocol=${value}`);
+	}
+
+	// Generate a deterministic color from language name
+	function langColor(value: string): string {
+		let hash = 0;
+		for (let i = 0; i < value.length; i++) {
+			hash = value.charCodeAt(i) + ((hash << 5) - hash);
+		}
+		const hue = Math.abs(hash % 360);
+		return `oklch(0.65 0.15 ${hue})`;
+	}
 </script>
 
 <svelte:head>
@@ -27,32 +45,61 @@
 		Discover repositories across protocols on the AT Protocol network.
 	</p>
 
-	<!-- Protocol filters -->
-	<div class="mb-8 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-		<a
-			href="/"
-			class="shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors
-				{!activeProtocol
-					? 'border-accent bg-accent/10 text-accent'
-					: 'border-border text-text-secondary hover:border-accent/30 hover:text-text-primary'}"
-		>
-			All
-		</a>
-		{#each protocols as proto (proto.value)}
+	<!-- Language filter -->
+	<div class="mb-8">
+		<div class="flex flex-wrap items-center gap-2">
 			<a
-				href="/?protocol={proto.value}"
+				href="/"
 				class="shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors
-					{activeProtocol === proto.value
+					{!activeProtocol
 						? 'border-accent bg-accent/10 text-accent'
 						: 'border-border text-text-secondary hover:border-accent/30 hover:text-text-primary'}"
 			>
-				<span
-					class="mr-1.5 inline-block h-2 w-2 rounded-full"
-					style="background-color: {proto.color}"
-				></span>
-				{proto.label}
+				All {ALL_LANGUAGES.length} languages
 			</a>
-		{/each}
+
+			{#if activeProtocol}
+				<span class="flex items-center gap-1.5 rounded-full border border-accent bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
+					<span class="h-2 w-2 rounded-full" style="background-color: {langColor(activeProtocol)}"></span>
+					{ALL_LANGUAGES.find((l) => l.value === activeProtocol)?.label ?? activeProtocol}
+					<a href="/" class="ml-1 hover:text-text-primary">
+						<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					</a>
+				</span>
+			{/if}
+
+			<!-- Search input -->
+			<div class="relative">
+				<input
+					type="text"
+					bind:value={searchQuery}
+					onfocus={() => showDropdown = true}
+					onblur={() => setTimeout(() => showDropdown = false, 200)}
+					placeholder="Filter by language..."
+					class="w-44 rounded-full border border-border bg-surface-0 px-3 py-1 text-xs text-text-primary placeholder:text-text-secondary focus:border-accent focus:outline-none"
+				/>
+
+				{#if showDropdown && filtered.length > 0}
+					<ul class="absolute left-0 top-full z-50 mt-1 max-h-48 w-56 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
+						{#each filtered as lang}
+							<li>
+								<button
+									type="button"
+									onmousedown={() => selectProtocol(lang.value)}
+									class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-surface-2
+										{activeProtocol === lang.value ? 'text-accent' : 'text-text-secondary'}"
+								>
+									<span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {langColor(lang.value)}"></span>
+									{lang.label}
+								</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</div>
+		</div>
 	</div>
 
 	<!-- Trending section -->
