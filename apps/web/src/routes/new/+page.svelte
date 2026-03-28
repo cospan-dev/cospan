@@ -1,31 +1,43 @@
 <script lang="ts">
 	import { getAuth } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
+	import { ALL_LANGUAGES } from '$lib/data/languages';
 
 	let auth = $derived(getAuth());
 
 	let name = $state('');
 	let description = $state('');
-	let protocol = $state('typescript');
+	let selectedProtocols = $state<string[]>(['typescript']);
+	let protocolSearch = $state('');
+	let showProtocolDropdown = $state(false);
 	let visibility = $state('public');
 	let creating = $state(false);
 	let error = $state('');
 
-	const protocols = [
-		{ value: 'typescript', label: 'TypeScript' },
-		{ value: 'python', label: 'Python' },
-		{ value: 'rust', label: 'Rust' },
-		{ value: 'java', label: 'Java' },
-		{ value: 'go', label: 'Go' },
-		{ value: 'swift', label: 'Swift' },
-		{ value: 'kotlin', label: 'Kotlin' },
-		{ value: 'csharp', label: 'C#' },
-		{ value: 'protobuf', label: 'Protocol Buffers' },
-		{ value: 'graphql', label: 'GraphQL' },
-		{ value: 'json_schema', label: 'JSON Schema' },
-		{ value: 'sql', label: 'SQL' },
-		{ value: 'atproto', label: 'ATProto Lexicon' },
-	];
+	let filteredProtocols = $derived(
+		protocolSearch.trim()
+			? ALL_LANGUAGES.filter((p) =>
+					p.label.toLowerCase().includes(protocolSearch.toLowerCase()) ||
+					p.value.toLowerCase().includes(protocolSearch.toLowerCase())
+				)
+			: ALL_LANGUAGES
+	);
+
+	function toggleProtocol(value: string) {
+		if (selectedProtocols.includes(value)) {
+			selectedProtocols = selectedProtocols.filter((p) => p !== value);
+		} else {
+			selectedProtocols = [...selectedProtocols, value];
+		}
+	}
+
+	function removeProtocol(value: string) {
+		selectedProtocols = selectedProtocols.filter((p) => p !== value);
+	}
+
+	function protocolLabel(value: string): string {
+		return ALL_LANGUAGES.find((p) => p.value === value)?.label ?? value;
+	}
 
 	async function handleCreate(event: Event) {
 		event.preventDefault();
@@ -42,7 +54,7 @@
 					did: auth.did,
 					name: name.trim(),
 					description: description.trim() || undefined,
-					protocol,
+					protocol: selectedProtocols.join(','),
 					visibility,
 				}),
 			});
@@ -105,19 +117,69 @@
 				</div>
 
 				<div>
-					<label for="protocol" class="mb-1 block text-xs font-medium text-text-secondary">
-						Protocol
+					<label class="mb-1 block text-xs font-medium text-text-secondary">
+						Languages ({selectedProtocols.length} selected)
 					</label>
-					<select
-						id="protocol"
-						bind:value={protocol}
-						class="w-full rounded-md border border-border bg-surface-0 px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
-					>
-						{#each protocols as p}
-							<option value={p.value}>{p.label}</option>
-						{/each}
-					</select>
-					<p class="mt-1 text-xs text-text-secondary">The schema protocol this repository tracks. Determines structural diff and merge behavior.</p>
+
+					<!-- Selected tags -->
+					{#if selectedProtocols.length > 0}
+						<div class="mb-2 flex flex-wrap gap-1.5">
+							{#each selectedProtocols as p}
+								<button
+									type="button"
+									onclick={() => removeProtocol(p)}
+									class="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent transition-colors hover:bg-accent/25"
+								>
+									{protocolLabel(p)}
+									<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+									</svg>
+								</button>
+							{/each}
+						</div>
+					{/if}
+
+					<!-- Search input -->
+					<div class="relative">
+						<input
+							type="text"
+							bind:value={protocolSearch}
+							onfocus={() => showProtocolDropdown = true}
+							onblur={() => setTimeout(() => showProtocolDropdown = false, 200)}
+							placeholder="Search 217 languages..."
+							autocomplete="off"
+							class="w-full rounded-md border border-border bg-surface-0 px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:border-accent focus:outline-none"
+						/>
+
+						{#if showProtocolDropdown}
+							<ul class="absolute left-0 top-full z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
+								{#each filteredProtocols as p}
+									<li>
+										<button
+											type="button"
+											onmousedown={() => toggleProtocol(p.value)}
+											class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-surface-2
+												{selectedProtocols.includes(p.value) ? 'text-accent' : 'text-text-secondary'}"
+										>
+											{#if selectedProtocols.includes(p.value)}
+												<svg class="h-3 w-3 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+													<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+												</svg>
+											{:else}
+												<span class="h-3 w-3 shrink-0"></span>
+											{/if}
+											{p.label}
+										</button>
+									</li>
+								{/each}
+								{#if filteredProtocols.length === 0}
+									<li class="px-3 py-2 text-xs text-text-secondary">No matches</li>
+								{/if}
+							</ul>
+						{/if}
+					</div>
+
+					<p class="mt-1 text-xs text-text-secondary">Languages this repository uses. Determines structural diff and merge behavior.</p>
 				</div>
 
 				<div>
