@@ -60,6 +60,20 @@ async fn start_server(pool: PgPool) -> String {
 async fn seed_test_data(pool: &PgPool) {
     let now = Utc::now();
 
+    // Insert prerequisite node
+    db::node::upsert(
+        pool,
+        &db::node::NodeRow {
+            did: "did:plc:node1".to_string(),
+            rkey: "self".to_string(),
+            public_endpoint: Some("https://node1.example.com".to_string()),
+            created_at: now,
+            indexed_at: now,
+        },
+    )
+    .await
+    .unwrap();
+
     // Seed repos
     for (did, name, desc, protocol) in [
         (
