@@ -53,10 +53,8 @@ async fn client_metadata(State(state): State<Arc<AppState>>) -> impl IntoRespons
         "response_types": ["code"],
         "scope": "atproto",
         "application_type": "web",
-        "token_endpoint_auth_method": "private_key_jwt",
-        "token_endpoint_auth_signing_alg": "ES256",
+        "token_endpoint_auth_method": "none",
         "dpop_bound_access_tokens": true,
-        "jwks_uri": config.jwks_uri,
     });
 
     (

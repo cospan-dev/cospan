@@ -12,10 +12,14 @@ let currentAgent: Agent | null = null;
 function getClientId(): string {
 	if (typeof window === 'undefined') return 'http://localhost';
 	const { hostname, port, pathname } = window.location;
+
+	// Loopback mode for local development
 	if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') {
 		const redirectUri = `http://127.0.0.1${port ? `:${port}` : ''}${pathname}`;
 		return `http://localhost?redirect_uri=${encodeURIComponent(redirectUri)}`;
 	}
+
+	// Production: use client metadata URL (served by appview, proxied through SvelteKit)
 	return `${window.location.origin}/oauth/client-metadata.json`;
 }
 
