@@ -1,0 +1,20 @@
+{$DOMAIN} {
+	# Frontend (SvelteKit)
+	reverse_proxy web:3000
+
+	# AppView XRPC + OAuth (proxied through SvelteKit catch-all routes)
+	# Direct XRPC access for external clients
+	handle /xrpc/* {
+		reverse_proxy appview:3000
+	}
+}
+
+node.{$DOMAIN} {
+	# Node XRPC
+	reverse_proxy /xrpc/* node:3001
+
+	# Git smart HTTP
+	reverse_proxy /*/info/refs node:3001
+	reverse_proxy /*/git-upload-pack node:3001
+	reverse_proxy /*/git-receive-pack node:3001
+}
