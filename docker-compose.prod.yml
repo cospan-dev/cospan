@@ -3,7 +3,8 @@
 #   1. Copy .env.production.example to .env.production and fill in values
 #   2. docker compose -f docker-compose.prod.yml up -d
 #
-# Requires: Docker, ~2GB RAM, domain pointed at the server
+# Images are pre-built and pushed to GHCR by the release workflow.
+# Requires: Docker, ~1GB RAM, domain pointed at the server
 
 services:
   # Reverse proxy with auto-TLS
@@ -72,9 +73,7 @@ services:
 
   # panproto-vcs node server
   node:
-    build:
-      context: .
-      dockerfile: crates/cospan-node/Dockerfile
+    image: ghcr.io/cospan-dev/cospan-node:${COSPAN_VERSION:-latest}
     container_name: cospan-node
     restart: unless-stopped
     volumes:
@@ -93,9 +92,7 @@ services:
 
   # ATProto AppView
   appview:
-    build:
-      context: .
-      dockerfile: crates/cospan-appview/Dockerfile
+    image: ghcr.io/cospan-dev/cospan-appview:${COSPAN_VERSION:-latest}
     container_name: cospan-appview
     restart: unless-stopped
     environment:
@@ -123,9 +120,7 @@ services:
 
   # SvelteKit frontend
   web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
+    image: ghcr.io/cospan-dev/cospan-web:${COSPAN_VERSION:-latest}
     container_name: cospan-web
     restart: unless-stopped
     environment:

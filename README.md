@@ -74,6 +74,28 @@ pnpm build
 PORT=3000 node build/index.js
 ```
 
+### Production deployment
+
+Pre-built Docker images are published to GHCR on each release. Deploy to any VPS with Docker:
+
+```bash
+ssh root@your-server
+
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+
+# Clone and configure
+git clone https://github.com/cospan-dev/cospan.git
+cd cospan
+cp .env.production.example .env.production
+nano .env.production  # Set DOMAIN, POSTGRES_PASSWORD, NODE_DID
+
+# Deploy (pulls pre-built images, starts all services)
+./scripts/deploy.sh
+```
+
+Caddy handles TLS automatically via Let's Encrypt. Requires two DNS A records pointing at the server: `cospan.dev` and `node.cospan.dev`.
+
 ### Using the CLI
 
 Cospan repos are managed through panproto's `schema` CLI:

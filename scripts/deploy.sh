@@ -59,8 +59,8 @@ echo -e "${GREEN}Node DID:${NC} $NODE_DID"
 echo ""
 
 # Build and deploy
-echo -e "${YELLOW}Building images...${NC}"
-docker compose -f docker-compose.prod.yml --env-file .env.production build
+echo -e "${YELLOW}Pulling images...${NC}"
+docker compose -f docker-compose.prod.yml --env-file .env.production pull
 
 echo -e "${YELLOW}Starting services...${NC}"
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d
