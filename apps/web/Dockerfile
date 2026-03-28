@@ -12,15 +12,19 @@ COPY packages/ packages/
 RUN cd apps/web && pnpm install --no-frozen-lockfile
 RUN cd apps/web && pnpm build
 
-# Stage 2: Runtime
+# Stage 2: Runtime - install production deps fresh
 FROM node:22-slim
 
 WORKDIR /app
 
-# Copy the built output and all node_modules (SvelteKit needs them at runtime)
+RUN corepack enable
+
+# Copy built output
 COPY --from=builder /app/apps/web/build ./build
 COPY --from=builder /app/apps/web/package.json .
-COPY --from=builder /app/apps/web/node_modules ./node_modules
+
+# Install production dependencies only (includes @sveltejs/kit needed at runtime)
+RUN pnpm install --prod --no-frozen-lockfile
 
 USER 1001
 
