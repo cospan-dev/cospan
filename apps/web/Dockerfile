@@ -5,10 +5,7 @@ WORKDIR /app
 
 RUN corepack enable
 
-# Copy workspace root files
 COPY package.json pnpm-workspace.yaml ./
-
-# Copy the web app and shared packages
 COPY apps/web/ apps/web/
 COPY packages/ packages/
 
@@ -20,6 +17,7 @@ FROM node:22-slim
 
 WORKDIR /app
 
+# Copy the built output and all node_modules (SvelteKit needs them at runtime)
 COPY --from=builder /app/apps/web/build ./build
 COPY --from=builder /app/apps/web/package.json .
 COPY --from=builder /app/apps/web/node_modules ./node_modules
