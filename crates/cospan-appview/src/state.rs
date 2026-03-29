@@ -48,8 +48,14 @@ impl AppState {
         let lexicons_dir = std::path::PathBuf::from(&config.lexicons_dir);
 
         // Load pre-compiled panproto morphisms for record transformation.
-        let transformer = RecordTransformer::load(&lexicons_dir)
-            .expect("failed to load panproto morphisms — run `cargo run -p cospan-codegen` first");
+        let transformer = RecordTransformer::load(&lexicons_dir).unwrap_or_else(|e| {
+            tracing::warn!(
+                error = %e,
+                "failed to load panproto morphisms — run `cargo run -p cospan-codegen`; \
+                 falling back to empty transformer"
+            );
+            RecordTransformer::empty()
+        });
 
         Ok(Self {
             config,

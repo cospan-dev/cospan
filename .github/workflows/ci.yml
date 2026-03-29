@@ -22,6 +22,7 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - run: cargo run -p cospan-codegen
+      - run: cargo fmt --all
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace -- -D warnings
 
