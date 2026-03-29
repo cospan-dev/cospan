@@ -324,38 +324,6 @@ fn compute_array_len(source_field: &str, target_field: &str) -> FieldTransform {
     }
 }
 
-/// Auto-generate camelCase → snake_case renames for all Lexicon fields.
-/// This ensures `to_json()` output has snake_case keys matching Row struct field names.
-pub fn auto_camel_to_snake_renames(
-    schema: &panproto_schema::Schema,
-    nsid: &str,
-) -> Vec<FieldTransform> {
-    let body_vertex = record_body_vertex(nsid);
-    let props = panproto_protocols::emit::children_by_edge(schema, &body_vertex, "prop");
-    let mut renames = Vec::new();
-    for (edge, _) in &props {
-        if let Some(name) = edge.name.as_ref() {
-            let camel = name.as_str();
-            let snake = camel_to_snake(camel);
-            if camel != snake {
-                renames.push(rename_field(camel, &snake));
-            }
-        }
-    }
-    renames
-}
-
-fn camel_to_snake(s: &str) -> String {
-    let mut r = String::with_capacity(s.len() + 4);
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() && i > 0 {
-            r.push('_');
-        }
-        r.push(c.to_lowercase().next().unwrap_or(c));
-    }
-    r
-}
-
 /// Get the record body vertex ID for a given NSID.
 /// ATProto Lexicon schemas have the body under `{nsid}.record`.
 fn record_body_vertex(nsid: &str) -> String {

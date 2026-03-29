@@ -80,12 +80,9 @@ pub async fn dispatch_simple_upsert(
         "sh.tangled.feed.reaction" => simple_upsert!(reaction, ReactionRow),
         "sh.tangled.repo.collaborator" => simple_upsert!(collaborator, CollaboratorRow),
         "sh.tangled.knot.member" => simple_upsert!(org_member, OrgMemberRow),
-        "sh.tangled.repo" => simple_upsert!(repo, RepoRow),
-        "sh.tangled.pipeline" => simple_upsert!(pipeline, PipelineRow),
-        "sh.tangled.git.refUpdate" => simple_upsert!(ref_update, RefUpdateRow, no_did),
-        "sh.tangled.repo.issue" => simple_upsert!(issue, IssueRow),
-        "sh.tangled.repo.pull" => simple_upsert!(pull, PullRow),
-
+        // NOTE: sh.tangled.repo, pipeline, refUpdate, issue, pull have side effects
+        // (node URL lookup, breaking change count, SSE events) and are handled
+        // in consumer.rs dispatch_special_upsert, not here.
         _ => Ok(false),
     }
 }

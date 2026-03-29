@@ -80,7 +80,7 @@ async fn dispatch_special_upsert(
 ) -> anyhow::Result<()> {
     match collection {
         // ─── Repo (node URL lookup) ─────────────────────────────────
-        "dev.cospan.repo" => {
+        "dev.cospan.repo" | "sh.tangled.repo" => {
             let node_uri = rec.get("node").and_then(|v| v.as_str()).unwrap_or("");
             let node_did = extract_did_from_at_uri(node_uri);
 
@@ -104,7 +104,7 @@ async fn dispatch_special_upsert(
         }
 
         // ─── Ref Update (breaking change count + SSE) ───────────────
-        "dev.cospan.vcs.refUpdate" => {
+        "dev.cospan.vcs.refUpdate" | "sh.tangled.git.refUpdate" => {
             let breaking_changes = rec
                 .get("breakingChanges")
                 .and_then(|v| v.as_array())
@@ -129,7 +129,7 @@ async fn dispatch_special_upsert(
         }
 
         // ─── Issue (SSE event on create) ────────────────────────────
-        "dev.cospan.repo.issue" => {
+        "dev.cospan.repo.issue" | "sh.tangled.repo.issue" => {
             let mut row: db::issue::IssueRow =
                 serde_json::from_value(transform_record(state, collection, rec))?;
             row.did = did.to_string();
@@ -226,7 +226,7 @@ async fn dispatch_special_upsert(
         }
 
         // ─── Pull Request (SSE event on create) ─────────────────────
-        "dev.cospan.repo.pull" => {
+        "dev.cospan.repo.pull" | "sh.tangled.repo.pull" => {
             let mut row: db::pull::PullRow =
                 serde_json::from_value(transform_record(state, collection, rec))?;
             row.did = did.to_string();
@@ -336,7 +336,7 @@ async fn dispatch_special_upsert(
         }
 
         // ─── Pipeline (algebraicChecks extraction) ──────────────────
-        "dev.cospan.pipeline" => {
+        "dev.cospan.pipeline" | "sh.tangled.pipeline" => {
             let checks = rec.get("algebraicChecks");
 
             let mut row: db::pipeline::PipelineRow =

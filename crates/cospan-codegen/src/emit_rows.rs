@@ -136,12 +136,13 @@ pub fn columns_for_record(
         }
 
         if let Some(ovr) = type_override {
+            let is_optional = ovr.rust_type.starts_with("Option<");
             cols.push(Column {
                 name: snake,
                 camel_name: field_name.into(),
                 rust_type: ovr.rust_type.into(),
                 sql_type: ovr.sql_type.into(),
-                optional: false,
+                optional: is_optional,
                 is_counter: false,
             });
         } else {
