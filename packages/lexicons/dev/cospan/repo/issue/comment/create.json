@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.repo.issue.comment.create",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["issue", "body", "did"],
+          "properties": {
+            "issue": { "type": "string", "format": "at-uri" },
+            "body": { "type": "string" },
+            "did": { "type": "string", "format": "did" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.graph.follow.toggle",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subject", "following", "did"],
+          "properties": {
+            "subject": { "type": "string", "format": "did" },
+            "following": { "type": "boolean" },
+            "did": { "type": "string", "format": "did" }
+          }
+        }
+      }
+    }
+  }
+}

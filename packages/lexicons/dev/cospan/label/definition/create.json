@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.label.definition.create",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["repo", "name", "color", "did"],
+          "properties": {
+            "repo": { "type": "string", "format": "at-uri" },
+            "name": { "type": "string" },
+            "color": { "type": "string" },
+            "description": { "type": "string" },
+            "did": { "type": "string", "format": "did" }
+          }
+        }
+      }
+    }
+  }
+}

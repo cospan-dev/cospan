@@ -58,6 +58,43 @@ pub struct TypeOverride {
     pub sql_type: &'static str,
 }
 
+/// A database index definition.
+#[derive(Clone)]
+pub struct IndexConfig {
+    /// Index name (e.g., "idx_repos_node_did").
+    pub name: &'static str,
+    /// Column expressions (e.g., &["node_did"] or &["created_at DESC"]).
+    pub columns: &'static [&'static str],
+    /// Whether this is a UNIQUE index.
+    pub unique: bool,
+    /// Optional WHERE clause for partial indexes.
+    pub where_clause: Option<&'static str>,
+    /// Optional USING method (e.g., "GIN").
+    pub using: Option<&'static str>,
+    /// Optional raw expression to use instead of columns (e.g., for GIN indexes).
+    pub raw_expression: Option<&'static str>,
+}
+
+/// A foreign key constraint.
+#[derive(Clone)]
+pub struct ForeignKeyConfig {
+    /// Local columns participating in the FK.
+    pub columns: &'static [&'static str],
+    /// Referenced table.
+    pub ref_table: &'static str,
+    /// Referenced columns.
+    pub ref_columns: &'static [&'static str],
+}
+
+/// A column default value for DDL generation.
+#[derive(Clone)]
+pub struct ColumnDefault {
+    /// Column name (snake_case).
+    pub column: &'static str,
+    /// SQL DEFAULT expression.
+    pub expression: &'static str,
+}
+
 /// Configuration for a single record type's database projection.
 pub struct RecordConfig {
     pub nsid: &'static str,
@@ -85,6 +122,12 @@ pub struct RecordConfig {
     /// Whether to include the standard ATProto `rkey` column.
     /// Some records (like actor.profile with key "literal:self") don't store rkey.
     pub include_rkey: bool,
+    /// Database indexes for this table.
+    pub indexes: &'static [IndexConfig],
+    /// Foreign key constraints.
+    pub foreign_keys: &'static [ForeignKeyConfig],
+    /// Column defaults for DDL generation.
+    pub column_defaults: &'static [ColumnDefault],
 }
 
 const URI_DECOMP_REPO: UriDecomposition = UriDecomposition {
@@ -127,6 +170,16 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[IndexConfig {
+                name: "idx_nodes_endpoint",
+                columns: &["public_endpoint"],
+                unique: false,
+                where_clause: Some("public_endpoint IS NOT NULL"),
+                using: None,
+                raw_expression: None,
+            }],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.actor.profile",
@@ -148,6 +201,9 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: false, // literal:self key — no rkey column in DB
+            indexes: &[],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.repo",
@@ -218,6 +274,72 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_repos_did_rkey",
+                    columns: &["did", "rkey"],
+                    unique: true,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_repos_node_did",
+                    columns: &["node_did"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_repos_protocol",
+                    columns: &["protocol"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_repos_created_at",
+                    columns: &["created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_repos_source",
+                    columns: &["source"],
+                    unique: false,
+                    where_clause: Some("source != 'cospan'"),
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_repos_search",
+                    columns: &[],
+                    unique: false,
+                    where_clause: None,
+                    using: Some("GIN"),
+                    raw_expression: Some(
+                        "to_tsvector('english', coalesce(name, '') || ' ' || coalesce(description, ''))",
+                    ),
+                },
+            ],
+            foreign_keys: &[ForeignKeyConfig {
+                columns: &["node_did"],
+                ref_table: "nodes",
+                ref_columns: &["did"],
+            }],
+            column_defaults: &[
+                ColumnDefault { column: "default_branch", expression: "'main'" },
+                ColumnDefault { column: "visibility", expression: "'public'" },
+                ColumnDefault { column: "star_count", expression: "0" },
+                ColumnDefault { column: "fork_count", expression: "0" },
+                ColumnDefault { column: "open_issue_count", expression: "0" },
+                ColumnDefault { column: "open_mr_count", expression: "0" },
+                ColumnDefault { column: "source", expression: "'cospan'" },
+            ],
         },
         RecordConfig {
             nsid: "dev.cospan.vcs.refUpdate",
@@ -250,6 +372,49 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: true,
             include_did: false, // ref_updates don't store record owner DID
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_ref_updates_rkey",
+                    columns: &["committer_did", "rkey"],
+                    unique: true,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_ref_updates_repo",
+                    columns: &["repo_did", "repo_name", "created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_ref_updates_committer",
+                    columns: &["committer_did", "created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_ref_updates_breaking",
+                    columns: &["repo_did", "repo_name"],
+                    unique: false,
+                    where_clause: Some("breaking_change_count > 0"),
+                    using: None,
+                    raw_expression: None,
+                },
+            ],
+            foreign_keys: &[ForeignKeyConfig {
+                columns: &["repo_did", "repo_name"],
+                ref_table: "repos",
+                ref_columns: &["did", "name"],
+            }],
+            column_defaults: &[
+                ColumnDefault { column: "breaking_change_count", expression: "0" },
+                ColumnDefault { column: "commit_count", expression: "0" },
+            ],
         },
         RecordConfig {
             nsid: "dev.cospan.repo.issue",
@@ -280,6 +445,49 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_issues_repo",
+                    columns: &["repo_did", "repo_name", "created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_issues_state",
+                    columns: &["state"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_issues_created_at",
+                    columns: &["created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_issues_repo_state",
+                    columns: &["repo_did", "repo_name", "state"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+            ],
+            foreign_keys: &[ForeignKeyConfig {
+                columns: &["repo_did", "repo_name"],
+                ref_table: "repos",
+                ref_columns: &["did", "name"],
+            }],
+            column_defaults: &[
+                ColumnDefault { column: "state", expression: "'open'" },
+                ColumnDefault { column: "comment_count", expression: "0" },
+            ],
         },
         RecordConfig {
             nsid: "dev.cospan.repo.issue.comment",
@@ -298,6 +506,16 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[IndexConfig {
+                name: "idx_issue_comments_issue",
+                columns: &["issue_uri", "created_at ASC"],
+                unique: false,
+                where_clause: None,
+                using: None,
+                raw_expression: None,
+            }],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.repo.issue.state",
@@ -316,6 +534,16 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[IndexConfig {
+                name: "idx_issue_states_issue",
+                columns: &["issue_uri", "created_at DESC"],
+                unique: false,
+                where_clause: None,
+                using: None,
+                raw_expression: None,
+            }],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.repo.pull",
@@ -346,6 +574,49 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_pulls_repo",
+                    columns: &["repo_did", "repo_name", "created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_pulls_state",
+                    columns: &["state"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_pulls_created_at",
+                    columns: &["created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_pulls_repo_state",
+                    columns: &["repo_did", "repo_name", "state"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+            ],
+            foreign_keys: &[ForeignKeyConfig {
+                columns: &["repo_did", "repo_name"],
+                ref_table: "repos",
+                ref_columns: &["did", "name"],
+            }],
+            column_defaults: &[
+                ColumnDefault { column: "state", expression: "'open'" },
+                ColumnDefault { column: "comment_count", expression: "0" },
+            ],
         },
         RecordConfig {
             nsid: "dev.cospan.repo.pull.comment",
@@ -364,6 +635,16 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[IndexConfig {
+                name: "idx_pull_comments_pull",
+                columns: &["pull_uri", "created_at ASC"],
+                unique: false,
+                where_clause: None,
+                using: None,
+                raw_expression: None,
+            }],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.repo.pull.state",
@@ -382,6 +663,16 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[IndexConfig {
+                name: "idx_pull_states_pull",
+                columns: &["pull_uri", "created_at DESC"],
+                unique: false,
+                where_clause: None,
+                using: None,
+                raw_expression: None,
+            }],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.feed.star",
@@ -397,6 +688,34 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_stars_subject",
+                    columns: &["subject"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_stars_did",
+                    columns: &["did", "created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_stars_did_subject",
+                    columns: &["did", "subject"],
+                    unique: true,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+            ],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.feed.reaction",
@@ -412,6 +731,26 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_reactions_subject",
+                    columns: &["subject"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_reactions_did",
+                    columns: &["did", "created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+            ],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.graph.follow",
@@ -427,6 +766,34 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_follows_subject",
+                    columns: &["subject"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_follows_did",
+                    columns: &["did", "created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_follows_did_subject",
+                    columns: &["did", "subject"],
+                    unique: true,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+            ],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.label.definition",
@@ -442,6 +809,20 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[IndexConfig {
+                name: "idx_labels_repo",
+                columns: &["repo_did", "repo_name"],
+                unique: false,
+                where_clause: None,
+                using: None,
+                raw_expression: None,
+            }],
+            foreign_keys: &[ForeignKeyConfig {
+                columns: &["repo_did", "repo_name"],
+                ref_table: "repos",
+                ref_columns: &["did", "name"],
+            }],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.org",
@@ -463,6 +844,16 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[IndexConfig {
+                name: "idx_orgs_name",
+                columns: &["name"],
+                unique: false,
+                where_clause: None,
+                using: None,
+                raw_expression: None,
+            }],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.org.member",
@@ -485,6 +876,26 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_org_members_org",
+                    columns: &["org_uri"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_org_members_member",
+                    columns: &["member_did"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+            ],
+            foreign_keys: &[],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.repo.collaborator",
@@ -505,6 +916,30 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_collaborators_repo",
+                    columns: &["repo_did", "repo_name"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_collaborators_member",
+                    columns: &["member_did"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+            ],
+            foreign_keys: &[ForeignKeyConfig {
+                columns: &["repo_did", "repo_name"],
+                ref_table: "repos",
+                ref_columns: &["did", "name"],
+            }],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.repo.dependency",
@@ -520,6 +955,37 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_dependencies_source",
+                    columns: &["source_repo_did", "source_repo_name"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_dependencies_target",
+                    columns: &["target_repo_did", "target_repo_name"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+            ],
+            foreign_keys: &[
+                ForeignKeyConfig {
+                    columns: &["source_repo_did", "source_repo_name"],
+                    ref_table: "repos",
+                    ref_columns: &["did", "name"],
+                },
+                ForeignKeyConfig {
+                    columns: &["target_repo_did", "target_repo_name"],
+                    ref_table: "repos",
+                    ref_columns: &["did", "name"],
+                },
+            ],
+            column_defaults: &[],
         },
         RecordConfig {
             nsid: "dev.cospan.pipeline",
@@ -564,6 +1030,41 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
+            indexes: &[
+                IndexConfig {
+                    name: "idx_pipelines_repo",
+                    columns: &["repo_did", "repo_name", "created_at DESC"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_pipelines_commit",
+                    columns: &["repo_did", "repo_name", "commit_id"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+                IndexConfig {
+                    name: "idx_pipelines_status",
+                    columns: &["status"],
+                    unique: false,
+                    where_clause: None,
+                    using: None,
+                    raw_expression: None,
+                },
+            ],
+            foreign_keys: &[ForeignKeyConfig {
+                columns: &["repo_did", "repo_name"],
+                ref_table: "repos",
+                ref_columns: &["did", "name"],
+            }],
+            column_defaults: &[ColumnDefault {
+                column: "status",
+                expression: "'pending'",
+            }],
         },
     ]
 }

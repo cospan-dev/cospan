@@ -6,9 +6,11 @@ use crate::db;
 use crate::state::AppState;
 use crate::xrpc::sse::IndexEvent;
 
+use super::dispatch;
+
 /// Transform a record through the pre-compiled panproto morphism.
 /// Handles both Cospan (DB projection) and Tangled (interop + DB projection).
-fn transform_record(
+pub(super) fn transform_record(
     state: &AppState,
     collection: &str,
     rec: &serde_json::Value,
@@ -42,218 +44,178 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
     let rkey = commit.get("rkey").and_then(|v| v.as_str()).unwrap_or("");
     let record = commit.get("record");
 
-    match (collection, operation) {
-        // ─── Node ───────────────────────────────────────────────────
-        ("dev.cospan.node", "create" | "update") => {
+    match operation {
+        "create" | "update" => {
             if let Some(rec) = record {
-                let mut row: db::node::NodeRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::node::upsert(&state.db, &row).await?;
-            }
-        }
-        ("dev.cospan.node", "delete") => {
-            db::node::delete(&state.db, did).await?;
-        }
-
-        // ─── Actor Profile ──────────────────────────────────────────
-        ("dev.cospan.actor.profile", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::actor_profile::ActorProfileRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.indexed_at = Utc::now();
-                db::actor_profile::upsert(&state.db, &row).await?;
-            }
-        }
-        ("dev.cospan.actor.profile", "delete") => {
-            db::actor_profile::delete(&state.db, did).await?;
-        }
-
-        // ─── Repo ───────────────────────────────────────────────────
-        ("dev.cospan.repo", "create" | "update") => {
-            if let Some(rec) = record {
-                // Extract node DID and URL from the node AT-URI
-                let node_uri = rec.get("node").and_then(|v| v.as_str()).unwrap_or("");
-                let node_did = extract_did_from_at_uri(node_uri);
-
-                // Look up node URL from nodes table
-                let node_url = {
-                    let nodes = db::node::list(&state.db, 1000, None).await?;
-                    nodes
-                        .iter()
-                        .find(|n| n.did == node_did)
-                        .and_then(|n| n.public_endpoint.clone())
-                        .unwrap_or_default()
-                };
-
-                let mut row: db::repo::RepoRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                row.node_did = node_did;
-                row.node_url = node_url;
-                db::repo::upsert(&state.db, &row).await?;
-            }
-        }
-        ("dev.cospan.repo", "delete") => {
-            // Need to look up repo name from rkey - for now just log
-            tracing::warn!(
-                did,
-                rkey,
-                "repo delete not fully implemented (need rkey->name lookup)"
-            );
-        }
-
-        // ─── Ref Update ─────────────────────────────────────────────
-        ("dev.cospan.vcs.refUpdate", "create" | "update") => {
-            if let Some(rec) = record {
-                let breaking_changes = rec
-                    .get("breakingChanges")
-                    .and_then(|v| v.as_array())
-                    .map(|a| a.len() as i32)
-                    .unwrap_or(0);
-
-                let mut row: db::ref_update::RefUpdateRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                row.breaking_change_count = breaking_changes;
-                db::ref_update::upsert(&state.db, &row).await?;
-
-                // Publish SSE event
-                let _ = state.event_tx.send(IndexEvent::RefUpdate {
-                    repo_did: row.repo_did.clone(),
-                    repo_name: row.repo_name.clone(),
-                    ref_name: row.ref_name.clone(),
-                    new_target: row.new_target.clone(),
-                    committer_did: row.committer_did.clone(),
-                    breaking_change_count: row.breaking_change_count,
-                });
-            }
-        }
-        ("dev.cospan.vcs.refUpdate", "delete") => {
-            db::ref_update::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Issue ──────────────────────────────────────────────────
-        ("dev.cospan.repo.issue", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::issue::IssueRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::issue::upsert(&state.db, &row).await?;
-
-                // Publish SSE event
-                let _ = state.event_tx.send(IndexEvent::IssueCreated {
-                    repo_did: row.repo_did.clone(),
-                    repo_name: row.repo_name.clone(),
-                    issue_rkey: row.rkey.clone(),
-                    title: row.title.clone(),
-                    author_did: row.did.clone(),
-                });
-            }
-        }
-        ("dev.cospan.repo.issue", "delete") => {
-            // Look up the issue to decrement repo counter
-            if let Some(issue) = db::issue::get_by_pk(&state.db, did, rkey).await?
-                && issue.state == "open"
-            {
-                decrement_repo_open_issue_count(&state.db, &issue.repo_did, &issue.repo_name)
-                    .await?;
-            }
-            db::issue::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Issue Comment ──────────────────────────────────────────
-        ("dev.cospan.repo.issue.comment", "create" | "update") => {
-            if let Some(rec) = record {
-                let issue_uri = rec
-                    .get("issue")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                let mut row: db::issue_comment::IssueCommentRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-
-                // Check if this is a new comment (not an update) for counter purposes
-                let existing = db::issue_comment::get(&state.db, did, rkey).await?;
-                db::issue_comment::upsert(&state.db, &row).await?;
-
-                if existing.is_none() {
-                    // Increment comment count on the issue
-                    let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&issue_uri);
-                    db::issue::increment_comment_count(&state.db, &issue_did, &issue_rkey).await?;
+                // Try generic dispatch first for simple records
+                if dispatch::dispatch_simple_upsert(state, collection, did, rkey, rec).await? {
+                    return Ok(());
                 }
+                // Fall through to special-case handling
+                dispatch_special_upsert(state, collection, did, rkey, rec).await?;
             }
         }
-        ("dev.cospan.repo.issue.comment", "delete") => {
-            // Look up the comment to decrement the issue counter
-            if let Some(comment) = db::issue_comment::get(&state.db, did, rkey).await? {
-                let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&comment.issue_uri);
-                db::issue::decrement_comment_count(&state.db, &issue_did, &issue_rkey).await?;
+        "delete" => {
+            // Try generic dispatch first for simple deletes
+            if dispatch::dispatch_simple_delete(state, collection, did, rkey).await? {
+                return Ok(());
             }
-            db::issue_comment::delete(&state.db, did, rkey).await?;
+            // Fall through to special-case handling
+            dispatch_special_delete(state, collection, did, rkey).await?;
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
+// ─── Special-case upserts (records with side effects) ─────────────────────
+
+async fn dispatch_special_upsert(
+    state: &Arc<AppState>,
+    collection: &str,
+    did: &str,
+    rkey: &str,
+    rec: &serde_json::Value,
+) -> anyhow::Result<()> {
+    match collection {
+        // ─── Repo (node URL lookup) ─────────────────────────────────
+        "dev.cospan.repo" => {
+            let node_uri = rec.get("node").and_then(|v| v.as_str()).unwrap_or("");
+            let node_did = extract_did_from_at_uri(node_uri);
+
+            let node_url = {
+                let nodes = db::node::list(&state.db, 1000, None).await?;
+                nodes
+                    .iter()
+                    .find(|n| n.did == node_did)
+                    .and_then(|n| n.public_endpoint.clone())
+                    .unwrap_or_default()
+            };
+
+            let mut row: db::repo::RepoRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+            row.node_did = node_did;
+            row.node_url = node_url;
+            db::repo::upsert(&state.db, &row).await?;
         }
 
-        // ─── Issue State ────────────────────────────────────────────
-        ("dev.cospan.repo.issue.state", "create" | "update") => {
-            if let Some(rec) = record {
-                let issue_uri = rec
-                    .get("issue")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let new_state = rec
-                    .get("state")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("open")
-                    .to_string();
+        // ─── Ref Update (breaking change count + SSE) ───────────────
+        "dev.cospan.vcs.refUpdate" => {
+            let breaking_changes = rec
+                .get("breakingChanges")
+                .and_then(|v| v.as_array())
+                .map(|a| a.len() as i32)
+                .unwrap_or(0);
 
-                let mut row: db::issue_state::IssueStateRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::issue_state::upsert(&state.db, &row).await?;
+            let mut row: db::ref_update::RefUpdateRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+            row.breaking_change_count = breaking_changes;
+            db::ref_update::upsert(&state.db, &row).await?;
 
-                // Update the issue's state and repo counters
+            let _ = state.event_tx.send(IndexEvent::RefUpdate {
+                repo_did: row.repo_did.clone(),
+                repo_name: row.repo_name.clone(),
+                ref_name: row.ref_name.clone(),
+                new_target: row.new_target.clone(),
+                committer_did: row.committer_did.clone(),
+                breaking_change_count: row.breaking_change_count,
+            });
+        }
+
+        // ─── Issue (SSE event on create) ────────────────────────────
+        "dev.cospan.repo.issue" => {
+            let mut row: db::issue::IssueRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+            db::issue::upsert(&state.db, &row).await?;
+
+            let _ = state.event_tx.send(IndexEvent::IssueCreated {
+                repo_did: row.repo_did.clone(),
+                repo_name: row.repo_name.clone(),
+                issue_rkey: row.rkey.clone(),
+                title: row.title.clone(),
+                author_did: row.did.clone(),
+            });
+        }
+
+        // ─── Issue Comment (comment count increment) ────────────────
+        "dev.cospan.repo.issue.comment" | "sh.tangled.repo.issue.comment" => {
+            let issue_uri = rec
+                .get("issue")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let mut row: db::issue_comment::IssueCommentRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+
+            let existing = db::issue_comment::get(&state.db, did, rkey).await?;
+            db::issue_comment::upsert(&state.db, &row).await?;
+
+            if existing.is_none() {
                 let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&issue_uri);
-                if let Some(issue) =
-                    db::issue::get_by_pk(&state.db, &issue_did, &issue_rkey).await?
-                {
-                    let old_state = &issue.state;
-                    if old_state != &new_state {
-                        db::issue::update_state(&state.db, &issue_did, &issue_rkey, &new_state)
-                            .await?;
+                db::issue::increment_comment_count(&state.db, &issue_did, &issue_rkey).await?;
+            }
+        }
 
-                        // Adjust repo open_issue_count
-                        if old_state == "open" && new_state != "open" {
-                            decrement_repo_open_issue_count(
-                                &state.db,
-                                &issue.repo_did,
-                                &issue.repo_name,
-                            )
-                            .await?;
-                        } else if old_state != "open" && new_state == "open" {
-                            increment_repo_open_issue_count(
-                                &state.db,
-                                &issue.repo_did,
-                                &issue.repo_name,
-                            )
-                            .await?;
-                        }
+        // ─── Issue State (state transitions + counter adjustments + SSE) ─
+        "dev.cospan.repo.issue.state" | "sh.tangled.repo.issue.state" => {
+            let issue_uri = rec
+                .get("issue")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let new_state = rec
+                .get("state")
+                .and_then(|v| v.as_str())
+                .unwrap_or("open")
+                .to_string();
 
-                        // Publish SSE event
+            let mut row: db::issue_state::IssueStateRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+            db::issue_state::upsert(&state.db, &row).await?;
+
+            let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&issue_uri);
+            if let Some(issue) =
+                db::issue::get_by_pk(&state.db, &issue_did, &issue_rkey).await?
+            {
+                let old_state = &issue.state;
+                if old_state != &new_state {
+                    db::issue::update_state(&state.db, &issue_did, &issue_rkey, &new_state)
+                        .await?;
+
+                    if old_state == "open" && new_state != "open" {
+                        decrement_repo_open_issue_count(
+                            &state.db,
+                            &issue.repo_did,
+                            &issue.repo_name,
+                        )
+                        .await?;
+                    } else if old_state != "open" && new_state == "open" {
+                        increment_repo_open_issue_count(
+                            &state.db,
+                            &issue.repo_did,
+                            &issue.repo_name,
+                        )
+                        .await?;
+                    }
+
+                    // SSE only for cospan-native events
+                    if collection.starts_with("dev.cospan.") {
                         let _ = state.event_tx.send(IndexEvent::IssueStateChanged {
                             repo_did: issue.repo_did.clone(),
                             repo_name: issue.repo_name.clone(),
@@ -265,120 +227,89 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                 }
             }
         }
-        ("dev.cospan.repo.issue.state", "delete") => {
-            db::issue_state::delete(&state.db, did, rkey).await?;
+
+        // ─── Pull Request (SSE event on create) ─────────────────────
+        "dev.cospan.repo.pull" => {
+            let mut row: db::pull::PullRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+            db::pull::upsert(&state.db, &row).await?;
+
+            let _ = state.event_tx.send(IndexEvent::PullCreated {
+                repo_did: row.repo_did.clone(),
+                repo_name: row.repo_name.clone(),
+                pull_rkey: row.rkey.clone(),
+                title: row.title.clone(),
+                author_did: row.did.clone(),
+            });
         }
 
-        // ─── Pull Request ───────────────────────────────────────────
-        ("dev.cospan.repo.pull", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::pull::PullRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::pull::upsert(&state.db, &row).await?;
+        // ─── Pull Comment (comment count increment) ─────────────────
+        "dev.cospan.repo.pull.comment" | "sh.tangled.repo.pull.comment" => {
+            let pull_uri = rec
+                .get("pull")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
 
-                // Publish SSE event
-                let _ = state.event_tx.send(IndexEvent::PullCreated {
-                    repo_did: row.repo_did.clone(),
-                    repo_name: row.repo_name.clone(),
-                    pull_rkey: row.rkey.clone(),
-                    title: row.title.clone(),
-                    author_did: row.did.clone(),
-                });
-            }
-        }
-        ("dev.cospan.repo.pull", "delete") => {
-            // Look up the pull to decrement repo counter
-            if let Some(pull) = db::pull::get_by_pk(&state.db, did, rkey).await?
-                && pull.state == "open"
-            {
-                decrement_repo_open_mr_count(&state.db, &pull.repo_did, &pull.repo_name).await?;
-            }
-            db::pull::delete(&state.db, did, rkey).await?;
-        }
+            let mut row: db::pull_comment::PullCommentRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
 
-        // ─── Pull Comment ───────────────────────────────────────────
-        ("dev.cospan.repo.pull.comment", "create" | "update") => {
-            if let Some(rec) = record {
-                let pull_uri = rec
-                    .get("pull")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+            let existing = db::pull_comment::get(&state.db, did, rkey).await?;
+            db::pull_comment::upsert(&state.db, &row).await?;
 
-                let mut row: db::pull_comment::PullCommentRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-
-                // Check if this is a new comment (not an update) for counter purposes
-                let existing = db::pull_comment::get(&state.db, did, rkey).await?;
-                db::pull_comment::upsert(&state.db, &row).await?;
-
-                if existing.is_none() {
-                    let (pull_did, pull_rkey) = parse_at_uri_did_rkey(&pull_uri);
-                    db::pull::increment_comment_count(&state.db, &pull_did, &pull_rkey).await?;
-                }
-            }
-        }
-        ("dev.cospan.repo.pull.comment", "delete") => {
-            if let Some(comment) = db::pull_comment::get(&state.db, did, rkey).await? {
-                let (pull_did, pull_rkey) = parse_at_uri_did_rkey(&comment.pull_uri);
-                db::pull::decrement_comment_count(&state.db, &pull_did, &pull_rkey).await?;
-            }
-            db::pull_comment::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Pull State ─────────────────────────────────────────────
-        ("dev.cospan.repo.pull.state", "create" | "update") => {
-            if let Some(rec) = record {
-                let pull_uri = rec
-                    .get("pull")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let new_state = rec
-                    .get("state")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("open")
-                    .to_string();
-
-                let mut row: db::pull_state::PullStateRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::pull_state::upsert(&state.db, &row).await?;
-
-                // Update the pull's state and repo counters
+            if existing.is_none() {
                 let (pull_did, pull_rkey) = parse_at_uri_did_rkey(&pull_uri);
-                if let Some(pull) = db::pull::get_by_pk(&state.db, &pull_did, &pull_rkey).await? {
-                    let old_state = &pull.state;
-                    if old_state != &new_state {
-                        db::pull::update_state(&state.db, &pull_did, &pull_rkey, &new_state)
-                            .await?;
+                db::pull::increment_comment_count(&state.db, &pull_did, &pull_rkey).await?;
+            }
+        }
 
-                        // Adjust repo open_mr_count
-                        if old_state == "open" && new_state != "open" {
-                            decrement_repo_open_mr_count(
-                                &state.db,
-                                &pull.repo_did,
-                                &pull.repo_name,
-                            )
-                            .await?;
-                        } else if old_state != "open" && new_state == "open" {
-                            increment_repo_open_mr_count(
-                                &state.db,
-                                &pull.repo_did,
-                                &pull.repo_name,
-                            )
-                            .await?;
-                        }
+        // ─── Pull State (state transitions + counter adjustments + SSE) ─
+        "dev.cospan.repo.pull.state" | "sh.tangled.repo.pull.status" => {
+            let pull_uri = rec
+                .get("pull")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
 
-                        // Publish SSE event
+            let mut row: db::pull_state::PullStateRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+            let new_state = row.state.clone();
+            db::pull_state::upsert(&state.db, &row).await?;
+
+            let (pull_did, pull_rkey) = parse_at_uri_did_rkey(&pull_uri);
+            if let Some(pull) = db::pull::get_by_pk(&state.db, &pull_did, &pull_rkey).await? {
+                let old_state = &pull.state;
+                if old_state != &new_state {
+                    db::pull::update_state(&state.db, &pull_did, &pull_rkey, &new_state)
+                        .await?;
+
+                    if old_state == "open" && new_state != "open" {
+                        decrement_repo_open_mr_count(
+                            &state.db,
+                            &pull.repo_did,
+                            &pull.repo_name,
+                        )
+                        .await?;
+                    } else if old_state != "open" && new_state == "open" {
+                        increment_repo_open_mr_count(
+                            &state.db,
+                            &pull.repo_did,
+                            &pull.repo_name,
+                        )
+                        .await?;
+                    }
+
+                    // SSE only for cospan-native events
+                    if collection.starts_with("dev.cospan.") {
                         let _ = state.event_tx.send(IndexEvent::PullStateChanged {
                             repo_did: pull.repo_did.clone(),
                             repo_name: pull.repo_name.clone(),
@@ -390,268 +321,183 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                 }
             }
         }
-        ("dev.cospan.repo.pull.state", "delete") => {
-            db::pull_state::delete(&state.db, did, rkey).await?;
-        }
 
-        // ─── Star ───────────────────────────────────────────────────
-        ("dev.cospan.feed.star", "create" | "update") => {
-            if let Some(rec) = record {
-                let subject = rec
-                    .get("subject")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+        // ─── Star (counter increment + SSE) ─────────────────────────
+        "dev.cospan.feed.star" | "sh.tangled.feed.star" => {
+            let mut row: db::star::StarRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
 
-                let mut row: db::star::StarRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
+            let existing = db::star::get(&state.db, did, rkey).await?;
+            db::star::upsert(&state.db, &row).await?;
 
-                let existing = db::star::get(&state.db, did, rkey).await?;
-                db::star::upsert(&state.db, &row).await?;
+            if existing.is_none() {
+                let (repo_did, repo_name) = parse_repo_at_uri(&row.subject);
+                db::star::increment_repo_star_count(&state.db, &repo_did, &repo_name).await?;
 
-                if existing.is_none() {
-                    let (repo_did, repo_name) = parse_repo_at_uri(&subject);
-                    db::star::increment_repo_star_count(&state.db, &repo_did, &repo_name).await?;
-
-                    // Publish SSE event
+                // SSE only for cospan-native events
+                if collection.starts_with("dev.cospan.") {
                     let _ = state.event_tx.send(IndexEvent::StarCreated {
                         did: did.to_string(),
-                        subject: subject.clone(),
+                        subject: row.subject.clone(),
                     });
                 }
             }
         }
-        ("dev.cospan.feed.star", "delete") => {
-            if let Some(star) = db::star::get(&state.db, did, rkey).await? {
-                let (repo_did, repo_name) = parse_repo_at_uri(&star.subject);
-                db::star::decrement_repo_star_count(&state.db, &repo_did, &repo_name).await?;
 
-                // Publish SSE event
-                let _ = state.event_tx.send(IndexEvent::StarDeleted {
-                    did: did.to_string(),
-                    subject: star.subject.clone(),
-                });
+        // ─── Pipeline (algebraicChecks extraction) ──────────────────
+        "dev.cospan.pipeline" => {
+            let checks = rec.get("algebraicChecks");
+
+            let mut row: db::pipeline::PipelineRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+            row.gat_type_check = checks
+                .and_then(|c| c.get("gatTypeCheck"))
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            row.equation_verification = checks
+                .and_then(|c| c.get("equationVerification"))
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            row.lens_law_check = checks
+                .and_then(|c| c.get("lensLawCheck"))
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            row.breaking_change_check = checks
+                .and_then(|c| c.get("breakingChangeCheck"))
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            db::pipeline::upsert(&state.db, &row).await?;
+        }
+
+        // ─── Tangled Spindle → Org (via panproto morphism) ───────────
+        "sh.tangled.spindle" => {
+            let mut row: db::org::OrgRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            // Tangled spindles don't carry a name field; use DID as fallback
+            if row.name.is_empty() {
+                row.name = did.to_string();
             }
-            db::star::delete(&state.db, did, rkey).await?;
+            row.indexed_at = Utc::now();
+            db::org::upsert(&state.db, &row).await?;
         }
 
-        // ─── Follow ─────────────────────────────────────────────────
-        ("dev.cospan.graph.follow", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::follow::FollowRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::follow::upsert(&state.db, &row).await?;
+        // ─── Tangled Spindle Member → Org Member (via panproto morphism)
+        "sh.tangled.spindle.member" => {
+            let mut row: db::org_member::OrgMemberRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            // Synthesize the org AT-URI from the DID
+            if row.org_uri.is_empty() {
+                row.org_uri = format!("at://{did}/sh.tangled.spindle/self");
             }
-        }
-        ("dev.cospan.graph.follow", "delete") => {
-            db::follow::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Reaction ───────────────────────────────────────────────
-        ("dev.cospan.feed.reaction", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::reaction::ReactionRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::reaction::upsert(&state.db, &row).await?;
+            // Tangled has no role field; default to "member"
+            if row.role.is_empty() {
+                row.role = "member".to_string();
             }
-        }
-        ("dev.cospan.feed.reaction", "delete") => {
-            db::reaction::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Label Definition ───────────────────────────────────────
-        ("dev.cospan.label.definition", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::label::LabelRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::label::upsert(&state.db, &row).await?;
-            }
-        }
-        ("dev.cospan.label.definition", "delete") => {
-            db::label::delete(&state.db, did, rkey).await?;
+            row.indexed_at = Utc::now();
+            db::org_member::upsert(&state.db, &row).await?;
         }
 
-        // ─── Org ────────────────────────────────────────────────────
-        ("dev.cospan.org", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::org::OrgRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::org::upsert(&state.db, &row).await?;
-            }
-        }
-        ("dev.cospan.org", "delete") => {
-            db::org::delete(&state.db, did, rkey).await?;
+        // ─── Tangled Label Definition (via panproto morphism) ───────
+        "sh.tangled.label.definition" => {
+            let mut row: db::label::LabelRow =
+                serde_json::from_value(transform_record(state, collection, rec))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+            db::label::upsert(&state.db, &row).await?;
         }
 
-        // ─── Org Member ─────────────────────────────────────────────
-        ("dev.cospan.org.member", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::org_member::OrgMemberRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::org_member::upsert(&state.db, &row).await?;
-            }
-        }
-        ("dev.cospan.org.member", "delete") => {
-            db::org_member::delete(&state.db, did, rkey).await?;
-        }
+        // ─── Tangled Pipeline Status (SQL update) ───────────────────
+        "sh.tangled.pipeline.status" => {
+            let pipeline_uri = rec.get("pipeline").and_then(|v| v.as_str()).unwrap_or("");
+            let (pipeline_did, pipeline_rkey) = parse_at_uri_did_rkey(pipeline_uri);
 
-        // ─── Collaborator ───────────────────────────────────────────
-        ("dev.cospan.repo.collaborator", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::collaborator::CollaboratorRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::collaborator::upsert(&state.db, &row).await?;
-            }
-        }
-        ("dev.cospan.repo.collaborator", "delete") => {
-            db::collaborator::delete(&state.db, did, rkey).await?;
-        }
+            let raw_status = rec
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("pending");
+            let mapped_status = match raw_status {
+                "success" => "passed",
+                "failed" => "failed",
+                "cancelled" | "canceled" => "cancelled",
+                "running" | "in_progress" => "running",
+                other => other,
+            };
 
-        // ─── Pipeline ───────────────────────────────────────────────
-        ("dev.cospan.pipeline", "create" | "update") => {
-            if let Some(rec) = record {
-                let checks = rec.get("algebraicChecks");
-
-                let mut row: db::pipeline::PipelineRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                row.gat_type_check = checks
-                    .and_then(|c| c.get("gatTypeCheck"))
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-                row.equation_verification = checks
-                    .and_then(|c| c.get("equationVerification"))
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-                row.lens_law_check = checks
-                    .and_then(|c| c.get("lensLawCheck"))
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-                row.breaking_change_check = checks
-                    .and_then(|c| c.get("breakingChangeCheck"))
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-                db::pipeline::upsert(&state.db, &row).await?;
+            if !pipeline_did.is_empty() && !pipeline_rkey.is_empty() {
+                sqlx::query(
+                    "UPDATE pipelines SET status = $1, indexed_at = NOW() \
+                     WHERE did = $2 AND rkey = $3",
+                )
+                .bind(mapped_status)
+                .bind(&pipeline_did)
+                .bind(&pipeline_rkey)
+                .execute(&state.db)
+                .await?;
             }
         }
-        ("dev.cospan.pipeline", "delete") => {
-            db::pipeline::delete(&state.db, did, rkey).await?;
+
+        // ─── Tangled-only records (no Cospan equivalent) ────────────
+        "sh.tangled.publicKey" | "sh.tangled.string" | "sh.tangled.repo.artifact"
+        | "sh.tangled.label.op" => {
+            tracing::debug!(
+                collection,
+                did,
+                rkey,
+                "tangled-only record skipped (no cospan equivalent)"
+            );
         }
 
-        // ─── Dependency ─────────────────────────────────────────────
-        ("dev.cospan.repo.dependency", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::dependency::DependencyRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::dependency::upsert(&state.db, &row).await?;
-            }
+        // ─── Catch-alls ─────────────────────────────────────────────
+        c if c.starts_with("sh.tangled.") => {
+            tracing::debug!(
+                collection = c,
+                "tangled record received for unhandled collection"
+            );
         }
-        ("dev.cospan.repo.dependency", "delete") => {
-            db::dependency::delete(&state.db, did, rkey).await?;
+        c if c.starts_with("dev.cospan.") => {
+            tracing::debug!(collection = c, "unhandled dev.cospan collection");
         }
 
-        // ─── Tangled interop ────────────────────────────────────────
-        // Translate sh.tangled.* records into dev.cospan.* equivalents and index
-        // them with source="tangled" and source_uri set to the original AT-URI.
+        _ => {}
+    }
 
-        // ─── Tangled Star ──────────────────────────────────────────
-        ("sh.tangled.feed.star", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::star::StarRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                let existing = db::star::get(&state.db, did, rkey).await?;
-                db::star::upsert(&state.db, &row).await?;
+    Ok(())
+}
 
-                if existing.is_none() {
-                    let (repo_did, repo_name) = parse_repo_at_uri(&row.subject);
-                    db::star::increment_repo_star_count(&state.db, &repo_did, &repo_name).await?;
-                }
+// ─── Special-case deletes (records with side effects) ──────────────────────
 
-                tracing::debug!(did, rkey, "indexed tangled star");
-            }
+async fn dispatch_special_delete(
+    state: &Arc<AppState>,
+    collection: &str,
+    did: &str,
+    rkey: &str,
+) -> anyhow::Result<()> {
+    match collection {
+        // ─── Repo (incomplete implementation) ───────────────────────
+        "dev.cospan.repo" => {
+            tracing::warn!(
+                did,
+                rkey,
+                "repo delete not fully implemented (need rkey->name lookup)"
+            );
         }
-        ("sh.tangled.feed.star", "delete") => {
-            if let Some(star) = db::star::get(&state.db, did, rkey).await? {
-                let (repo_did, repo_name) = parse_repo_at_uri(&star.subject);
-                db::star::decrement_repo_star_count(&state.db, &repo_did, &repo_name).await?;
-            }
-            db::star::delete(&state.db, did, rkey).await?;
+        "sh.tangled.repo" => {
+            tracing::warn!(did, rkey, "tangled repo delete (need rkey->name lookup)");
         }
 
-        // ─── Tangled Follow ────────────────────────────────────────
-        ("sh.tangled.graph.follow", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::follow::FollowRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::follow::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled follow");
-            }
-        }
-        ("sh.tangled.graph.follow", "delete") => {
-            db::follow::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Tangled Reaction ──────────────────────────────────────
-        ("sh.tangled.feed.reaction", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::reaction::ReactionRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::reaction::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled reaction");
-            }
-        }
-        ("sh.tangled.feed.reaction", "delete") => {
-            db::reaction::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Tangled Issue ─────────────────────────────────────────
-        ("sh.tangled.repo.issue", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::issue::IssueRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::issue::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled issue");
-            }
-        }
-        ("sh.tangled.repo.issue", "delete") => {
+        // ─── Issue (counter decrement on delete) ────────────────────
+        "dev.cospan.repo.issue" | "sh.tangled.repo.issue" => {
             if let Some(issue) = db::issue::get_by_pk(&state.db, did, rkey).await?
                 && issue.state == "open"
             {
@@ -661,87 +507,8 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
             db::issue::delete(&state.db, did, rkey).await?;
         }
 
-        // ─── Tangled Issue State ───────────────────────────────────
-        ("sh.tangled.repo.issue.state", "create" | "update") => {
-            if let Some(rec) = record {
-                let issue_uri = rec
-                    .get("issue")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let new_state = rec
-                    .get("state")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("open")
-                    .to_string();
-
-                let mut row: db::issue_state::IssueStateRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::issue_state::upsert(&state.db, &row).await?;
-
-                // Update the issue's state and repo counters
-                let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&issue_uri);
-                if let Some(issue) =
-                    db::issue::get_by_pk(&state.db, &issue_did, &issue_rkey).await?
-                {
-                    let old_state = &issue.state;
-                    if old_state != &new_state {
-                        db::issue::update_state(&state.db, &issue_did, &issue_rkey, &new_state)
-                            .await?;
-
-                        if old_state == "open" && new_state != "open" {
-                            decrement_repo_open_issue_count(
-                                &state.db,
-                                &issue.repo_did,
-                                &issue.repo_name,
-                            )
-                            .await?;
-                        } else if old_state != "open" && new_state == "open" {
-                            increment_repo_open_issue_count(
-                                &state.db,
-                                &issue.repo_did,
-                                &issue.repo_name,
-                            )
-                            .await?;
-                        }
-                    }
-                }
-                tracing::debug!(did, rkey, "indexed tangled issue state");
-            }
-        }
-        ("sh.tangled.repo.issue.state", "delete") => {
-            db::issue_state::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Tangled Issue Comment ─────────────────────────────────
-        ("sh.tangled.repo.issue.comment", "create" | "update") => {
-            if let Some(rec) = record {
-                let issue_uri = rec
-                    .get("issue")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                let mut row: db::issue_comment::IssueCommentRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-
-                let existing = db::issue_comment::get(&state.db, did, rkey).await?;
-                db::issue_comment::upsert(&state.db, &row).await?;
-
-                if existing.is_none() {
-                    let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&issue_uri);
-                    db::issue::increment_comment_count(&state.db, &issue_did, &issue_rkey).await?;
-                }
-                tracing::debug!(did, rkey, "indexed tangled issue comment");
-            }
-        }
-        ("sh.tangled.repo.issue.comment", "delete") => {
+        // ─── Issue Comment (counter decrement) ──────────────────────
+        "dev.cospan.repo.issue.comment" | "sh.tangled.repo.issue.comment" => {
             if let Some(comment) = db::issue_comment::get(&state.db, did, rkey).await? {
                 let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&comment.issue_uri);
                 db::issue::decrement_comment_count(&state.db, &issue_did, &issue_rkey).await?;
@@ -749,19 +516,8 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
             db::issue_comment::delete(&state.db, did, rkey).await?;
         }
 
-        // ─── Tangled Pull Request ──────────────────────────────────
-        ("sh.tangled.repo.pull", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::pull::PullRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::pull::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled pull");
-            }
-        }
-        ("sh.tangled.repo.pull", "delete") => {
+        // ─── Pull (counter decrement on delete) ─────────────────────
+        "dev.cospan.repo.pull" | "sh.tangled.repo.pull" => {
             if let Some(pull) = db::pull::get_by_pk(&state.db, did, rkey).await?
                 && pull.state == "open"
             {
@@ -770,80 +526,8 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
             db::pull::delete(&state.db, did, rkey).await?;
         }
 
-        // ─── Tangled Pull Status → Pull State ─────────────────────
-        ("sh.tangled.repo.pull.status", "create" | "update") => {
-            if let Some(rec) = record {
-                let pull_uri = rec
-                    .get("pull")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let mut row: db::pull_state::PullStateRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                let new_state = row.state.clone();
-                db::pull_state::upsert(&state.db, &row).await?;
-
-                // Update the pull's state and repo counters
-                let (pull_did, pull_rkey) = parse_at_uri_did_rkey(&pull_uri);
-                if let Some(pull) = db::pull::get_by_pk(&state.db, &pull_did, &pull_rkey).await? {
-                    let old_state = &pull.state;
-                    if old_state != &new_state {
-                        db::pull::update_state(&state.db, &pull_did, &pull_rkey, &new_state)
-                            .await?;
-
-                        if old_state == "open" && new_state != "open" {
-                            decrement_repo_open_mr_count(
-                                &state.db,
-                                &pull.repo_did,
-                                &pull.repo_name,
-                            )
-                            .await?;
-                        } else if old_state != "open" && new_state == "open" {
-                            increment_repo_open_mr_count(
-                                &state.db,
-                                &pull.repo_did,
-                                &pull.repo_name,
-                            )
-                            .await?;
-                        }
-                    }
-                }
-                tracing::debug!(did, rkey, "indexed tangled pull status as pull state");
-            }
-        }
-        ("sh.tangled.repo.pull.status", "delete") => {
-            db::pull_state::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Tangled Pull Comment ──────────────────────────────────
-        ("sh.tangled.repo.pull.comment", "create" | "update") => {
-            if let Some(rec) = record {
-                let pull_uri = rec
-                    .get("pull")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                let mut row: db::pull_comment::PullCommentRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-
-                let existing = db::pull_comment::get(&state.db, did, rkey).await?;
-                db::pull_comment::upsert(&state.db, &row).await?;
-
-                if existing.is_none() {
-                    let (pull_did, pull_rkey) = parse_at_uri_did_rkey(&pull_uri);
-                    db::pull::increment_comment_count(&state.db, &pull_did, &pull_rkey).await?;
-                }
-                tracing::debug!(did, rkey, "indexed tangled pull comment");
-            }
-        }
-        ("sh.tangled.repo.pull.comment", "delete") => {
+        // ─── Pull Comment (counter decrement) ───────────────────────
+        "dev.cospan.repo.pull.comment" | "sh.tangled.repo.pull.comment" => {
             if let Some(comment) = db::pull_comment::get(&state.db, did, rkey).await? {
                 let (pull_did, pull_rkey) = parse_at_uri_did_rkey(&comment.pull_uri);
                 db::pull::decrement_comment_count(&state.db, &pull_did, &pull_rkey).await?;
@@ -851,265 +535,30 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
             db::pull_comment::delete(&state.db, did, rkey).await?;
         }
 
-        // ─── Tangled Collaborator ──────────────────────────────────
-        ("sh.tangled.repo.collaborator", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::collaborator::CollaboratorRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::collaborator::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled collaborator");
-            }
-        }
-        ("sh.tangled.repo.collaborator", "delete") => {
-            db::collaborator::delete(&state.db, did, rkey).await?;
-        }
+        // ─── Star (counter decrement + SSE) ─────────────────────────
+        "dev.cospan.feed.star" | "sh.tangled.feed.star" => {
+            if let Some(star) = db::star::get(&state.db, did, rkey).await? {
+                let (repo_did, repo_name) = parse_repo_at_uri(&star.subject);
+                db::star::decrement_repo_star_count(&state.db, &repo_did, &repo_name).await?;
 
-        // ─── Tangled Knot → Node ──────────────────────────────────
-        ("sh.tangled.knot", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::node::NodeRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::node::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled knot as node");
-            }
-        }
-        ("sh.tangled.knot", "delete") => {
-            db::node::delete(&state.db, did).await?;
-        }
-
-        // ─── Tangled Spindle → Org ────────────────────────────────
-        ("sh.tangled.spindle", "create" | "update") => {
-            if let Some(rec) = record {
-                // Use the DID as a fallback name; Tangled spindles don't carry a name field
-                let name = rec
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(did)
-                    .to_string();
-
-                let row = db::org::OrgRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    name,
-                    description: rec
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    avatar_cid: None,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
-                db::org::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled spindle as org");
-            }
-        }
-        ("sh.tangled.spindle", "delete") => {
-            db::org::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Tangled Actor Profile ─────────────────────────────────
-        ("sh.tangled.actor.profile", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::actor_profile::ActorProfileRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.indexed_at = Utc::now();
-                db::actor_profile::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled actor profile");
-            }
-        }
-        ("sh.tangled.actor.profile", "delete") => {
-            db::actor_profile::delete(&state.db, did).await?;
-        }
-
-        // ─── Tangled Repo ──────────────────────────────────────────
-        ("sh.tangled.repo", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::repo::RepoRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::repo::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled repo");
-            }
-        }
-        ("sh.tangled.repo", "delete") => {
-            tracing::warn!(did, rkey, "tangled repo delete (need rkey->name lookup)");
-        }
-
-        // ─── Tangled Knot Member → Org Member ─────────────────────
-        ("sh.tangled.knot.member", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::org_member::OrgMemberRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::org_member::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled knot member as org member");
-            }
-        }
-        ("sh.tangled.knot.member", "delete") => {
-            db::org_member::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Tangled Spindle Member → Org Member ──────────────────
-        ("sh.tangled.spindle.member", "create" | "update") => {
-            if let Some(rec) = record {
-                let org_uri = format!("at://{did}/sh.tangled.spindle/self");
-
-                let row = db::org_member::OrgMemberRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    org_uri,
-                    member_did: rec
-                        .get("subject")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    role: "member".to_string(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
-                db::org_member::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled spindle member as org member");
-            }
-        }
-        ("sh.tangled.spindle.member", "delete") => {
-            db::org_member::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Tangled Label Definition ──────────────────────────────
-        ("sh.tangled.label.definition", "create" | "update") => {
-            if let Some(rec) = record {
-                let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
-                let row = db::label::LabelRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    repo_did,
-                    repo_name,
-                    name: rec
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    color: rec
-                        .get("color")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    // Tangled may store description in valueType
-                    description: rec
-                        .get("description")
-                        .or_else(|| rec.get("valueType"))
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
-                db::label::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled label definition");
-            }
-        }
-        ("sh.tangled.label.definition", "delete") => {
-            db::label::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Tangled Pipeline ──────────────────────────────────────
-        ("sh.tangled.pipeline", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::pipeline::PipelineRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.did = did.to_string();
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::pipeline::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled pipeline");
-            }
-        }
-        ("sh.tangled.pipeline", "delete") => {
-            db::pipeline::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Tangled Pipeline Status → Update pipeline ─────────────
-        ("sh.tangled.pipeline.status", "create" | "update") => {
-            if let Some(rec) = record {
-                // The pipeline AT-URI to look up
-                let pipeline_uri = rec.get("pipeline").and_then(|v| v.as_str()).unwrap_or("");
-                let (pipeline_did, pipeline_rkey) = parse_at_uri_did_rkey(pipeline_uri);
-
-                // Map Tangled status values to Cospan equivalents
-                let raw_status = rec
-                    .get("status")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("pending");
-                let mapped_status = match raw_status {
-                    "success" => "passed",
-                    "failed" => "failed",
-                    "cancelled" | "canceled" => "cancelled",
-                    "running" | "in_progress" => "running",
-                    other => other,
-                };
-
-                if !pipeline_did.is_empty() && !pipeline_rkey.is_empty() {
-                    // Update the pipeline status in-place
-                    sqlx::query(
-                        "UPDATE pipelines SET status = $1, indexed_at = NOW() \
-                         WHERE did = $2 AND rkey = $3",
-                    )
-                    .bind(mapped_status)
-                    .bind(&pipeline_did)
-                    .bind(&pipeline_rkey)
-                    .execute(&state.db)
-                    .await?;
+                if collection.starts_with("dev.cospan.") {
+                    let _ = state.event_tx.send(IndexEvent::StarDeleted {
+                        did: did.to_string(),
+                        subject: star.subject.clone(),
+                    });
                 }
-                tracing::debug!(
-                    did,
-                    rkey,
-                    status = mapped_status,
-                    "indexed tangled pipeline status"
-                );
             }
+            db::star::delete(&state.db, did, rkey).await?;
         }
-        ("sh.tangled.pipeline.status", "delete") => {
-            // Pipeline status deletes are no-ops (status is stored on the pipeline row)
+
+        // ─── Pipeline Status (no-op) ────────────────────────────────
+        "sh.tangled.pipeline.status" => {
             tracing::debug!(did, rkey, "tangled pipeline status delete (no-op)");
         }
 
-        // ─── Tangled Git RefUpdate ─────────────────────────────────
-        ("sh.tangled.git.refUpdate", "create" | "update") => {
-            if let Some(rec) = record {
-                let mut row: db::ref_update::RefUpdateRow =
-                    serde_json::from_value(transform_record(state, collection, rec))?;
-                row.rkey = rkey.to_string();
-                row.indexed_at = Utc::now();
-                db::ref_update::upsert(&state.db, &row).await?;
-                tracing::debug!(did, rkey, "indexed tangled git refUpdate");
-            }
-        }
-        ("sh.tangled.git.refUpdate", "delete") => {
-            db::ref_update::delete(&state.db, did, rkey).await?;
-        }
-
-        // ─── Tangled-only records (no Cospan equivalent) ──────────
-        // These are display-only features in Tangled with no Cospan schema.
-        // Log and skip.
-        (
-            "sh.tangled.publicKey"
-            | "sh.tangled.string"
-            | "sh.tangled.repo.artifact"
-            | "sh.tangled.label.op",
-            _,
-        ) => {
+        // ─── Tangled-only records ───────────────────────────────────
+        "sh.tangled.publicKey" | "sh.tangled.string" | "sh.tangled.repo.artifact"
+        | "sh.tangled.label.op" => {
             tracing::debug!(
                 collection,
                 did,
@@ -1118,16 +567,14 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
             );
         }
 
-        // ─── Catch-all for other tangled collections ───────────────
-        (c, _) if c.starts_with("sh.tangled.") => {
+        // ─── Catch-alls ─────────────────────────────────────────────
+        c if c.starts_with("sh.tangled.") => {
             tracing::debug!(
                 collection = c,
                 "tangled record received for unhandled collection"
             );
         }
-
-        // ─── Catch-all for unhandled cospan collections ─────────────
-        (c, _) if c.starts_with("dev.cospan.") => {
+        c if c.starts_with("dev.cospan.") => {
             tracing::debug!(collection = c, "unhandled dev.cospan collection");
         }
 
@@ -1138,15 +585,6 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
 }
 
 // ─── Helper functions ───────────────────────────────────────────────────────
-
-fn parse_datetime(record: &serde_json::Value, field: &str) -> chrono::DateTime<Utc> {
-    record
-        .get(field)
-        .and_then(|v| v.as_str())
-        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(Utc::now)
-}
 
 fn extract_did_from_at_uri(uri: &str) -> String {
     // at://did:plc:abc123/collection/rkey -> did:plc:abc123

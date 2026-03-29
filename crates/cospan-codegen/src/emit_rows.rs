@@ -9,18 +9,17 @@ use panproto_protocols::emit::{IndentWriter, children_by_edge};
 use crate::record_config::RecordConfig;
 
 /// Column info extracted from the panproto schema + record config.
-#[allow(dead_code)]
-struct Column {
-    name: String,
-    camel_name: String,
-    rust_type: String,
-    sql_type: String,
-    optional: bool,
+pub struct Column {
+    pub name: String,
+    pub camel_name: String,
+    pub rust_type: String,
+    pub sql_type: String,
+    pub optional: bool,
     /// Whether this is a denormalized field (not from upsert input).
-    is_counter: bool,
+    pub is_counter: bool,
 }
 
-fn columns_for_record(
+pub fn columns_for_record(
     schema: &panproto_schema::Schema,
     nsid: &str,
     config: &RecordConfig,

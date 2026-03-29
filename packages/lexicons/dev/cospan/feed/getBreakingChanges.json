@@ -1,0 +1,17 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.feed.getBreakingChanges",
+  "defs": {
+    "main": {
+      "type": "query",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "did": { "type": "string", "format": "did" },
+          "limit": { "type": "integer", "maximum": 100 },
+          "cursor": { "type": "string" }
+        }
+      }
+    }
+  }
+}

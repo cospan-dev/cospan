@@ -9,9 +9,10 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use panproto_gat::Name;
 use panproto_mig::Migration;
 use panproto_protocols::web_document::atproto;
-use panproto_schema::Schema;
+use panproto_schema::{Edge, Schema};
 
 /// A pair of (tangled_nsid, cospan_nsid) with their explicit morphism.
 pub struct InteropMorphism {
@@ -38,6 +39,144 @@ fn identity_morphism(src: &Schema, tgt: &Schema) -> Migration {
             edge_map.insert(edge.clone(), edge.clone());
         }
     }
+    Migration {
+        vertex_map,
+        edge_map,
+        hyper_edge_map: HashMap::new(),
+        label_map: HashMap::new(),
+        resolver: HashMap::new(),
+        hyper_resolver: HashMap::new(),
+        expr_resolvers: HashMap::new(),
+    }
+}
+
+/// Build a morphism that renames NSID prefixes (mapping all shared field names)
+/// and additionally applies explicit field renames.
+///
+/// `renames` is a list of `(src_field, tgt_field)` pairs for property names
+/// that differ between the two schemas (e.g., `("knot", "node")`).
+/// Fields with the same name are mapped automatically.
+fn renamed_morphism(
+    src: &Schema,
+    tgt: &Schema,
+    src_nsid: &str,
+    tgt_nsid: &str,
+    renames: &[(&str, &str)],
+) -> Migration {
+    let src_body = format!("{src_nsid}:body");
+    let tgt_body = format!("{tgt_nsid}:body");
+
+    let mut vertex_map: HashMap<Name, Name> = HashMap::new();
+    let mut edge_map: HashMap<Edge, Edge> = HashMap::new();
+
+    // Map the record vertex and body vertex
+    if src.has_vertex(&Name::from(src_nsid.to_string())) {
+        vertex_map.insert(
+            Name::from(src_nsid.to_string()),
+            Name::from(tgt_nsid.to_string()),
+        );
+    }
+    if src.has_vertex(&Name::from(src_body.clone())) {
+        vertex_map.insert(
+            Name::from(src_body.clone()),
+            Name::from(tgt_body.clone()),
+        );
+    }
+
+    // Build a lookup of renamed fields: src_field -> tgt_field
+    let rename_map: HashMap<&str, &str> = renames.iter().copied().collect();
+
+    // Walk source vertices to find body.X vertices and map them
+    for (vid, _) in &src.vertices {
+        let vid_str = vid.to_string();
+        if let Some(suffix) = vid_str.strip_prefix(&format!("{src_body}.")) {
+            // Check if this is a top-level field (no further dots) or a sub-object field
+            let top_field = suffix.split('.').next().unwrap_or(suffix);
+            let rest = suffix.strip_prefix(top_field).unwrap_or("");
+
+            let tgt_top = rename_map.get(top_field).copied().unwrap_or(top_field);
+            let tgt_vid = format!("{tgt_body}.{tgt_top}{rest}");
+            let tgt_name = Name::from(tgt_vid);
+            if tgt.has_vertex(&tgt_name) {
+                vertex_map.insert(vid.clone(), tgt_name);
+            }
+        }
+    }
+
+    // Map the record-schema edge (record → body)
+    let src_rec_edge = Edge {
+        src: Name::from(src_nsid.to_string()),
+        tgt: Name::from(src_body.clone()),
+        kind: Name::from("record-schema".to_string()),
+        name: None,
+    };
+    let tgt_rec_edge = Edge {
+        src: Name::from(tgt_nsid.to_string()),
+        tgt: Name::from(tgt_body.clone()),
+        kind: Name::from("record-schema".to_string()),
+        name: None,
+    };
+    if src.edges.contains_key(&src_rec_edge) && tgt.edges.contains_key(&tgt_rec_edge) {
+        edge_map.insert(src_rec_edge, tgt_rec_edge);
+    }
+
+    // Walk source edges to find property edges and map them
+    for (edge, _) in &src.edges {
+        if edge.kind.to_string() != "prop" {
+            continue;
+        }
+        let src_str = edge.src.to_string();
+        if !src_str.starts_with(&src_body) {
+            continue;
+        }
+
+        // Determine the parent path relative to src_body
+        let parent_suffix = src_str.strip_prefix(&src_body).unwrap_or("");
+        // Map the edge name through renames if it's a top-level field
+        let edge_name = edge.name.as_ref().map(|n| n.to_string()).unwrap_or_default();
+        let is_top_level = parent_suffix.is_empty();
+
+        let tgt_edge_name = if is_top_level {
+            rename_map.get(edge_name.as_str()).copied().unwrap_or(&edge_name).to_string()
+        } else {
+            edge_name.clone()
+        };
+
+        // Build the target parent path
+        let tgt_parent = if parent_suffix.is_empty() {
+            tgt_body.clone()
+        } else {
+            // Map each segment of the parent suffix
+            let suffix = parent_suffix.strip_prefix('.').unwrap_or(parent_suffix);
+            let top = suffix.split('.').next().unwrap_or(suffix);
+            let rest = suffix.strip_prefix(top).unwrap_or("");
+            let tgt_top = rename_map.get(top).copied().unwrap_or(top);
+            format!("{tgt_body}.{tgt_top}{rest}")
+        };
+
+        // Build target edge
+        let tgt_tgt_vid = if tgt_edge_name.is_empty() {
+            tgt_parent.clone()
+        } else {
+            format!("{tgt_parent}.{tgt_edge_name}")
+        };
+
+        let tgt_edge = Edge {
+            src: Name::from(tgt_parent),
+            tgt: Name::from(tgt_tgt_vid),
+            kind: edge.kind.clone(),
+            name: if tgt_edge_name.is_empty() {
+                None
+            } else {
+                Some(Name::from(tgt_edge_name))
+            },
+        };
+
+        if tgt.edges.contains_key(&tgt_edge) {
+            edge_map.insert(edge.clone(), tgt_edge);
+        }
+    }
+
     Migration {
         vertex_map,
         edge_map,
@@ -102,14 +241,86 @@ pub fn all_interop_morphisms() -> Vec<InteropMorphism> {
         InteropMorphism {
             tangled_nsid: "sh.tangled.label.definition",
             cospan_nsid: "dev.cospan.label.definition",
-            build_migration: |src, tgt| identity_morphism(src, tgt),
+            build_migration: |src, tgt| renamed_morphism(
+                src, tgt,
+                "sh.tangled.label.definition", "dev.cospan.label.definition",
+                &[], // field names that overlap (name, color, description, createdAt) match
+            ),
         },
-        // TODO: These have different schemas that need explicit vertex/edge maps:
-        // - sh.tangled.repo → dev.cospan.repo (knot → node, no defaultBranch/visibility)
-        // - sh.tangled.repo.pull → dev.cospan.repo.pull (sourceBranch→sourceRef, targetBranch→targetRef)
-        // - sh.tangled.git.refUpdate → dev.cospan.vcs.refUpdate (repoDid/repoName→repo, oldSha→oldTarget, newSha→newTarget)
-        // - sh.tangled.pipeline → dev.cospan.pipeline (triggerMetadata→repo/commitId)
-        // - sh.tangled.knot → dev.cospan.node (hostname→publicEndpoint)
+        // ── Renamed-field morphisms ──────────────────────────────────
+        InteropMorphism {
+            tangled_nsid: "sh.tangled.repo",
+            cospan_nsid: "dev.cospan.repo",
+            build_migration: |src, tgt| renamed_morphism(
+                src, tgt,
+                "sh.tangled.repo", "dev.cospan.repo",
+                &[("knot", "node")],
+                // name, description, createdAt match; defaultBranch/visibility only in target
+            ),
+        },
+        InteropMorphism {
+            tangled_nsid: "sh.tangled.repo.pull",
+            cospan_nsid: "dev.cospan.repo.pull",
+            build_migration: |src, tgt| renamed_morphism(
+                src, tgt,
+                "sh.tangled.repo.pull", "dev.cospan.repo.pull",
+                &[],
+                // title, body, mentions, references, createdAt match directly;
+                // target/source are sub-objects with different structure — the
+                // renamed_morphism maps what overlaps automatically
+            ),
+        },
+        InteropMorphism {
+            tangled_nsid: "sh.tangled.git.refUpdate",
+            cospan_nsid: "dev.cospan.vcs.refUpdate",
+            build_migration: |src, tgt| renamed_morphism(
+                src, tgt,
+                "sh.tangled.git.refUpdate", "dev.cospan.vcs.refUpdate",
+                &[("oldSha", "oldTarget"), ("newSha", "newTarget")],
+                // ref and committerDid match; repoDid/repoName → repo handled by DB transforms
+            ),
+        },
+        InteropMorphism {
+            tangled_nsid: "sh.tangled.pipeline",
+            cospan_nsid: "dev.cospan.pipeline",
+            build_migration: |src, tgt| renamed_morphism(
+                src, tgt,
+                "sh.tangled.pipeline", "dev.cospan.pipeline",
+                &[],
+                // workflows match; triggerMetadata→repo/commitId handled by DB transforms
+            ),
+        },
+        InteropMorphism {
+            tangled_nsid: "sh.tangled.knot",
+            cospan_nsid: "dev.cospan.node",
+            build_migration: |src, tgt| renamed_morphism(
+                src, tgt,
+                "sh.tangled.knot", "dev.cospan.node",
+                &[],
+                // createdAt matches; publicEndpoint only in target (optional)
+            ),
+        },
+        // ── Tangled Spindle → Cospan Org ─────────────────────────────
+        InteropMorphism {
+            tangled_nsid: "sh.tangled.spindle",
+            cospan_nsid: "dev.cospan.org",
+            build_migration: |src, tgt| renamed_morphism(
+                src, tgt,
+                "sh.tangled.spindle", "dev.cospan.org",
+                &[],
+                // createdAt matches; name/description only in target
+            ),
+        },
+        InteropMorphism {
+            tangled_nsid: "sh.tangled.spindle.member",
+            cospan_nsid: "dev.cospan.org.member",
+            build_migration: |src, tgt| renamed_morphism(
+                src, tgt,
+                "sh.tangled.spindle.member", "dev.cospan.org.member",
+                &[("subject", "member"), ("instance", "org")],
+                // createdAt matches; role only in target
+            ),
+        },
     ]
 }
 
