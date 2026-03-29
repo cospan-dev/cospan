@@ -1,52 +1,8 @@
+pub use super::generated::crud::follows::{delete, get, list, upsert};
+pub use super::generated::types::FollowRow;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FollowRow {
-    pub did: String,
-    pub rkey: String,
-    pub subject: String,
-    pub created_at: DateTime<Utc>,
-    pub indexed_at: DateTime<Utc>,
-}
-
-pub async fn upsert(pool: &PgPool, row: &FollowRow) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO follows (did, rkey, subject, created_at) \
-         VALUES ($1, $2, $3, $4) \
-         ON CONFLICT (did, rkey) DO UPDATE SET \
-           subject = EXCLUDED.subject, \
-           indexed_at = NOW()",
-    )
-    .bind(&row.did)
-    .bind(&row.rkey)
-    .bind(&row.subject)
-    .bind(row.created_at)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn delete(pool: &PgPool, did: &str, rkey: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM follows WHERE did = $1 AND rkey = $2")
-        .bind(did)
-        .bind(rkey)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-pub async fn get(pool: &PgPool, did: &str, rkey: &str) -> Result<Option<FollowRow>, sqlx::Error> {
-    sqlx::query_as::<_, FollowRow>(
-        "SELECT did, rkey, subject, created_at, indexed_at \
-         FROM follows WHERE did = $1 AND rkey = $2",
-    )
-    .bind(did)
-    .bind(rkey)
-    .fetch_optional(pool)
-    .await
-}
 
 pub async fn list_following(
     pool: &PgPool,

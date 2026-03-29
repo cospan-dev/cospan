@@ -1,61 +1,8 @@
+pub use super::generated::crud::pulls::{delete, list, upsert};
+pub use super::generated::types::PullRow;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PullRow {
-    pub did: String,
-    pub rkey: String,
-    pub repo_did: String,
-    pub repo_name: String,
-    pub title: String,
-    pub body: Option<String>,
-    pub target_ref: String,
-    pub source_ref: String,
-    pub source_repo: Option<String>,
-    pub state: String,
-    pub comment_count: i32,
-    pub created_at: DateTime<Utc>,
-    pub indexed_at: DateTime<Utc>,
-}
-
-pub async fn upsert(pool: &PgPool, row: &PullRow) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO pulls (did, rkey, repo_did, repo_name, title, body, target_ref, source_ref, \
-              source_repo, state, created_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
-         ON CONFLICT (did, rkey) DO UPDATE SET \
-           title = EXCLUDED.title, \
-           body = EXCLUDED.body, \
-           target_ref = EXCLUDED.target_ref, \
-           source_ref = EXCLUDED.source_ref, \
-           source_repo = EXCLUDED.source_repo, \
-           indexed_at = NOW()",
-    )
-    .bind(&row.did)
-    .bind(&row.rkey)
-    .bind(&row.repo_did)
-    .bind(&row.repo_name)
-    .bind(&row.title)
-    .bind(&row.body)
-    .bind(&row.target_ref)
-    .bind(&row.source_ref)
-    .bind(&row.source_repo)
-    .bind(&row.state)
-    .bind(row.created_at)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn delete(pool: &PgPool, did: &str, rkey: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM pulls WHERE did = $1 AND rkey = $2")
-        .bind(did)
-        .bind(rkey)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
 
 /// Get a pull by repo owner DID, repo name, and pull rkey.
 pub async fn get(

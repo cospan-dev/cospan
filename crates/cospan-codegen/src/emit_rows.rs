@@ -289,15 +289,31 @@ pub fn emit_crud(
     w.blank();
 
     // --- delete ---
+    let delete_where: Vec<String> = config
+        .conflict_keys
+        .iter()
+        .enumerate()
+        .map(|(i, k)| format!("{k} = ${}", i + 1))
+        .collect();
+    let delete_params: Vec<String> = config
+        .conflict_keys
+        .iter()
+        .map(|k| format!("{k}: &str"))
+        .collect();
+
     w.line(&format!(
-        "pub async fn delete(pool: &PgPool, did: &str) -> Result<(), sqlx::Error> {{"
+        "pub async fn delete(pool: &PgPool, {}) -> Result<(), sqlx::Error> {{",
+        delete_params.join(", ")
     ));
     w.indent();
     w.line(&format!(
-        "sqlx::query(\"DELETE FROM {} WHERE did = $1\")",
-        config.table_name
+        "sqlx::query(\"DELETE FROM {} WHERE {}\")",
+        config.table_name,
+        delete_where.join(" AND ")
     ));
-    w.line(".bind(did)");
+    for key in config.conflict_keys {
+        w.line(&format!(".bind({key})"));
+    }
     w.line(".execute(pool)");
     w.line(".await?;");
     w.line("Ok(())");

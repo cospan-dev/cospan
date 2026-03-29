@@ -1,51 +1,8 @@
+pub use super::generated::crud::issues::{delete, list, upsert};
+pub use super::generated::types::IssueRow;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IssueRow {
-    pub did: String,
-    pub rkey: String,
-    pub repo_did: String,
-    pub repo_name: String,
-    pub title: String,
-    pub body: Option<String>,
-    pub state: String,
-    pub comment_count: i32,
-    pub created_at: DateTime<Utc>,
-    pub indexed_at: DateTime<Utc>,
-}
-
-pub async fn upsert(pool: &PgPool, row: &IssueRow) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO issues (did, rkey, repo_did, repo_name, title, body, state, created_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
-         ON CONFLICT (did, rkey) DO UPDATE SET \
-           title = EXCLUDED.title, \
-           body = EXCLUDED.body, \
-           indexed_at = NOW()",
-    )
-    .bind(&row.did)
-    .bind(&row.rkey)
-    .bind(&row.repo_did)
-    .bind(&row.repo_name)
-    .bind(&row.title)
-    .bind(&row.body)
-    .bind(&row.state)
-    .bind(row.created_at)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn delete(pool: &PgPool, did: &str, rkey: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM issues WHERE did = $1 AND rkey = $2")
-        .bind(did)
-        .bind(rkey)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
 
 /// Get an issue by repo owner DID, repo name, and issue rkey.
 pub async fn get(

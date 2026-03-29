@@ -1,52 +1,8 @@
+pub use super::generated::crud::stars::{delete, get, list, upsert};
+pub use super::generated::types::StarRow;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StarRow {
-    pub did: String,
-    pub rkey: String,
-    pub subject: String,
-    pub created_at: DateTime<Utc>,
-    pub indexed_at: DateTime<Utc>,
-}
-
-pub async fn upsert(pool: &PgPool, row: &StarRow) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO stars (did, rkey, subject, created_at) \
-         VALUES ($1, $2, $3, $4) \
-         ON CONFLICT (did, rkey) DO UPDATE SET \
-           subject = EXCLUDED.subject, \
-           indexed_at = NOW()",
-    )
-    .bind(&row.did)
-    .bind(&row.rkey)
-    .bind(&row.subject)
-    .bind(row.created_at)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn delete(pool: &PgPool, did: &str, rkey: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM stars WHERE did = $1 AND rkey = $2")
-        .bind(did)
-        .bind(rkey)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-pub async fn get(pool: &PgPool, did: &str, rkey: &str) -> Result<Option<StarRow>, sqlx::Error> {
-    sqlx::query_as::<_, StarRow>(
-        "SELECT did, rkey, subject, created_at, indexed_at \
-         FROM stars WHERE did = $1 AND rkey = $2",
-    )
-    .bind(did)
-    .bind(rkey)
-    .fetch_optional(pool)
-    .await
-}
 
 /// Increment the star_count on the repo referenced by the AT-URI subject.
 /// Subject format: at://did/dev.cospan.repo/repo-name

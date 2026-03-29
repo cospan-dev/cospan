@@ -49,29 +49,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Actor Profile ──────────────────────────────────────────
         ("dev.cospan.actor.profile", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::actor_profile::ActorProfileRow {
-                    did: did.to_string(),
-                    bluesky: rec
-                        .get("bluesky")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    display_name: rec
-                        .get("displayName")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    description: rec
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    avatar_cid: rec
-                        .get("avatar")
-                        .and_then(|v| v.get("ref"))
-                        .and_then(|v| v.get("$link"))
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::actor_profile::ActorProfileRow::from_json(did, rkey, rec);
                 db::actor_profile::upsert(&state.db, &row).await?;
             }
         }
@@ -88,7 +66,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
 
                 // Look up node URL from nodes table
                 let node_url = {
-                    let nodes = db::node::list(&state.db, 1000).await?;
+                    let nodes = db::node::list(&state.db, 1000, None).await?;
                     nodes
                         .iter()
                         .find(|n| n.did == node_did)
@@ -115,16 +93,16 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                         .to_string(),
                     node_did,
                     node_url,
-                    default_branch: rec
+                    default_branch: Some(rec
                         .get("defaultBranch")
                         .and_then(|v| v.as_str())
                         .unwrap_or("main")
-                        .to_string(),
-                    visibility: rec
+                        .to_string()),
+                    visibility: Some(rec
                         .get("visibility")
                         .and_then(|v| v.as_str())
                         .unwrap_or("public")
-                        .to_string(),
+                        .to_string()),
                     source_repo: rec
                         .get("sourceRepo")
                         .and_then(|v| v.as_str())
@@ -1353,6 +1331,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
 
                 let row = db::actor_profile::ActorProfileRow {
                     did: did.to_string(),
+                    rkey: rkey.to_string(),
                     bluesky,
                     display_name: rec
                         .get("displayName")
@@ -1411,8 +1390,8 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     protocol: "git".to_string(), // Tangled repos are always git
                     node_did,
                     node_url,
-                    default_branch: "main".to_string(),
-                    visibility: "public".to_string(),
+                    default_branch: Some("main".to_string()),
+                    visibility: Some("public".to_string()),
                     source_repo: None,
                     star_count: 0,
                     fork_count: 0,
