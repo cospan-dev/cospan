@@ -29,16 +29,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Node ───────────────────────────────────────────────────
         ("dev.cospan.node", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::node::NodeRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    public_endpoint: rec
-                        .get("publicEndpoint")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::node::NodeRow::from_json(did, rkey, rec);
                 db::node::upsert(&state.db, &row).await?;
             }
         }
@@ -74,48 +65,9 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                         .unwrap_or_default()
                 };
 
-                let row = db::repo::RepoRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    name: rec
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    description: rec
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    protocol: rec
-                        .get("protocol")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    node_did,
-                    node_url,
-                    default_branch: Some(rec
-                        .get("defaultBranch")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("main")
-                        .to_string()),
-                    visibility: Some(rec
-                        .get("visibility")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("public")
-                        .to_string()),
-                    source_repo: rec
-                        .get("sourceRepo")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    star_count: 0,
-                    fork_count: 0,
-                    open_issue_count: 0,
-                    open_mr_count: 0,
-                    source: "cospan".to_string(),
-                    source_uri: None,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let mut row = db::repo::RepoRow::from_json(did, rkey, rec);
+                row.node_did = node_did;
+                row.node_url = node_url;
                 db::repo::upsert(&state.db, &row).await?;
             }
         }
@@ -140,50 +92,8 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .map(|a| a.len() as i32)
                     .unwrap_or(0);
 
-                let row = db::ref_update::RefUpdateRow {
-                    id: 0, // auto-generated
-                    repo_did,
-                    repo_name,
-                    rkey: rkey.to_string(),
-                    committer_did: rec
-                        .get("committerDid")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(did)
-                        .to_string(),
-                    ref_name: rec
-                        .get("ref")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    old_target: rec
-                        .get("oldTarget")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    new_target: rec
-                        .get("newTarget")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    protocol: rec
-                        .get("protocol")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    migration_id: rec
-                        .get("migrationId")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    breaking_change_count: breaking_changes,
-                    lens_id: rec.get("lensId").and_then(|v| v.as_str()).map(String::from),
-                    lens_quality: rec
-                        .get("lensQuality")
-                        .and_then(|v| v.as_f64())
-                        .map(|f| f as f32),
-                    commit_count: rec.get("commitCount").and_then(|v| v.as_i64()).unwrap_or(0)
-                        as i32,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let mut row = db::ref_update::RefUpdateRow::from_json(did, rkey, rec);
+                row.breaking_change_count = breaking_changes;
                 db::ref_update::upsert(&state.db, &row).await?;
 
                 // Publish SSE event
@@ -207,22 +117,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                 let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
                 let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
 
-                let row = db::issue::IssueRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    repo_did,
-                    repo_name,
-                    title: rec
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    body: rec.get("body").and_then(|v| v.as_str()).map(String::from),
-                    state: "open".to_string(),
-                    comment_count: 0,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::issue::IssueRow::from_json(did, rkey, rec);
                 db::issue::upsert(&state.db, &row).await?;
 
                 // Publish SSE event
@@ -255,18 +150,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("")
                     .to_string();
 
-                let row = db::issue_comment::IssueCommentRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    issue_uri: issue_uri.clone(),
-                    body: rec
-                        .get("body")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::issue_comment::IssueCommentRow::from_json(did, rkey, rec);
 
                 // Check if this is a new comment (not an update) for counter purposes
                 let existing = db::issue_comment::get(&state.db, did, rkey).await?;
@@ -302,15 +186,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("open")
                     .to_string();
 
-                let row = db::issue_state::IssueStateRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    issue_uri: issue_uri.clone(),
-                    state: new_state.clone(),
-                    reason: rec.get("reason").and_then(|v| v.as_str()).map(String::from),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::issue_state::IssueStateRow::from_json(did, rkey, rec);
                 db::issue_state::upsert(&state.db, &row).await?;
 
                 // Update the issue's state and repo counters
@@ -362,36 +238,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                 let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
                 let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
 
-                let row = db::pull::PullRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    repo_did,
-                    repo_name,
-                    title: rec
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    body: rec.get("body").and_then(|v| v.as_str()).map(String::from),
-                    target_ref: rec
-                        .get("targetRef")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    source_ref: rec
-                        .get("sourceRef")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    source_repo: rec
-                        .get("sourceRepo")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    state: "open".to_string(),
-                    comment_count: 0,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::pull::PullRow::from_json(did, rkey, rec);
                 db::pull::upsert(&state.db, &row).await?;
 
                 // Publish SSE event
@@ -423,22 +270,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("")
                     .to_string();
 
-                let row = db::pull_comment::PullCommentRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    pull_uri: pull_uri.clone(),
-                    body: rec
-                        .get("body")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    review_decision: rec
-                        .get("reviewDecision")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::pull_comment::PullCommentRow::from_json(did, rkey, rec);
 
                 // Check if this is a new comment (not an update) for counter purposes
                 let existing = db::pull_comment::get(&state.db, did, rkey).await?;
@@ -472,18 +304,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("open")
                     .to_string();
 
-                let row = db::pull_state::PullStateRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    pull_uri: pull_uri.clone(),
-                    state: new_state.clone(),
-                    merge_commit_id: rec
-                        .get("mergeCommitId")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::pull_state::PullStateRow::from_json(did, rkey, rec);
                 db::pull_state::upsert(&state.db, &row).await?;
 
                 // Update the pull's state and repo counters
@@ -536,13 +357,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("")
                     .to_string();
 
-                let row = db::star::StarRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    subject: subject.clone(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::star::StarRow::from_json(did, rkey, rec);
 
                 let existing = db::star::get(&state.db, did, rkey).await?;
                 db::star::upsert(&state.db, &row).await?;
@@ -576,17 +391,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Follow ─────────────────────────────────────────────────
         ("dev.cospan.graph.follow", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::follow::FollowRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    subject: rec
-                        .get("subject")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::follow::FollowRow::from_json(did, rkey, rec);
                 db::follow::upsert(&state.db, &row).await?;
             }
         }
@@ -597,22 +402,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Reaction ───────────────────────────────────────────────
         ("dev.cospan.feed.reaction", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::reaction::ReactionRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    subject: rec
-                        .get("subject")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    emoji: rec
-                        .get("emoji")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::reaction::ReactionRow::from_json(did, rkey, rec);
                 db::reaction::upsert(&state.db, &row).await?;
             }
         }
@@ -626,28 +416,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                 let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
                 let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
 
-                let row = db::label::LabelRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    repo_did,
-                    repo_name,
-                    name: rec
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    color: rec
-                        .get("color")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    description: rec
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::label::LabelRow::from_json(did, rkey, rec);
                 db::label::upsert(&state.db, &row).await?;
             }
         }
@@ -658,27 +427,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Org ────────────────────────────────────────────────────
         ("dev.cospan.org", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::org::OrgRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    name: rec
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    description: rec
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    avatar_cid: rec
-                        .get("avatar")
-                        .and_then(|v| v.get("ref"))
-                        .and_then(|v| v.get("$link"))
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::org::OrgRow::from_json(did, rkey, rec);
                 db::org::upsert(&state.db, &row).await?;
             }
         }
@@ -689,27 +438,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Org Member ─────────────────────────────────────────────
         ("dev.cospan.org.member", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::org_member::OrgMemberRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    org_uri: rec
-                        .get("org")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    member_did: rec
-                        .get("member")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    role: rec
-                        .get("role")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("member")
-                        .to_string(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::org_member::OrgMemberRow::from_json(did, rkey, rec);
                 db::org_member::upsert(&state.db, &row).await?;
             }
         }
@@ -723,24 +452,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                 let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
                 let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
 
-                let row = db::collaborator::CollaboratorRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    repo_did,
-                    repo_name,
-                    member_did: rec
-                        .get("did")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    role: rec
-                        .get("role")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("reader")
-                        .to_string(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::collaborator::CollaboratorRow::from_json(did, rkey, rec);
                 db::collaborator::upsert(&state.db, &row).await?;
             }
         }
@@ -756,46 +468,23 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
 
                 let checks = rec.get("algebraicChecks");
 
-                let row = db::pipeline::PipelineRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    repo_did,
-                    repo_name,
-                    commit_id: rec
-                        .get("commitId")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    ref_name: rec.get("ref").and_then(|v| v.as_str()).map(String::from),
-                    status: rec
-                        .get("status")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("pending")
-                        .to_string(),
-                    gat_type_check: checks
-                        .and_then(|c| c.get("gatTypeCheck"))
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    equation_verification: checks
-                        .and_then(|c| c.get("equationVerification"))
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    lens_law_check: checks
-                        .and_then(|c| c.get("lensLawCheck"))
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    breaking_change_check: checks
-                        .and_then(|c| c.get("breakingChangeCheck"))
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    completed_at: rec
-                        .get("completedAt")
-                        .and_then(|v| v.as_str())
-                        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-                        .map(|dt| dt.with_timezone(&Utc)),
-                    indexed_at: Utc::now(),
-                };
+                let mut row = db::pipeline::PipelineRow::from_json(did, rkey, rec);
+                row.gat_type_check = checks
+                    .and_then(|c| c.get("gatTypeCheck"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                row.equation_verification = checks
+                    .and_then(|c| c.get("equationVerification"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                row.lens_law_check = checks
+                    .and_then(|c| c.get("lensLawCheck"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                row.breaking_change_check = checks
+                    .and_then(|c| c.get("breakingChangeCheck"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
                 db::pipeline::upsert(&state.db, &row).await?;
             }
         }
@@ -806,38 +495,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Dependency ─────────────────────────────────────────────
         ("dev.cospan.repo.dependency", "create" | "update") => {
             if let Some(rec) = record {
-                let source_uri = rec.get("sourceRepo").and_then(|v| v.as_str()).unwrap_or("");
-                let target_uri = rec.get("targetRepo").and_then(|v| v.as_str()).unwrap_or("");
-                let (source_repo_did, source_repo_name) = parse_repo_at_uri(source_uri);
-                let (target_repo_did, target_repo_name) = parse_repo_at_uri(target_uri);
-
-                let row = db::dependency::DependencyRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    source_repo_did,
-                    source_repo_name,
-                    target_repo_did,
-                    target_repo_name,
-                    morphism_id: rec
-                        .get("morphismId")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    source_protocol: rec
-                        .get("sourceProtocol")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    target_protocol: rec
-                        .get("targetProtocol")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    description: rec
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::dependency::DependencyRow::from_json(did, rkey, rec);
                 db::dependency::upsert(&state.db, &row).await?;
             }
         }
@@ -852,25 +510,12 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Star ──────────────────────────────────────────
         ("sh.tangled.feed.star", "create" | "update") => {
             if let Some(rec) = record {
-                let subject = rec
-                    .get("subject")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                let row = db::star::StarRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    subject: subject.clone(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
-
+                let row = db::star::StarRow::from_tangled_json(did, rkey, rec);
                 let existing = db::star::get(&state.db, did, rkey).await?;
                 db::star::upsert(&state.db, &row).await?;
 
                 if existing.is_none() {
-                    let (repo_did, repo_name) = parse_repo_at_uri(&subject);
+                    let (repo_did, repo_name) = parse_repo_at_uri(&row.subject);
                     db::star::increment_repo_star_count(&state.db, &repo_did, &repo_name).await?;
                 }
 
@@ -888,17 +533,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Follow ────────────────────────────────────────
         ("sh.tangled.graph.follow", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::follow::FollowRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    subject: rec
-                        .get("subject")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::follow::FollowRow::from_tangled_json(did, rkey, rec);
                 db::follow::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled follow");
             }
@@ -910,24 +545,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Reaction ──────────────────────────────────────
         ("sh.tangled.feed.reaction", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::reaction::ReactionRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    subject: rec
-                        .get("subject")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    // Tangled uses "reaction" or "emoji" for the emoji field
-                    emoji: rec
-                        .get("emoji")
-                        .or_else(|| rec.get("reaction"))
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::reaction::ReactionRow::from_tangled_json(did, rkey, rec);
                 db::reaction::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled reaction");
             }
@@ -939,25 +557,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Issue ─────────────────────────────────────────
         ("sh.tangled.repo.issue", "create" | "update") => {
             if let Some(rec) = record {
-                let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
-                let row = db::issue::IssueRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    repo_did,
-                    repo_name,
-                    title: rec
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    body: rec.get("body").and_then(|v| v.as_str()).map(String::from),
-                    state: "open".to_string(),
-                    comment_count: 0,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::issue::IssueRow::from_tangled_json(did, rkey, rec);
                 db::issue::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled issue");
             }
@@ -986,15 +586,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("open")
                     .to_string();
 
-                let row = db::issue_state::IssueStateRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    issue_uri: issue_uri.clone(),
-                    state: new_state.clone(),
-                    reason: None,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::issue_state::IssueStateRow::from_tangled_json(did, rkey, rec);
                 db::issue_state::upsert(&state.db, &row).await?;
 
                 // Update the issue's state and repo counters
@@ -1040,18 +632,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("")
                     .to_string();
 
-                let row = db::issue_comment::IssueCommentRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    issue_uri: issue_uri.clone(),
-                    body: rec
-                        .get("body")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::issue_comment::IssueCommentRow::from_tangled_json(did, rkey, rec);
 
                 let existing = db::issue_comment::get(&state.db, did, rkey).await?;
                 db::issue_comment::upsert(&state.db, &row).await?;
@@ -1074,52 +655,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Pull Request ──────────────────────────────────
         ("sh.tangled.repo.pull", "create" | "update") => {
             if let Some(rec) = record {
-                // Tangled PR structure:
-                //   target: { repo (at-uri), branch }
-                //   source: { branch, sha, repo (at-uri) }
-                let target = rec.get("target");
-                let source = rec.get("source");
-
-                let repo_uri = target
-                    .and_then(|t| t.get("repo"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
-                let target_ref = target
-                    .and_then(|t| t.get("branch"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let source_ref = source
-                    .and_then(|s| s.get("branch"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let source_repo = source
-                    .and_then(|s| s.get("repo"))
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-
-                let row = db::pull::PullRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    repo_did,
-                    repo_name,
-                    title: rec
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    body: rec.get("body").and_then(|v| v.as_str()).map(String::from),
-                    target_ref,
-                    source_ref,
-                    source_repo,
-                    state: "open".to_string(),
-                    comment_count: 0,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::pull::PullRow::from_tangled_json(did, rkey, rec);
                 db::pull::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled pull");
             }
@@ -1141,22 +677,8 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
-                // Tangled uses "status", map to Cospan "state"
-                let new_state = rec
-                    .get("status")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("open")
-                    .to_string();
-
-                let row = db::pull_state::PullStateRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    pull_uri: pull_uri.clone(),
-                    state: new_state.clone(),
-                    merge_commit_id: None,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::pull_state::PullStateRow::from_tangled_json(did, rkey, rec);
+                let new_state = row.state.clone();
                 db::pull_state::upsert(&state.db, &row).await?;
 
                 // Update the pull's state and repo counters
@@ -1200,19 +722,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("")
                     .to_string();
 
-                let row = db::pull_comment::PullCommentRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    pull_uri: pull_uri.clone(),
-                    body: rec
-                        .get("body")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    review_decision: None, // Tangled doesn't have review decisions
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::pull_comment::PullCommentRow::from_tangled_json(did, rkey, rec);
 
                 let existing = db::pull_comment::get(&state.db, did, rkey).await?;
                 db::pull_comment::upsert(&state.db, &row).await?;
@@ -1235,31 +745,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Collaborator ──────────────────────────────────
         ("sh.tangled.repo.collaborator", "create" | "update") => {
             if let Some(rec) = record {
-                let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
-                // Tangled uses "subject" or "did" for the collaborator DID
-                let member_did = rec
-                    .get("subject")
-                    .or_else(|| rec.get("did"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                let row = db::collaborator::CollaboratorRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    repo_did,
-                    repo_name,
-                    member_did,
-                    role: rec
-                        .get("role")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("reader")
-                        .to_string(),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::collaborator::CollaboratorRow::from_tangled_json(did, rkey, rec);
                 db::collaborator::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled collaborator");
             }
@@ -1271,14 +757,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Knot → Node ──────────────────────────────────
         ("sh.tangled.knot", "create" | "update") => {
             if let Some(rec) = record {
-                // Tangled knots don't have a publicEndpoint field
-                let row = db::node::NodeRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    public_endpoint: None,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::node::NodeRow::from_tangled_json(did, rkey, rec);
                 db::node::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled knot as node");
             }
@@ -1320,35 +799,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Actor Profile ─────────────────────────────────
         ("sh.tangled.actor.profile", "create" | "update") => {
             if let Some(rec) = record {
-                // Tangled stores bluesky as a bool; Cospan stores a handle string.
-                // If true, we store the DID as a placeholder (best-effort without
-                // async handle resolution in the hot path).
-                let bluesky = match rec.get("bluesky") {
-                    Some(serde_json::Value::Bool(true)) => did.to_string(),
-                    Some(serde_json::Value::String(s)) => s.clone(),
-                    _ => String::new(),
-                };
-
-                let row = db::actor_profile::ActorProfileRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    bluesky,
-                    display_name: rec
-                        .get("displayName")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    description: rec
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    avatar_cid: rec
-                        .get("avatar")
-                        .and_then(|v| v.get("ref"))
-                        .and_then(|v| v.get("$link"))
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::actor_profile::ActorProfileRow::from_tangled_json(did, rkey, rec);
                 db::actor_profile::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled actor profile");
             }
@@ -1360,48 +811,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Repo ──────────────────────────────────────────
         ("sh.tangled.repo", "create" | "update") => {
             if let Some(rec) = record {
-                // Tangled stores knot as a hostname string; construct did:web and URL
-                let knot = rec.get("knot").and_then(|v| v.as_str()).unwrap_or("");
-                let node_did = if knot.is_empty() {
-                    String::new()
-                } else {
-                    format!("did:web:{knot}")
-                };
-                let node_url = if knot.is_empty() {
-                    String::new()
-                } else {
-                    format!("https://{knot}")
-                };
-
-                let source_uri = format!("at://{did}/sh.tangled.repo/{rkey}");
-
-                let row = db::repo::RepoRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    name: rec
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    description: rec
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    protocol: "git".to_string(), // Tangled repos are always git
-                    node_did,
-                    node_url,
-                    default_branch: Some("main".to_string()),
-                    visibility: Some("public".to_string()),
-                    source_repo: None,
-                    star_count: 0,
-                    fork_count: 0,
-                    open_issue_count: 0,
-                    open_mr_count: 0,
-                    source: "tangled".to_string(),
-                    source_uri: Some(source_uri),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::repo::RepoRow::from_tangled_json(did, rkey, rec);
                 db::repo::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled repo");
             }
@@ -1413,23 +823,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Knot Member → Org Member ─────────────────────
         ("sh.tangled.knot.member", "create" | "update") => {
             if let Some(rec) = record {
-                // Construct an org URI from the DID (knot owner) since knot.member
-                // is associated with the knot owner's DID
-                let org_uri = format!("at://{did}/sh.tangled.knot/self");
-
-                let row = db::org_member::OrgMemberRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    org_uri,
-                    member_did: rec
-                        .get("subject")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    role: "member".to_string(), // Tangled doesn't specify roles
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::org_member::OrgMemberRow::from_tangled_json(did, rkey, rec);
                 db::org_member::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled knot member as org member");
             }
@@ -1505,35 +899,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Pipeline ──────────────────────────────────────
         ("sh.tangled.pipeline", "create" | "update") => {
             if let Some(rec) = record {
-                let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
-                // Extract commit ID from triggerMetadata if present
-                let commit_id = rec
-                    .get("triggerMetadata")
-                    .and_then(|m| m.get("commitId"))
-                    .and_then(|v| v.as_str())
-                    .or_else(|| rec.get("commitId").and_then(|v| v.as_str()))
-                    .unwrap_or("")
-                    .to_string();
-
-                let row = db::pipeline::PipelineRow {
-                    did: did.to_string(),
-                    rkey: rkey.to_string(),
-                    repo_did,
-                    repo_name,
-                    commit_id,
-                    ref_name: rec.get("ref").and_then(|v| v.as_str()).map(String::from),
-                    status: "pending".to_string(),
-                    // Tangled doesn't have algebraic checks — mark all as skipped
-                    gat_type_check: Some("skipped".to_string()),
-                    equation_verification: Some("skipped".to_string()),
-                    lens_law_check: Some("skipped".to_string()),
-                    breaking_change_check: Some("skipped".to_string()),
-                    created_at: parse_datetime(rec, "createdAt"),
-                    completed_at: None,
-                    indexed_at: Utc::now(),
-                };
+                let row = db::pipeline::PipelineRow::from_tangled_json(did, rkey, rec);
                 db::pipeline::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled pipeline");
             }
@@ -1590,49 +956,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Git RefUpdate ─────────────────────────────────
         ("sh.tangled.git.refUpdate", "create" | "update") => {
             if let Some(rec) = record {
-                let repo_did = rec
-                    .get("repoDid")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(did)
-                    .to_string();
-                let repo_name = rec
-                    .get("repoName")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                let row = db::ref_update::RefUpdateRow {
-                    id: 0, // auto-generated
-                    repo_did,
-                    repo_name,
-                    rkey: rkey.to_string(),
-                    committer_did: rec
-                        .get("committerDid")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(did)
-                        .to_string(),
-                    ref_name: rec
-                        .get("ref")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    // Tangled uses oldSha/newSha — store git SHAs as-is
-                    old_target: rec.get("oldSha").and_then(|v| v.as_str()).map(String::from),
-                    new_target: rec
-                        .get("newSha")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    protocol: "git".to_string(),
-                    migration_id: None,
-                    breaking_change_count: 0,
-                    lens_id: None,
-                    lens_quality: None,
-                    commit_count: rec.get("commitCount").and_then(|v| v.as_i64()).unwrap_or(0)
-                        as i32,
-                    created_at: parse_datetime(rec, "createdAt"),
-                    indexed_at: Utc::now(),
-                };
+                let row = db::ref_update::RefUpdateRow::from_tangled_json(did, rkey, rec);
                 db::ref_update::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled git refUpdate");
             }
