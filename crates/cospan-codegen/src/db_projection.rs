@@ -25,22 +25,19 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
     let body_vertex = record_body_vertex(nsid);
 
     match nsid {
+        // All target keys are camelCase to match #[serde(rename_all = "camelCase")]
+        // on the Row structs, so serde can deserialize the panproto output directly.
         "dev.cospan.repo" => {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    // node (AT-URI) → node_did (extract DID)
-                    at_uri_extract_did("node", "node_did"),
-                    // node_url is looked up at ingestion time, add empty default
-                    add_field_str("node_url", ""),
-                    // Counter defaults (excluded from insert, managed separately)
-                    add_field_int("star_count", 0),
-                    add_field_int("fork_count", 0),
-                    add_field_int("open_issue_count", 0),
-                    add_field_int("open_mr_count", 0),
-                    // Source tracking
+                    at_uri_extract_did("node", "nodeDid"),
+                    add_field_str("nodeUrl", ""),
+                    add_field_int("starCount", 0),
+                    add_field_int("forkCount", 0),
+                    add_field_int("openIssueCount", 0),
+                    add_field_int("openMrCount", 0),
                     add_field_str("source", "pds"),
-                    // Drop complex fields not stored in DB columns
                     drop_field("node"),
                 ],
             );
@@ -49,10 +46,9 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    at_uri_extract_did("repo", "repo_did"),
-                    at_uri_extract_name("repo", "repo_name"),
-                    // Count breaking changes from array length
-                    compute_array_len("breakingChanges", "breaking_change_count"),
+                    at_uri_extract_did("repo", "repoDid"),
+                    at_uri_extract_name("repo", "repoName"),
+                    compute_array_len("breakingChanges", "breakingChangeCount"),
                     drop_field("repo"),
                     drop_field("breakingChanges"),
                 ],
@@ -62,10 +58,10 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    at_uri_extract_did("repo", "repo_did"),
-                    at_uri_extract_name("repo", "repo_name"),
+                    at_uri_extract_did("repo", "repoDid"),
+                    at_uri_extract_name("repo", "repoName"),
                     add_field_str("state", "open"),
-                    add_field_int("comment_count", 0),
+                    add_field_int("commentCount", 0),
                     drop_field("repo"),
                     drop_field("schemaRefs"),
                     drop_field("labels"),
@@ -78,7 +74,7 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    rename_field("issue", "issue_uri"),
+                    rename_field("issue", "issueUri"),
                     drop_field("schemaRefs"),
                     drop_field("mentions"),
                 ],
@@ -87,17 +83,17 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
         "dev.cospan.repo.issue.state" => {
             transforms.insert(
                 Name::from(body_vertex),
-                vec![rename_field("issue", "issue_uri")],
+                vec![rename_field("issue", "issueUri")],
             );
         }
         "dev.cospan.repo.pull" => {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    at_uri_extract_did("repo", "repo_did"),
-                    at_uri_extract_name("repo", "repo_name"),
+                    at_uri_extract_did("repo", "repoDid"),
+                    at_uri_extract_name("repo", "repoName"),
                     add_field_str("state", "open"),
-                    add_field_int("comment_count", 0),
+                    add_field_int("commentCount", 0),
                     drop_field("repo"),
                     drop_field("mergePreview"),
                     drop_field("mentions"),
@@ -109,7 +105,7 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    rename_field("pull", "pull_uri"),
+                    rename_field("pull", "pullUri"),
                     drop_field("schemaRefs"),
                     drop_field("mentions"),
                 ],
@@ -118,15 +114,14 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
         "dev.cospan.repo.pull.state" => {
             transforms.insert(
                 Name::from(body_vertex),
-                vec![rename_field("pull", "pull_uri")],
+                vec![rename_field("pull", "pullUri")],
             );
         }
         "dev.cospan.actor.profile" => {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    // Extract avatar CID from blob ref
-                    path_extract("avatar", vec!["ref", "$link"], "avatar_cid"),
+                    path_extract("avatar", vec!["ref", "$link"], "avatarCid"),
                     drop_field("avatar"),
                     drop_field("links"),
                 ],
@@ -136,8 +131,8 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    at_uri_extract_did("repo", "repo_did"),
-                    at_uri_extract_name("repo", "repo_name"),
+                    at_uri_extract_did("repo", "repoDid"),
+                    at_uri_extract_name("repo", "repoName"),
                     drop_field("repo"),
                 ],
             );
@@ -146,7 +141,7 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    path_extract("avatar", vec!["ref", "$link"], "avatar_cid"),
+                    path_extract("avatar", vec!["ref", "$link"], "avatarCid"),
                     drop_field("avatar"),
                 ],
             );
@@ -155,8 +150,8 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    rename_field("org", "org_uri"),
-                    rename_field("member", "member_did"),
+                    rename_field("org", "orgUri"),
+                    rename_field("member", "memberDid"),
                 ],
             );
         }
@@ -164,10 +159,9 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    at_uri_extract_did("repo", "repo_did"),
-                    at_uri_extract_name("repo", "repo_name"),
-                    // Lexicon `did` field (collaborator DID) → `member_did`
-                    rename_field("did", "member_did"),
+                    at_uri_extract_did("repo", "repoDid"),
+                    at_uri_extract_name("repo", "repoName"),
+                    rename_field("did", "memberDid"),
                     drop_field("repo"),
                 ],
             );
@@ -176,10 +170,10 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    at_uri_extract_did("sourceRepo", "source_repo_did"),
-                    at_uri_extract_name("sourceRepo", "source_repo_name"),
-                    at_uri_extract_did("targetRepo", "target_repo_did"),
-                    at_uri_extract_name("targetRepo", "target_repo_name"),
+                    at_uri_extract_did("sourceRepo", "sourceRepoDid"),
+                    at_uri_extract_name("sourceRepo", "sourceRepoName"),
+                    at_uri_extract_did("targetRepo", "targetRepoDid"),
+                    at_uri_extract_name("targetRepo", "targetRepoName"),
                     drop_field("sourceRepo"),
                     drop_field("targetRepo"),
                 ],
@@ -189,20 +183,19 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
             transforms.insert(
                 Name::from(body_vertex),
                 vec![
-                    at_uri_extract_did("repo", "repo_did"),
-                    at_uri_extract_name("repo", "repo_name"),
-                    // Flatten algebraicChecks sub-object
-                    path_extract("algebraicChecks", vec!["gatTypeCheck"], "gat_type_check"),
+                    at_uri_extract_did("repo", "repoDid"),
+                    at_uri_extract_name("repo", "repoName"),
+                    path_extract("algebraicChecks", vec!["gatTypeCheck"], "gatTypeCheck"),
                     path_extract(
                         "algebraicChecks",
                         vec!["equationVerification"],
-                        "equation_verification",
+                        "equationVerification",
                     ),
-                    path_extract("algebraicChecks", vec!["lensLawCheck"], "lens_law_check"),
+                    path_extract("algebraicChecks", vec!["lensLawCheck"], "lensLawCheck"),
                     path_extract(
                         "algebraicChecks",
                         vec!["breakingChangeCheck"],
-                        "breaking_change_check",
+                        "breakingChangeCheck",
                     ),
                     drop_field("repo"),
                     drop_field("algebraicChecks"),
@@ -329,6 +322,38 @@ fn compute_array_len(source_field: &str, target_field: &str) -> FieldTransform {
         inverse: None,
         coercion_class: CoercionClass::Retraction,
     }
+}
+
+/// Auto-generate camelCase → snake_case renames for all Lexicon fields.
+/// This ensures `to_json()` output has snake_case keys matching Row struct field names.
+pub fn auto_camel_to_snake_renames(
+    schema: &panproto_schema::Schema,
+    nsid: &str,
+) -> Vec<FieldTransform> {
+    let body_vertex = record_body_vertex(nsid);
+    let props = panproto_protocols::emit::children_by_edge(schema, &body_vertex, "prop");
+    let mut renames = Vec::new();
+    for (edge, _) in &props {
+        if let Some(name) = edge.name.as_ref() {
+            let camel = name.as_str();
+            let snake = camel_to_snake(camel);
+            if camel != snake {
+                renames.push(rename_field(camel, &snake));
+            }
+        }
+    }
+    renames
+}
+
+fn camel_to_snake(s: &str) -> String {
+    let mut r = String::with_capacity(s.len() + 4);
+    for (i, c) in s.chars().enumerate() {
+        if c.is_uppercase() && i > 0 {
+            r.push('_');
+        }
+        r.push(c.to_lowercase().next().unwrap_or(c));
+    }
+    r
 }
 
 /// Get the record body vertex ID for a given NSID.

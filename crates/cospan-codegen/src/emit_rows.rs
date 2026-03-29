@@ -206,6 +206,15 @@ pub fn emit_row_types(
     w.line(&format!("pub struct {} {{", config.row_struct_name));
     w.indent();
     for col in &cols {
+        // Add #[serde(default)] for fields not in the Lexicon record
+        // (did, rkey, indexed_at, counters) so serde_json::from_value works
+        if col.name == "indexed_at" {
+            w.line("#[serde(default = \"default_now\")]");
+        } else if col.rust_type.starts_with("DateTime") {
+            // DateTime fields from Lexicon are already in the transformed JSON
+        } else if col.is_counter || col.name == "did" || col.name == "rkey" || col.name == "id" {
+            w.line("#[serde(default)]");
+        }
         w.line(&format!("pub {}: {},", col.name, col.rust_type));
     }
     w.dedent();
@@ -385,172 +394,6 @@ pub fn emit_crud(
 }
 
 // ---------------------------------------------------------------------------
-// Emit from_json deserializer
-// ---------------------------------------------------------------------------
-
-pub fn emit_from_json(
-    schema: &panproto_schema::Schema,
-    nsid: &str,
-    config: &RecordConfig,
-) -> Result<String> {
-    let mut w = IndentWriter::new("    ");
-    let row_name = config.row_struct_name;
-
-    w.line(&format!("impl {row_name} {{"));
-    w.indent();
-    w.line("/// Deserialize a Jetstream record JSON into a row.");
-    w.line("#[allow(unused_variables)]");
-    w.line("pub fn from_json(did: &str, rkey: &str, rec: &serde_json::Value) -> Self {");
-    w.indent();
-    w.line("Self {");
-    w.indent();
-
-    if config.has_serial_id {
-        w.line("id: 0, // assigned by database");
-    }
-    if config.include_did {
-        w.line("did: did.to_string(),");
-    }
-    if config.include_rkey {
-        w.line("rkey: rkey.to_string(),");
-    }
-
-    // URI decompositions
-    for decomp in config.uri_decompositions {
-        w.line(&format!(
-            "// Decompose {} AT-URI → ({}, {})",
-            decomp.source_field, decomp.did_column, decomp.name_column
-        ));
-        // Special case: "node" AT-URI is at-uri pointing to the node record,
-        // and we look up the node_url from the nodes table at ingestion time.
-        // For most URIs we just split the AT-URI.
-        if decomp.did_column == "node_did" {
-            w.line(&format!(
-                "{}: parse_at_uri_did(rec, \"{}\"),",
-                decomp.did_column, decomp.source_field
-            ));
-            w.line(&format!(
-                "{}: String::new(), // looked up from nodes table at ingestion",
-                decomp.name_column
-            ));
-        } else {
-            w.line(&format!(
-                "{}: parse_at_uri_did(rec, \"{}\"),",
-                decomp.did_column, decomp.source_field
-            ));
-            w.line(&format!(
-                "{}: parse_at_uri_name(rec, \"{}\"),",
-                decomp.name_column, decomp.source_field
-            ));
-        }
-    }
-
-    // URI storages (store full AT-URI as renamed column)
-    for storage in config.uri_storages {
-        w.line(&format!(
-            "{}: rec.get(\"{}\").and_then(|v| v.as_str()).unwrap_or(\"\").to_string(),",
-            storage.column_name, storage.source_field
-        ));
-    }
-
-    // Field renames
-    for rename in config.field_renames {
-        w.line(&format!(
-            "{}: rec.get(\"{}\").and_then(|v| v.as_str()).unwrap_or(\"\").to_string(),",
-            rename.column_name, rename.source_field
-        ));
-    }
-
-    // Lexicon fields
-    let body_id = find_record_body(schema, nsid);
-    let props = children_by_edge(schema, &body_id, "prop");
-    for (edge, prop_vertex) in &props {
-        let field_name = edge.name.as_ref().map(|n| n.as_str()).unwrap_or("unknown");
-
-        if config.skip_fields.contains(&field_name) || field_name == "did" || field_name == "rkey" {
-            continue;
-        }
-
-        // Check for type overrides that change the extraction
-        let type_override = config
-            .type_overrides
-            .iter()
-            .find(|o| o.source_field == field_name);
-
-        let mut snake = camel_to_snake(field_name);
-        if snake == "ref" {
-            snake = "ref_name".to_string();
-        } else if snake == "type" {
-            snake = "type_name".to_string();
-        }
-
-        if let Some(ovr) = type_override {
-            // Generate type-specific extractor based on override
-            let extractor = match ovr.rust_type {
-                "Option<f32>" => {
-                    format!("rec.get(\"{field_name}\").and_then(|v| v.as_f64()).map(|v| v as f32)")
-                }
-                "f32" => format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32"
-                ),
-                "i32" => format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_i64()).unwrap_or(0) as i32"
-                ),
-                "Option<i32>" => {
-                    format!("rec.get(\"{field_name}\").and_then(|v| v.as_i64()).map(|v| v as i32)")
-                }
-                _ => format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_str()).unwrap_or(\"\").to_string()"
-                ),
-            };
-            w.line(&format!("{snake}: {extractor},"));
-        } else {
-            let is_required = is_field_required(schema, &body_id, field_name);
-            let extractor = json_extractor(&prop_vertex.kind, field_name, is_required);
-            w.line(&format!("{snake}: {extractor},"));
-        }
-    }
-
-    // Extra denormalized columns
-    for extra in config.extra_columns {
-        if extra.name == "avatar_cid" {
-            w.line("avatar_cid: rec.get(\"avatar\").and_then(|v| v.get(\"ref\")).and_then(|v| v.get(\"$link\")).and_then(|v| v.as_str()).map(String::from),");
-        } else if extra.exclude_from_insert {
-            // Counter/auto-managed — use zero/default
-            let val: &str = match extra.rust_type {
-                "i32" | "i64" => "0",
-                "String" => "String::new()",
-                _ if extra.rust_type.starts_with("Option<") => "None",
-                _ => "Default::default()",
-            };
-            w.line(&format!("{}: {val},", extra.name));
-        } else if extra.optional {
-            w.line(&format!("{}: None,", extra.name));
-        } else {
-            // Non-optional, non-counter extra — use a sensible default
-            let val: &str = match extra.rust_type {
-                "String" => "String::new()",
-                "i32" | "i64" => "0",
-                "bool" => "false",
-                _ => "Default::default()",
-            };
-            w.line(&format!("{}: {val},", extra.name));
-        }
-    }
-
-    w.line("indexed_at: chrono::Utc::now(),");
-    w.dedent();
-    w.line("}");
-    w.dedent();
-    w.line("}");
-    w.dedent();
-    w.line("}");
-    w.blank();
-
-    Ok(w.finish())
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -599,59 +442,6 @@ fn lexicon_kind_to_db_types(kind: &panproto_gat::Name, field_name: &str) -> (Str
     }
 }
 
-fn json_extractor(kind: &panproto_gat::Name, field_name: &str, required: bool) -> String {
-    // DateTime fields
-    if field_name.ends_with("At") && kind.as_str() == "string" {
-        if required {
-            return format!("parse_datetime(rec, \"{field_name}\")");
-        } else {
-            return format!(
-                "rec.get(\"{field_name}\").and_then(|v| v.as_str()).and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok()).map(|dt| dt.with_timezone(&chrono::Utc))"
-            );
-        }
-    }
-
-    match kind.as_str() {
-        "string" | "ref" | "token" | "cid-link" => {
-            if required {
-                format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_str()).unwrap_or(\"\").to_string()"
-                )
-            } else {
-                format!("rec.get(\"{field_name}\").and_then(|v| v.as_str()).map(String::from)")
-            }
-        }
-        "integer" => {
-            if required {
-                format!("rec.get(\"{field_name}\").and_then(|v| v.as_i64()).unwrap_or(0)")
-            } else {
-                format!("rec.get(\"{field_name}\").and_then(|v| v.as_i64())")
-            }
-        }
-        "number" => {
-            if required {
-                format!("rec.get(\"{field_name}\").and_then(|v| v.as_f64()).unwrap_or(0.0)")
-            } else {
-                format!("rec.get(\"{field_name}\").and_then(|v| v.as_f64())")
-            }
-        }
-        "boolean" => {
-            if required {
-                format!("rec.get(\"{field_name}\").and_then(|v| v.as_bool()).unwrap_or(false)")
-            } else {
-                format!("rec.get(\"{field_name}\").and_then(|v| v.as_bool())")
-            }
-        }
-        _ => {
-            if required {
-                format!("rec.get(\"{field_name}\").cloned().unwrap_or(serde_json::Value::Null)")
-            } else {
-                format!("rec.get(\"{field_name}\").cloned()")
-            }
-        }
-    }
-}
-
 fn camel_to_snake(s: &str) -> String {
     let mut r = String::with_capacity(s.len() + 4);
     for (i, c) in s.chars().enumerate() {
@@ -679,39 +469,4 @@ fn snake_to_camel(s: &str) -> String {
         }
     }
     result
-}
-
-// Helper functions emitted into the generated output
-pub fn emit_helper_functions() -> String {
-    r#"
-pub fn parse_datetime(rec: &serde_json::Value, field: &str) -> DateTime<Utc> {
-    rec.get(field)
-        .and_then(|v| v.as_str())
-        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(Utc::now)
-}
-
-pub fn parse_at_uri_did(rec: &serde_json::Value, field: &str) -> String {
-    rec.get(field)
-        .and_then(|v| v.as_str())
-        .and_then(|uri| uri.strip_prefix("at://"))
-        .and_then(|rest| rest.split('/').next())
-        .unwrap_or("")
-        .to_string()
-}
-
-pub fn parse_at_uri_name(rec: &serde_json::Value, field: &str) -> String {
-    rec.get(field)
-        .and_then(|v| v.as_str())
-        .and_then(|uri| uri.strip_prefix("at://"))
-        .map(|rest| {
-            let parts: Vec<&str> = rest.splitn(3, '/').collect();
-            parts.get(2).copied().unwrap_or("")
-        })
-        .unwrap_or("")
-        .to_string()
-}
-"#
-    .to_string()
 }

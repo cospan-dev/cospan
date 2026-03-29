@@ -289,7 +289,7 @@ pub fn compile_db_projections(lexicons_dir: &Path) -> Result<Vec<CompiledDbProje
         let mut compiled = panproto_mig::compile(&schema, &schema, &migration)
             .map_err(|e| anyhow::anyhow!("compile db projection for {nsid}: {e:?}"))?;
 
-        // Inject DB projection field transforms
+        // Inject DB projection field transforms (AT-URI decomp, renames, defaults)
         let db_transforms = crate::db_projection::db_transforms(nsid);
         for (vertex, transforms) in db_transforms {
             compiled
