@@ -11,8 +11,9 @@ pub struct ExtraColumn {
     pub rust_type: &'static str,
     pub sql_type: &'static str,
     pub optional: bool,
-    /// Default value for the column (SQL expression).
-    pub default: Option<&'static str>,
+    /// Whether to exclude from INSERT (auto-managed by DB, e.g. counters).
+    /// Columns with this flag are not included in upsert() bind params.
+    pub exclude_from_insert: bool,
 }
 
 /// How to decompose an AT-URI field into separate columns.
@@ -81,6 +82,9 @@ pub struct RecordConfig {
     /// Whether to include the standard ATProto `did` column.
     /// Some records (like ref_update) don't store the record owner DID.
     pub include_did: bool,
+    /// Whether to include the standard ATProto `rkey` column.
+    /// Some records (like actor.profile with key "literal:self") don't store rkey.
+    pub include_rkey: bool,
 }
 
 const URI_DECOMP_REPO: UriDecomposition = UriDecomposition {
@@ -122,6 +126,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &[],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.actor.profile",
@@ -137,11 +142,12 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
                 rust_type: "Option<String>",
                 sql_type: "TEXT",
                 optional: true,
-                default: None,
+                exclude_from_insert: false,
             }],
             skip_fields: &["avatar", "links"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: false, // literal:self key — no rkey column in DB
         },
         RecordConfig {
             nsid: "dev.cospan.repo",
@@ -151,60 +157,73 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             uri_decompositions: &[URI_DECOMP_NODE],
             uri_storages: &[],
             field_renames: &[],
-            type_overrides: &[],
+            type_overrides: &[
+                // These are NOT NULL DEFAULT in the migration, so use String not Option<String>
+                TypeOverride {
+                    source_field: "defaultBranch",
+                    rust_type: "String",
+                    sql_type: "TEXT",
+                },
+                TypeOverride {
+                    source_field: "visibility",
+                    rust_type: "String",
+                    sql_type: "TEXT",
+                },
+            ],
             extra_columns: &[
                 ExtraColumn {
                     name: "star_count",
                     rust_type: "i32",
                     sql_type: "INTEGER",
                     optional: false,
-                    default: Some("0"),
+                    exclude_from_insert: true, // managed via increment/decrement
                 },
                 ExtraColumn {
                     name: "fork_count",
                     rust_type: "i32",
                     sql_type: "INTEGER",
                     optional: false,
-                    default: Some("0"),
+                    exclude_from_insert: true,
                 },
                 ExtraColumn {
                     name: "open_issue_count",
                     rust_type: "i32",
                     sql_type: "INTEGER",
                     optional: false,
-                    default: Some("0"),
+                    exclude_from_insert: true,
                 },
                 ExtraColumn {
                     name: "open_mr_count",
                     rust_type: "i32",
                     sql_type: "INTEGER",
                     optional: false,
-                    default: Some("0"),
+                    exclude_from_insert: true,
                 },
                 ExtraColumn {
                     name: "source",
                     rust_type: "String",
                     sql_type: "TEXT",
                     optional: false,
-                    default: Some("'pds'"),
+                    exclude_from_insert: false, // meaningful data, not a counter
                 },
                 ExtraColumn {
                     name: "source_uri",
                     rust_type: "Option<String>",
                     sql_type: "TEXT",
                     optional: true,
-                    default: None,
+                    exclude_from_insert: false,
                 },
             ],
             skip_fields: &["node"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.vcs.refUpdate",
             table_name: "ref_updates",
             row_struct_name: "RefUpdateRow",
-            conflict_keys: &["repo_did", "repo_name", "rkey"],
+            conflict_keys: &["committer_did", "rkey"], // matches idx_ref_updates_rkey
             uri_decompositions: &[URI_DECOMP_REPO],
             uri_storages: &[],
             field_renames: &[],
@@ -225,11 +244,12 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
                 rust_type: "i32",
                 sql_type: "INTEGER",
                 optional: false,
-                default: Some("0"),
+                exclude_from_insert: true, // set by consumer from array length
             }],
             skip_fields: &["repo", "breakingChanges"],
             has_serial_id: true,
             include_did: false, // ref_updates don't store record owner DID
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.repo.issue",
@@ -246,19 +266,20 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
                     rust_type: "String",
                     sql_type: "TEXT",
                     optional: false,
-                    default: Some("'open'"),
+                    exclude_from_insert: false, // initial state matters
                 },
                 ExtraColumn {
                     name: "comment_count",
                     rust_type: "i32",
                     sql_type: "INTEGER",
                     optional: false,
-                    default: Some("0"),
+                    exclude_from_insert: true, // managed via increment/decrement
                 },
             ],
             skip_fields: &["repo", "schemaRefs", "labels", "mentions", "references"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.repo.issue.comment",
@@ -276,6 +297,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &["issue", "schemaRefs", "mentions"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.repo.issue.state",
@@ -293,6 +315,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &["issue"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.repo.pull",
@@ -309,19 +332,20 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
                     rust_type: "String",
                     sql_type: "TEXT",
                     optional: false,
-                    default: Some("'open'"),
+                    exclude_from_insert: false,
                 },
                 ExtraColumn {
                     name: "comment_count",
                     rust_type: "i32",
                     sql_type: "INTEGER",
                     optional: false,
-                    default: Some("0"),
+                    exclude_from_insert: true,
                 },
             ],
             skip_fields: &["repo", "mergePreview", "mentions", "references"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.repo.pull.comment",
@@ -339,6 +363,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &["pull", "schemaRefs", "mentions"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.repo.pull.state",
@@ -356,6 +381,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &["pull"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.feed.star",
@@ -370,6 +396,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &[],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.feed.reaction",
@@ -384,6 +411,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &[],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.graph.follow",
@@ -398,6 +426,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &[],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.label.definition",
@@ -412,6 +441,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &["repo"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.org",
@@ -427,11 +457,12 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
                 rust_type: "Option<String>",
                 sql_type: "TEXT",
                 optional: true,
-                default: None,
+                exclude_from_insert: false,
             }],
             skip_fields: &["avatar"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.org.member",
@@ -453,6 +484,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &["org", "member"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.repo.collaborator",
@@ -472,6 +504,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &["repo", "did"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.repo.dependency",
@@ -486,6 +519,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &["sourceRepo", "targetRepo"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
         RecordConfig {
             nsid: "dev.cospan.pipeline",
@@ -502,33 +536,34 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
                     rust_type: "Option<String>",
                     sql_type: "TEXT",
                     optional: true,
-                    default: None,
+                    exclude_from_insert: false,
                 },
                 ExtraColumn {
                     name: "equation_verification",
                     rust_type: "Option<String>",
                     sql_type: "TEXT",
                     optional: true,
-                    default: None,
+                    exclude_from_insert: false,
                 },
                 ExtraColumn {
                     name: "lens_law_check",
                     rust_type: "Option<String>",
                     sql_type: "TEXT",
                     optional: true,
-                    default: None,
+                    exclude_from_insert: false,
                 },
                 ExtraColumn {
                     name: "breaking_change_check",
                     rust_type: "Option<String>",
                     sql_type: "TEXT",
                     optional: true,
-                    default: None,
+                    exclude_from_insert: false,
                 },
             ],
             skip_fields: &["repo", "algebraicChecks", "workflows"],
             has_serial_id: false,
             include_did: true,
+            include_rkey: true,
         },
     ]
 }

@@ -83,9 +83,6 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Ref Update ─────────────────────────────────────────────
         ("dev.cospan.vcs.refUpdate", "create" | "update") => {
             if let Some(rec) = record {
-                let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
                 let breaking_changes = rec
                     .get("breakingChanges")
                     .and_then(|v| v.as_array())
@@ -114,9 +111,6 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Issue ──────────────────────────────────────────────────
         ("dev.cospan.repo.issue", "create" | "update") => {
             if let Some(rec) = record {
-                let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
                 let row = db::issue::IssueRow::from_json(did, rkey, rec);
                 db::issue::upsert(&state.db, &row).await?;
 
@@ -235,9 +229,6 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Pull Request ───────────────────────────────────────────
         ("dev.cospan.repo.pull", "create" | "update") => {
             if let Some(rec) = record {
-                let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
                 let row = db::pull::PullRow::from_json(did, rkey, rec);
                 db::pull::upsert(&state.db, &row).await?;
 
@@ -413,9 +404,6 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Label Definition ───────────────────────────────────────
         ("dev.cospan.label.definition", "create" | "update") => {
             if let Some(rec) = record {
-                let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
                 let row = db::label::LabelRow::from_json(did, rkey, rec);
                 db::label::upsert(&state.db, &row).await?;
             }
@@ -449,9 +437,6 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Collaborator ───────────────────────────────────────────
         ("dev.cospan.repo.collaborator", "create" | "update") => {
             if let Some(rec) = record {
-                let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
                 let row = db::collaborator::CollaboratorRow::from_json(did, rkey, rec);
                 db::collaborator::upsert(&state.db, &row).await?;
             }
@@ -463,9 +448,6 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Pipeline ───────────────────────────────────────────────
         ("dev.cospan.pipeline", "create" | "update") => {
             if let Some(rec) = record {
-                let repo_uri = rec.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-                let (repo_did, repo_name) = parse_repo_at_uri(repo_uri);
-
                 let checks = rec.get("algebraicChecks");
 
                 let mut row = db::pipeline::PipelineRow::from_json(did, rkey, rec);

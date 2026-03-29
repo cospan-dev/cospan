@@ -25,12 +25,9 @@ pub enum FieldMapping {
 pub struct TangledMorphism {
     pub tangled_nsid: &'static str,
     pub target_row: &'static str,
-    pub target_table: &'static str,
     /// Ordered list of (column_name, mapping) pairs.
     /// Must match the Row struct field order.
     pub fields: Vec<(&'static str, FieldMapping)>,
-    /// Source tracking
-    pub source_label: &'static str,
 }
 
 pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
@@ -38,8 +35,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.feed.star",
             target_row: "StarRow",
-            target_table: "stars",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -51,8 +46,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.graph.follow",
             target_row: "FollowRow",
-            target_table: "follows",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -64,8 +57,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.feed.reaction",
             target_row: "ReactionRow",
-            target_table: "reactions",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -78,8 +69,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.repo.issue",
             target_row: "IssueRow",
-            target_table: "issues",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -96,8 +85,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.repo.issue.state",
             target_row: "IssueStateRow",
-            target_table: "issue_states",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -111,8 +98,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.repo.issue.comment",
             target_row: "IssueCommentRow",
-            target_table: "issue_comments",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -125,8 +110,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.repo.pull",
             target_row: "PullRow",
-            target_table: "pulls",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -146,8 +129,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.repo.pull.status",
             target_row: "PullStateRow",
-            target_table: "pull_states",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -164,8 +145,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.repo.pull.comment",
             target_row: "PullCommentRow",
-            target_table: "pull_comments",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -179,8 +158,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.repo.collaborator",
             target_row: "CollaboratorRow",
-            target_table: "collaborators",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -196,8 +173,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.knot",
             target_row: "NodeRow",
-            target_table: "nodes",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -214,18 +189,13 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.spindle",
             target_row: "NodeRow",
-            target_table: "nodes",
-            source_label: "tangled",
             fields: vec![], // handled specially below
         },
         TangledMorphism {
             tangled_nsid: "sh.tangled.actor.profile",
             target_row: "ActorProfileRow",
-            target_table: "actor_profiles",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
                 // Tangled bluesky is a boolean; we store the handle or empty string
                 ("bluesky", FieldMapping::Custom("{\
                     match rec.get(\"bluesky\") {\
@@ -248,8 +218,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.repo",
             target_row: "RepoRow",
-            target_table: "repos",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -263,12 +231,12 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
                     if knot.is_empty() { String::new() } else { format!(\"https://{knot}\") }\
                 }")),
                 ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("default_branch", FieldMapping::Constant("Some(\"main\".to_string())")),
+                ("default_branch", FieldMapping::Constant("\"main\".to_string()")),
                 ("description", FieldMapping::Direct { tangled_field: "description", required: false }),
                 ("name", FieldMapping::Direct { tangled_field: "name", required: true }),
                 ("protocol", FieldMapping::Constant("\"git\".to_string()")),
                 ("source_repo", FieldMapping::Custom("None")),
-                ("visibility", FieldMapping::Constant("Some(\"public\".to_string())")),
+                ("visibility", FieldMapping::Constant("\"public\".to_string()")),
                 ("star_count", FieldMapping::Constant("0")),
                 ("fork_count", FieldMapping::Constant("0")),
                 ("open_issue_count", FieldMapping::Constant("0")),
@@ -281,8 +249,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.knot.member",
             target_row: "OrgMemberRow",
-            target_table: "org_members",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -296,8 +262,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.spindle.member",
             target_row: "OrgMemberRow",
-            target_table: "org_members",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -311,8 +275,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.label.definition",
             target_row: "LabelRow",
-            target_table: "labels",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -329,8 +291,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.pipeline",
             target_row: "PipelineRow",
-            target_table: "pipelines",
-            source_label: "tangled",
             fields: vec![
                 ("did", FieldMapping::Custom("did.to_string()")),
                 ("rkey", FieldMapping::Custom("rkey.to_string()")),
@@ -353,8 +313,6 @@ pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
         TangledMorphism {
             tangled_nsid: "sh.tangled.git.refUpdate",
             target_row: "RefUpdateRow",
-            target_table: "ref_updates",
-            source_label: "tangled",
             fields: vec![
                 ("id", FieldMapping::Constant("0")),
                 // No did column for ref_updates (include_did: false)
@@ -406,6 +364,7 @@ pub fn emit_tangled_from_json(morphisms: &[TangledMorphism]) -> Result<String> {
             "/// Deserialize a {} Jetstream record into a Cospan row.",
             m.tangled_nsid
         ));
+        w.line("#[allow(unused_variables)]");
         w.line("pub fn from_tangled_json(did: &str, rkey: &str, rec: &serde_json::Value) -> Self {");
         w.indent();
         w.line("Self {");

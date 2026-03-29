@@ -48,14 +48,16 @@ fn columns_for_record(
             is_counter: false,
         });
     }
-    cols.push(Column {
-        name: "rkey".into(),
-        camel_name: "rkey".into(),
-        rust_type: "String".into(),
-        sql_type: "TEXT".into(),
-        optional: false,
-        is_counter: false,
-    });
+    if config.include_rkey {
+        cols.push(Column {
+            name: "rkey".into(),
+            camel_name: "rkey".into(),
+            rust_type: "String".into(),
+            sql_type: "TEXT".into(),
+            optional: false,
+            is_counter: false,
+        });
+    }
 
     // 2. URI decomposition columns (replace the AT-URI field with did+name)
     for decomp in config.uri_decompositions {
@@ -174,7 +176,7 @@ fn columns_for_record(
             rust_type: extra.rust_type.into(),
             sql_type: extra.sql_type.into(),
             optional: extra.optional,
-            is_counter: extra.default.is_some(),
+            is_counter: extra.exclude_from_insert,
         });
     }
 
@@ -208,9 +210,6 @@ pub fn emit_row_types(
     w.line(&format!("pub struct {} {{", config.row_struct_name));
     w.indent();
     for col in &cols {
-        if col.name != col.camel_name && !col.name.contains("_") || col.camel_name != snake_to_camel(&col.name) {
-            // Only add rename if the auto-derived camelCase doesn't match
-        }
         w.line(&format!("pub {}: {},", col.name, col.rust_type));
     }
     w.dedent();
@@ -345,7 +344,7 @@ pub fn emit_crud(
     ));
     w.indent();
     w.line(&format!(
-        "sqlx::query_as::<_, {row_name}>(&format!(\"SELECT {} FROM {} WHERE {}\"))",
+        "sqlx::query_as::<_, {row_name}>(\"SELECT {} FROM {} WHERE {}\")",
         select_cols,
         config.table_name,
         where_clauses.join(" AND ")
@@ -410,6 +409,7 @@ pub fn emit_from_json(
     w.line(&format!("impl {row_name} {{"));
     w.indent();
     w.line("/// Deserialize a Jetstream record JSON into a row.");
+    w.line("#[allow(unused_variables)]");
     w.line("pub fn from_json(did: &str, rkey: &str, rec: &serde_json::Value) -> Self {");
     w.indent();
     w.line("Self {");
@@ -421,7 +421,9 @@ pub fn emit_from_json(
     if config.include_did {
         w.line("did: did.to_string(),");
     }
-    w.line("rkey: rkey.to_string(),");
+    if config.include_rkey {
+        w.line("rkey: rkey.to_string(),");
+    }
 
     // URI decompositions
     for decomp in config.uri_decompositions {
@@ -530,15 +532,26 @@ pub fn emit_from_json(
     for extra in config.extra_columns {
         if extra.name == "avatar_cid" {
             w.line("avatar_cid: rec.get(\"avatar\").and_then(|v| v.get(\"ref\")).and_then(|v| v.get(\"$link\")).and_then(|v| v.as_str()).map(String::from),");
-        } else if let Some(default) = extra.default {
-            let val = match extra.rust_type {
-                "i32" => format!("{}", default.trim_matches('\'')),
-                "String" => format!("\"{}\".to_string()", default.trim_matches('\'')),
-                _ => "Default::default()".into(),
+        } else if extra.exclude_from_insert {
+            // Counter/auto-managed — use zero/default
+            let val: &str = match extra.rust_type {
+                "i32" | "i64" => "0",
+                "String" => "String::new()",
+                _ if extra.rust_type.starts_with("Option<") => "None",
+                _ => "Default::default()",
             };
             w.line(&format!("{}: {val},", extra.name));
-        } else {
+        } else if extra.optional {
             w.line(&format!("{}: None,", extra.name));
+        } else {
+            // Non-optional, non-counter extra — use a sensible default
+            let val: &str = match extra.rust_type {
+                "String" => "String::new()",
+                "i32" | "i64" => "0",
+                "bool" => "false",
+                _ => "Default::default()",
+            };
+            w.line(&format!("{}: {val},", extra.name));
         }
     }
 
@@ -547,72 +560,6 @@ pub fn emit_from_json(
     w.line("}");
     w.dedent();
     w.line("}");
-    w.dedent();
-    w.line("}");
-    w.blank();
-
-    Ok(w.finish())
-}
-
-// ---------------------------------------------------------------------------
-// Emit consumer dispatch
-// ---------------------------------------------------------------------------
-
-pub fn emit_dispatch_table(configs: &[&RecordConfig]) -> Result<String> {
-    let mut w = IndentWriter::new("    ");
-
-    w.line("/// Process a single Jetstream event by dispatching on collection.");
-    w.line("/// Generated from Lexicon definitions — do not edit manually.");
-    w.line("pub async fn dispatch_record(");
-    w.indent();
-    w.line("pool: &PgPool,");
-    w.line("collection: &str,");
-    w.line("operation: &str,");
-    w.line("did: &str,");
-    w.line("rkey: &str,");
-    w.line("record: Option<&serde_json::Value>,");
-    w.dedent();
-    w.line(") -> Result<(), sqlx::Error> {");
-    w.indent();
-    w.line("match (collection, operation) {");
-    w.indent();
-
-    for config in configs {
-        let row_name = config.row_struct_name;
-        let mod_prefix = config.table_name;
-
-        // create | update
-        w.line(&format!(
-            "(\"{}\", \"create\" | \"update\") => {{",
-            config.nsid
-        ));
-        w.indent();
-        w.line("if let Some(rec) = record {");
-        w.indent();
-        w.line(&format!(
-            "let row = {row_name}::from_json(did, rkey, rec);"
-        ));
-        w.line(&format!("{mod_prefix}::upsert(pool, &row).await?;"));
-        w.dedent();
-        w.line("}");
-        w.dedent();
-        w.line("}");
-
-        // delete
-        w.line(&format!(
-            "(\"{}\", \"delete\") => {{",
-            config.nsid
-        ));
-        w.indent();
-        w.line(&format!("{mod_prefix}::delete(pool, did).await?;"));
-        w.dedent();
-        w.line("}");
-    }
-
-    w.line("_ => {} // unknown collection");
-    w.dedent();
-    w.line("}");
-    w.line("Ok(())");
     w.dedent();
     w.line("}");
     w.blank();

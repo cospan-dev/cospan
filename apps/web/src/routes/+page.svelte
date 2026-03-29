@@ -15,7 +15,7 @@
 					l.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
 					l.value.toLowerCase().includes(searchQuery.toLowerCase())
 				).slice(0, 20)
-			: []
+			: ALL_LANGUAGES.slice(0, 20)
 	);
 
 	function selectProtocol(value: string) {
@@ -78,10 +78,12 @@
 					onfocus={() => showDropdown = true}
 					onblur={() => setTimeout(() => showDropdown = false, 200)}
 					placeholder="Filter by language..."
-					class="w-44 rounded-full border border-border bg-surface-0 px-3 py-1 text-xs text-text-primary placeholder:text-text-secondary focus:border-accent focus:outline-none"
+					autocomplete="off"
+					spellcheck="false"
+					class="w-48 rounded-full border border-border bg-surface-0 px-3 py-1 text-xs text-text-primary placeholder:text-text-secondary focus:border-accent focus:outline-none"
 				/>
 
-				{#if showDropdown && filtered.length > 0}
+				{#if showDropdown}
 					<ul class="absolute left-0 top-full z-50 mt-1 max-h-48 w-56 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
 						{#each filtered as lang}
 							<li>

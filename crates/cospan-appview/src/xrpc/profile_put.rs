@@ -29,7 +29,6 @@ pub async fn handler(
 
     let row = db::actor_profile::ActorProfileRow {
         did: input.did.clone(),
-        rkey: "self".to_string(),
         bluesky: input.bluesky.clone().unwrap_or_default(),
         display_name: input.display_name.clone(),
         description: input.description.clone(),
