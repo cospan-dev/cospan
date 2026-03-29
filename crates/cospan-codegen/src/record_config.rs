@@ -332,13 +332,34 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
                 ref_columns: &["did"],
             }],
             column_defaults: &[
-                ColumnDefault { column: "default_branch", expression: "'main'" },
-                ColumnDefault { column: "visibility", expression: "'public'" },
-                ColumnDefault { column: "star_count", expression: "0" },
-                ColumnDefault { column: "fork_count", expression: "0" },
-                ColumnDefault { column: "open_issue_count", expression: "0" },
-                ColumnDefault { column: "open_mr_count", expression: "0" },
-                ColumnDefault { column: "source", expression: "'cospan'" },
+                ColumnDefault {
+                    column: "default_branch",
+                    expression: "'main'",
+                },
+                ColumnDefault {
+                    column: "visibility",
+                    expression: "'public'",
+                },
+                ColumnDefault {
+                    column: "star_count",
+                    expression: "0",
+                },
+                ColumnDefault {
+                    column: "fork_count",
+                    expression: "0",
+                },
+                ColumnDefault {
+                    column: "open_issue_count",
+                    expression: "0",
+                },
+                ColumnDefault {
+                    column: "open_mr_count",
+                    expression: "0",
+                },
+                ColumnDefault {
+                    column: "source",
+                    expression: "'cospan'",
+                },
             ],
         },
         RecordConfig {
@@ -412,8 +433,14 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
                 ref_columns: &["did", "name"],
             }],
             column_defaults: &[
-                ColumnDefault { column: "breaking_change_count", expression: "0" },
-                ColumnDefault { column: "commit_count", expression: "0" },
+                ColumnDefault {
+                    column: "breaking_change_count",
+                    expression: "0",
+                },
+                ColumnDefault {
+                    column: "commit_count",
+                    expression: "0",
+                },
             ],
         },
         RecordConfig {
@@ -485,8 +512,14 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
                 ref_columns: &["did", "name"],
             }],
             column_defaults: &[
-                ColumnDefault { column: "state", expression: "'open'" },
-                ColumnDefault { column: "comment_count", expression: "0" },
+                ColumnDefault {
+                    column: "state",
+                    expression: "'open'",
+                },
+                ColumnDefault {
+                    column: "comment_count",
+                    expression: "0",
+                },
             ],
         },
         RecordConfig {
@@ -614,8 +647,14 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
                 ref_columns: &["did", "name"],
             }],
             column_defaults: &[
-                ColumnDefault { column: "state", expression: "'open'" },
-                ColumnDefault { column: "comment_count", expression: "0" },
+                ColumnDefault {
+                    column: "state",
+                    expression: "'open'",
+                },
+                ColumnDefault {
+                    column: "comment_count",
+                    expression: "0",
+                },
             ],
         },
         RecordConfig {

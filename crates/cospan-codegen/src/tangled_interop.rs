@@ -77,10 +77,7 @@ fn renamed_morphism(
         );
     }
     if src.has_vertex(&Name::from(src_body.clone())) {
-        vertex_map.insert(
-            Name::from(src_body.clone()),
-            Name::from(tgt_body.clone()),
-        );
+        vertex_map.insert(Name::from(src_body.clone()), Name::from(tgt_body.clone()));
     }
 
     // Build a lookup of renamed fields: src_field -> tgt_field
@@ -133,11 +130,19 @@ fn renamed_morphism(
         // Determine the parent path relative to src_body
         let parent_suffix = src_str.strip_prefix(&src_body).unwrap_or("");
         // Map the edge name through renames if it's a top-level field
-        let edge_name = edge.name.as_ref().map(|n| n.to_string()).unwrap_or_default();
+        let edge_name = edge
+            .name
+            .as_ref()
+            .map(|n| n.to_string())
+            .unwrap_or_default();
         let is_top_level = parent_suffix.is_empty();
 
         let tgt_edge_name = if is_top_level {
-            rename_map.get(edge_name.as_str()).copied().unwrap_or(&edge_name).to_string()
+            rename_map
+                .get(edge_name.as_str())
+                .copied()
+                .unwrap_or(&edge_name)
+                .to_string()
         } else {
             edge_name.clone()
         };
@@ -241,85 +246,117 @@ pub fn all_interop_morphisms() -> Vec<InteropMorphism> {
         InteropMorphism {
             tangled_nsid: "sh.tangled.label.definition",
             cospan_nsid: "dev.cospan.label.definition",
-            build_migration: |src, tgt| renamed_morphism(
-                src, tgt,
-                "sh.tangled.label.definition", "dev.cospan.label.definition",
-                &[], // field names that overlap (name, color, description, createdAt) match
-            ),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.label.definition",
+                    "dev.cospan.label.definition",
+                    &[], // field names that overlap (name, color, description, createdAt) match
+                )
+            },
         },
         // ── Renamed-field morphisms ──────────────────────────────────
         InteropMorphism {
             tangled_nsid: "sh.tangled.repo",
             cospan_nsid: "dev.cospan.repo",
-            build_migration: |src, tgt| renamed_morphism(
-                src, tgt,
-                "sh.tangled.repo", "dev.cospan.repo",
-                &[("knot", "node")],
-                // name, description, createdAt match; defaultBranch/visibility only in target
-            ),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.repo",
+                    "dev.cospan.repo",
+                    &[("knot", "node")],
+                    // name, description, createdAt match; defaultBranch/visibility only in target
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.repo.pull",
             cospan_nsid: "dev.cospan.repo.pull",
-            build_migration: |src, tgt| renamed_morphism(
-                src, tgt,
-                "sh.tangled.repo.pull", "dev.cospan.repo.pull",
-                &[],
-                // title, body, mentions, references, createdAt match directly;
-                // target/source are sub-objects with different structure — the
-                // renamed_morphism maps what overlaps automatically
-            ),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.repo.pull",
+                    "dev.cospan.repo.pull",
+                    &[],
+                    // title, body, mentions, references, createdAt match directly;
+                    // target/source are sub-objects with different structure — the
+                    // renamed_morphism maps what overlaps automatically
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.git.refUpdate",
             cospan_nsid: "dev.cospan.vcs.refUpdate",
-            build_migration: |src, tgt| renamed_morphism(
-                src, tgt,
-                "sh.tangled.git.refUpdate", "dev.cospan.vcs.refUpdate",
-                &[("oldSha", "oldTarget"), ("newSha", "newTarget")],
-                // ref and committerDid match; repoDid/repoName → repo handled by DB transforms
-            ),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.git.refUpdate",
+                    "dev.cospan.vcs.refUpdate",
+                    &[("oldSha", "oldTarget"), ("newSha", "newTarget")],
+                    // ref and committerDid match; repoDid/repoName → repo handled by DB transforms
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.pipeline",
             cospan_nsid: "dev.cospan.pipeline",
-            build_migration: |src, tgt| renamed_morphism(
-                src, tgt,
-                "sh.tangled.pipeline", "dev.cospan.pipeline",
-                &[],
-                // workflows match; triggerMetadata→repo/commitId handled by DB transforms
-            ),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.pipeline",
+                    "dev.cospan.pipeline",
+                    &[],
+                    // workflows match; triggerMetadata→repo/commitId handled by DB transforms
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.knot",
             cospan_nsid: "dev.cospan.node",
-            build_migration: |src, tgt| renamed_morphism(
-                src, tgt,
-                "sh.tangled.knot", "dev.cospan.node",
-                &[],
-                // createdAt matches; publicEndpoint only in target (optional)
-            ),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.knot",
+                    "dev.cospan.node",
+                    &[],
+                    // createdAt matches; publicEndpoint only in target (optional)
+                )
+            },
         },
         // ── Tangled Spindle → Cospan Org ─────────────────────────────
         InteropMorphism {
             tangled_nsid: "sh.tangled.spindle",
             cospan_nsid: "dev.cospan.org",
-            build_migration: |src, tgt| renamed_morphism(
-                src, tgt,
-                "sh.tangled.spindle", "dev.cospan.org",
-                &[],
-                // createdAt matches; name/description only in target
-            ),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.spindle",
+                    "dev.cospan.org",
+                    &[],
+                    // createdAt matches; name/description only in target
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.spindle.member",
             cospan_nsid: "dev.cospan.org.member",
-            build_migration: |src, tgt| renamed_morphism(
-                src, tgt,
-                "sh.tangled.spindle.member", "dev.cospan.org.member",
-                &[("subject", "member"), ("instance", "org")],
-                // createdAt matches; role only in target
-            ),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.spindle.member",
+                    "dev.cospan.org.member",
+                    &[("subject", "member"), ("instance", "org")],
+                    // createdAt matches; role only in target
+                )
+            },
         },
     ]
 }

@@ -53,11 +53,7 @@ fn emit_struct(
     w.indent();
 
     for (edge, prop_vertex) in &props {
-        let field_name = edge
-            .name
-            .as_ref()
-            .map(|n| n.as_str())
-            .unwrap_or("unknown");
+        let field_name = edge.name.as_ref().map(|n| n.as_str()).unwrap_or("unknown");
         let snake = camel_to_snake(field_name);
         let is_required = is_field_required(schema, vertex_id, field_name);
         let rust_type = kind_to_rust_type(&prop_vertex.kind, field_name);

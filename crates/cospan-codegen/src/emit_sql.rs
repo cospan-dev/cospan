@@ -103,23 +103,18 @@ pub fn emit_create_table(
         }
     }
 
-    // Composite PRIMARY KEY
-    if config.conflict_keys.len() > 1 {
-        let pk_cols = config.conflict_keys.join(", ");
-        let has_more = !config.foreign_keys.is_empty();
+    // Table-level PRIMARY KEY for composite PKs
+    if needs_table_pk {
+        let pk_str = pk_columns.join(", ");
+        let has_more = !composite_fks.is_empty();
         if has_more {
-            let _ = writeln!(out, "    PRIMARY KEY ({pk_cols}),");
+            let _ = writeln!(out, "    PRIMARY KEY ({pk_str}),");
         } else {
-            let _ = writeln!(out, "    PRIMARY KEY ({pk_cols})");
+            let _ = writeln!(out, "    PRIMARY KEY ({pk_str})");
         }
     }
 
     // FOREIGN KEY constraints (composite only; single-column FKs use REFERENCES inline)
-    let composite_fks: Vec<_> = config
-        .foreign_keys
-        .iter()
-        .filter(|fk| fk.columns.len() > 1)
-        .collect();
     for (i, fk) in composite_fks.iter().enumerate() {
         let local = fk.columns.join(", ");
         let remote = fk.ref_columns.join(", ");

@@ -190,13 +190,10 @@ async fn dispatch_special_upsert(
             db::issue_state::upsert(&state.db, &row).await?;
 
             let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&issue_uri);
-            if let Some(issue) =
-                db::issue::get_by_pk(&state.db, &issue_did, &issue_rkey).await?
-            {
+            if let Some(issue) = db::issue::get_by_pk(&state.db, &issue_did, &issue_rkey).await? {
                 let old_state = &issue.state;
                 if old_state != &new_state {
-                    db::issue::update_state(&state.db, &issue_did, &issue_rkey, &new_state)
-                        .await?;
+                    db::issue::update_state(&state.db, &issue_did, &issue_rkey, &new_state).await?;
 
                     if old_state == "open" && new_state != "open" {
                         decrement_repo_open_issue_count(
@@ -289,23 +286,14 @@ async fn dispatch_special_upsert(
             if let Some(pull) = db::pull::get_by_pk(&state.db, &pull_did, &pull_rkey).await? {
                 let old_state = &pull.state;
                 if old_state != &new_state {
-                    db::pull::update_state(&state.db, &pull_did, &pull_rkey, &new_state)
-                        .await?;
+                    db::pull::update_state(&state.db, &pull_did, &pull_rkey, &new_state).await?;
 
                     if old_state == "open" && new_state != "open" {
-                        decrement_repo_open_mr_count(
-                            &state.db,
-                            &pull.repo_did,
-                            &pull.repo_name,
-                        )
-                        .await?;
+                        decrement_repo_open_mr_count(&state.db, &pull.repo_did, &pull.repo_name)
+                            .await?;
                     } else if old_state != "open" && new_state == "open" {
-                        increment_repo_open_mr_count(
-                            &state.db,
-                            &pull.repo_did,
-                            &pull.repo_name,
-                        )
-                        .await?;
+                        increment_repo_open_mr_count(&state.db, &pull.repo_did, &pull.repo_name)
+                            .await?;
                     }
 
                     // SSE only for cospan-native events
@@ -448,7 +436,9 @@ async fn dispatch_special_upsert(
         }
 
         // ─── Tangled-only records (no Cospan equivalent) ────────────
-        "sh.tangled.publicKey" | "sh.tangled.string" | "sh.tangled.repo.artifact"
+        "sh.tangled.publicKey"
+        | "sh.tangled.string"
+        | "sh.tangled.repo.artifact"
         | "sh.tangled.label.op" => {
             tracing::debug!(
                 collection,
@@ -557,7 +547,9 @@ async fn dispatch_special_delete(
         }
 
         // ─── Tangled-only records ───────────────────────────────────
-        "sh.tangled.publicKey" | "sh.tangled.string" | "sh.tangled.repo.artifact"
+        "sh.tangled.publicKey"
+        | "sh.tangled.string"
+        | "sh.tangled.repo.artifact"
         | "sh.tangled.label.op" => {
             tracing::debug!(
                 collection,
