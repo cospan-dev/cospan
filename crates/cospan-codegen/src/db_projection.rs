@@ -26,140 +26,189 @@ pub fn db_transforms(nsid: &str) -> HashMap<Name, Vec<FieldTransform>> {
 
     match nsid {
         "dev.cospan.repo" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                // node (AT-URI) → node_did (extract DID)
-                at_uri_extract_did("node", "node_did"),
-                // node_url is looked up at ingestion time, add empty default
-                add_field_str("node_url", ""),
-                // Counter defaults (excluded from insert, managed separately)
-                add_field_int("star_count", 0),
-                add_field_int("fork_count", 0),
-                add_field_int("open_issue_count", 0),
-                add_field_int("open_mr_count", 0),
-                // Source tracking
-                add_field_str("source", "pds"),
-                // Drop complex fields not stored in DB columns
-                drop_field("node"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    // node (AT-URI) → node_did (extract DID)
+                    at_uri_extract_did("node", "node_did"),
+                    // node_url is looked up at ingestion time, add empty default
+                    add_field_str("node_url", ""),
+                    // Counter defaults (excluded from insert, managed separately)
+                    add_field_int("star_count", 0),
+                    add_field_int("fork_count", 0),
+                    add_field_int("open_issue_count", 0),
+                    add_field_int("open_mr_count", 0),
+                    // Source tracking
+                    add_field_str("source", "pds"),
+                    // Drop complex fields not stored in DB columns
+                    drop_field("node"),
+                ],
+            );
         }
         "dev.cospan.vcs.refUpdate" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                at_uri_extract_did("repo", "repo_did"),
-                at_uri_extract_name("repo", "repo_name"),
-                // Count breaking changes from array length
-                compute_array_len("breakingChanges", "breaking_change_count"),
-                drop_field("repo"),
-                drop_field("breakingChanges"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    at_uri_extract_did("repo", "repo_did"),
+                    at_uri_extract_name("repo", "repo_name"),
+                    // Count breaking changes from array length
+                    compute_array_len("breakingChanges", "breaking_change_count"),
+                    drop_field("repo"),
+                    drop_field("breakingChanges"),
+                ],
+            );
         }
         "dev.cospan.repo.issue" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                at_uri_extract_did("repo", "repo_did"),
-                at_uri_extract_name("repo", "repo_name"),
-                add_field_str("state", "open"),
-                add_field_int("comment_count", 0),
-                drop_field("repo"),
-                drop_field("schemaRefs"),
-                drop_field("labels"),
-                drop_field("mentions"),
-                drop_field("references"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    at_uri_extract_did("repo", "repo_did"),
+                    at_uri_extract_name("repo", "repo_name"),
+                    add_field_str("state", "open"),
+                    add_field_int("comment_count", 0),
+                    drop_field("repo"),
+                    drop_field("schemaRefs"),
+                    drop_field("labels"),
+                    drop_field("mentions"),
+                    drop_field("references"),
+                ],
+            );
         }
         "dev.cospan.repo.issue.comment" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                rename_field("issue", "issue_uri"),
-                drop_field("schemaRefs"),
-                drop_field("mentions"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    rename_field("issue", "issue_uri"),
+                    drop_field("schemaRefs"),
+                    drop_field("mentions"),
+                ],
+            );
         }
         "dev.cospan.repo.issue.state" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                rename_field("issue", "issue_uri"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![rename_field("issue", "issue_uri")],
+            );
         }
         "dev.cospan.repo.pull" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                at_uri_extract_did("repo", "repo_did"),
-                at_uri_extract_name("repo", "repo_name"),
-                add_field_str("state", "open"),
-                add_field_int("comment_count", 0),
-                drop_field("repo"),
-                drop_field("mergePreview"),
-                drop_field("mentions"),
-                drop_field("references"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    at_uri_extract_did("repo", "repo_did"),
+                    at_uri_extract_name("repo", "repo_name"),
+                    add_field_str("state", "open"),
+                    add_field_int("comment_count", 0),
+                    drop_field("repo"),
+                    drop_field("mergePreview"),
+                    drop_field("mentions"),
+                    drop_field("references"),
+                ],
+            );
         }
         "dev.cospan.repo.pull.comment" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                rename_field("pull", "pull_uri"),
-                drop_field("schemaRefs"),
-                drop_field("mentions"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    rename_field("pull", "pull_uri"),
+                    drop_field("schemaRefs"),
+                    drop_field("mentions"),
+                ],
+            );
         }
         "dev.cospan.repo.pull.state" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                rename_field("pull", "pull_uri"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![rename_field("pull", "pull_uri")],
+            );
         }
         "dev.cospan.actor.profile" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                // Extract avatar CID from blob ref
-                path_extract("avatar", vec!["ref", "$link"], "avatar_cid"),
-                drop_field("avatar"),
-                drop_field("links"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    // Extract avatar CID from blob ref
+                    path_extract("avatar", vec!["ref", "$link"], "avatar_cid"),
+                    drop_field("avatar"),
+                    drop_field("links"),
+                ],
+            );
         }
         "dev.cospan.label.definition" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                at_uri_extract_did("repo", "repo_did"),
-                at_uri_extract_name("repo", "repo_name"),
-                drop_field("repo"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    at_uri_extract_did("repo", "repo_did"),
+                    at_uri_extract_name("repo", "repo_name"),
+                    drop_field("repo"),
+                ],
+            );
         }
         "dev.cospan.org" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                path_extract("avatar", vec!["ref", "$link"], "avatar_cid"),
-                drop_field("avatar"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    path_extract("avatar", vec!["ref", "$link"], "avatar_cid"),
+                    drop_field("avatar"),
+                ],
+            );
         }
         "dev.cospan.org.member" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                rename_field("org", "org_uri"),
-                rename_field("member", "member_did"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    rename_field("org", "org_uri"),
+                    rename_field("member", "member_did"),
+                ],
+            );
         }
         "dev.cospan.repo.collaborator" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                at_uri_extract_did("repo", "repo_did"),
-                at_uri_extract_name("repo", "repo_name"),
-                // Lexicon `did` field (collaborator DID) → `member_did`
-                rename_field("did", "member_did"),
-                drop_field("repo"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    at_uri_extract_did("repo", "repo_did"),
+                    at_uri_extract_name("repo", "repo_name"),
+                    // Lexicon `did` field (collaborator DID) → `member_did`
+                    rename_field("did", "member_did"),
+                    drop_field("repo"),
+                ],
+            );
         }
         "dev.cospan.repo.dependency" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                at_uri_extract_did("sourceRepo", "source_repo_did"),
-                at_uri_extract_name("sourceRepo", "source_repo_name"),
-                at_uri_extract_did("targetRepo", "target_repo_did"),
-                at_uri_extract_name("targetRepo", "target_repo_name"),
-                drop_field("sourceRepo"),
-                drop_field("targetRepo"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    at_uri_extract_did("sourceRepo", "source_repo_did"),
+                    at_uri_extract_name("sourceRepo", "source_repo_name"),
+                    at_uri_extract_did("targetRepo", "target_repo_did"),
+                    at_uri_extract_name("targetRepo", "target_repo_name"),
+                    drop_field("sourceRepo"),
+                    drop_field("targetRepo"),
+                ],
+            );
         }
         "dev.cospan.pipeline" => {
-            transforms.insert(Name::from(body_vertex), vec![
-                at_uri_extract_did("repo", "repo_did"),
-                at_uri_extract_name("repo", "repo_name"),
-                // Flatten algebraicChecks sub-object
-                path_extract("algebraicChecks", vec!["gatTypeCheck"], "gat_type_check"),
-                path_extract("algebraicChecks", vec!["equationVerification"], "equation_verification"),
-                path_extract("algebraicChecks", vec!["lensLawCheck"], "lens_law_check"),
-                path_extract("algebraicChecks", vec!["breakingChangeCheck"], "breaking_change_check"),
-                drop_field("repo"),
-                drop_field("algebraicChecks"),
-                drop_field("workflows"),
-            ]);
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    at_uri_extract_did("repo", "repo_did"),
+                    at_uri_extract_name("repo", "repo_name"),
+                    // Flatten algebraicChecks sub-object
+                    path_extract("algebraicChecks", vec!["gatTypeCheck"], "gat_type_check"),
+                    path_extract(
+                        "algebraicChecks",
+                        vec!["equationVerification"],
+                        "equation_verification",
+                    ),
+                    path_extract("algebraicChecks", vec!["lensLawCheck"], "lens_law_check"),
+                    path_extract(
+                        "algebraicChecks",
+                        vec!["breakingChangeCheck"],
+                        "breaking_change_check",
+                    ),
+                    drop_field("repo"),
+                    drop_field("algebraicChecks"),
+                    drop_field("workflows"),
+                ],
+            );
         }
         // Simple records with no transforms needed
         _ => {}
@@ -273,10 +322,7 @@ fn path_extract(source_field: &str, path: Vec<&str>, target_field: &str) -> Fiel
 /// Compute the length of a JSON array field and store as an integer.
 fn compute_array_len(source_field: &str, target_field: &str) -> FieldTransform {
     // Expression: length(source_field)  — uses the list Length builtin
-    let expr = Expr::Builtin(
-        BuiltinOp::Length,
-        vec![Expr::Var(Arc::from(source_field))],
-    );
+    let expr = Expr::Builtin(BuiltinOp::Length, vec![Expr::Var(Arc::from(source_field))]);
     FieldTransform::ComputeField {
         target_key: target_field.to_string(),
         expr,

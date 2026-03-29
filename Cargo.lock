@@ -462,6 +462,7 @@ dependencies = [
  "rand 0.8.5",
  "redis",
  "reqwest",
+ "rmp-serde",
  "serde",
  "serde_json",
  "sha2",
@@ -491,6 +492,7 @@ dependencies = [
  "panproto-mig",
  "panproto-protocols",
  "panproto-schema",
+ "rmp-serde",
  "serde",
  "serde_json",
 ]

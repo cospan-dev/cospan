@@ -61,11 +61,11 @@ impl RecordTransformer {
         let interop_dir = workspace_root.join("generated/interop");
 
         // Load Tangled morphisms
-        let morphisms_path = interop_dir.join("compiled_morphisms.json");
+        let morphisms_path = interop_dir.join("compiled_morphisms.msgpack");
         let tangled_morphisms = if morphisms_path.exists() {
-            let json = std::fs::read_to_string(&morphisms_path)
+            let bytes = std::fs::read(&morphisms_path)
                 .with_context(|| format!("reading {}", morphisms_path.display()))?;
-            let interops: Vec<CompiledInterop> = serde_json::from_str(&json)
+            let interops: Vec<CompiledInterop> = rmp_serde::from_slice(&bytes)
                 .with_context(|| "deserializing compiled morphisms")?;
             let mut map = HashMap::new();
             for interop in interops {
@@ -84,12 +84,12 @@ impl RecordTransformer {
         };
 
         // Load DB projections
-        let projections_path = interop_dir.join("db_projections.json");
+        let projections_path = interop_dir.join("db_projections.msgpack");
         let db_projections = if projections_path.exists() {
-            let json = std::fs::read_to_string(&projections_path)
+            let bytes = std::fs::read(&projections_path)
                 .with_context(|| format!("reading {}", projections_path.display()))?;
-            let projections: Vec<CompiledDbProjection> = serde_json::from_str(&json)
-                .with_context(|| "deserializing DB projections")?;
+            let projections: Vec<CompiledDbProjection> =
+                rmp_serde::from_slice(&bytes).with_context(|| "deserializing DB projections")?;
             let mut map = HashMap::new();
             for proj in projections {
                 tracing::info!(nsid = %proj.nsid, "loaded DB projection");
@@ -172,25 +172,18 @@ fn apply_morphism(
     mapping: &CompiledInterop,
     record: &serde_json::Value,
 ) -> Result<serde_json::Value> {
-    let instance = panproto_inst::parse::parse_json(
-        &mapping.tangled_schema,
-        &mapping.tangled_nsid,
-        record,
-    )
-    .map_err(|e| anyhow::anyhow!("parse {}: {e:?}", mapping.tangled_nsid))?;
+    let instance =
+        panproto_inst::parse::parse_json(&mapping.tangled_schema, &mapping.tangled_nsid, record)
+            .map_err(|e| anyhow::anyhow!("parse {}: {e:?}", mapping.tangled_nsid))?;
 
-    let lifted = lift_wtype_sigma(
-        &mapping.compiled,
-        &mapping.cospan_schema,
-        &instance,
-    )
-    .map_err(|e| {
-        anyhow::anyhow!(
-            "lift {} → {}: {e:?}",
-            mapping.tangled_nsid,
-            mapping.cospan_nsid
-        )
-    })?;
+    let lifted =
+        lift_wtype_sigma(&mapping.compiled, &mapping.cospan_schema, &instance).map_err(|e| {
+            anyhow::anyhow!(
+                "lift {} → {}: {e:?}",
+                mapping.tangled_nsid,
+                mapping.cospan_nsid
+            )
+        })?;
 
     Ok(panproto_inst::parse::to_json(
         &mapping.cospan_schema,

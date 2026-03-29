@@ -128,7 +128,9 @@ pub struct CompiledInterop {
 fn build_nsid_index(lexicons_dir: &Path) -> HashMap<String, std::path::PathBuf> {
     let mut index = HashMap::new();
     fn walk(dir: &Path, index: &mut HashMap<String, std::path::PathBuf>) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -157,10 +159,7 @@ pub fn compile_all_morphisms(lexicons_dir: &Path) -> Result<Vec<CompiledInterop>
     for m in &morphisms {
         match compile_one(lexicons_dir, m, &nsid_index) {
             Ok(compiled) => {
-                println!(
-                    "  Compiled interop: {} → {}",
-                    m.tangled_nsid, m.cospan_nsid
-                );
+                println!("  Compiled interop: {} → {}", m.tangled_nsid, m.cospan_nsid);
                 results.push(compiled);
             }
             Err(e) => {
@@ -283,8 +282,7 @@ pub fn compile_db_projections(lexicons_dir: &Path) -> Result<Vec<CompiledDbProje
         let json_str = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
         let json: serde_json::Value = serde_json::from_str(&json_str)?;
-        let schema = atproto::parse_lexicon(&json)
-            .with_context(|| format!("parsing {nsid}"))?;
+        let schema = atproto::parse_lexicon(&json).with_context(|| format!("parsing {nsid}"))?;
 
         // Build identity migration (same schema in and out)
         let migration = identity_morphism(&schema, &schema);

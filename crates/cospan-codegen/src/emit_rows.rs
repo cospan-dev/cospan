@@ -111,11 +111,7 @@ fn columns_for_record(
     let body_id = find_record_body(schema, nsid);
     let props = children_by_edge(schema, &body_id, "prop");
     for (edge, prop_vertex) in &props {
-        let field_name = edge
-            .name
-            .as_ref()
-            .map(|n| n.as_str())
-            .unwrap_or("unknown");
+        let field_name = edge.name.as_ref().map(|n| n.as_str()).unwrap_or("unknown");
 
         // Skip fields handled by URI decomposition/storage, renames, or explicitly skipped
         if config.skip_fields.contains(&field_name) {
@@ -238,9 +234,7 @@ pub fn emit_crud(
         .filter(|c| !c.is_counter)
         .map(|c| c.name.as_str())
         .collect();
-    let placeholders: Vec<String> = (1..=insert_cols.len())
-        .map(|i| format!("${i}"))
-        .collect();
+    let placeholders: Vec<String> = (1..=insert_cols.len()).map(|i| format!("${i}")).collect();
     let update_sets: Vec<String> = insert_cols
         .iter()
         .filter(|c| !config.conflict_keys.contains(c))
@@ -258,10 +252,7 @@ pub fn emit_crud(
         config.table_name,
         insert_cols.join(", ")
     ));
-    w.line(&format!(
-        " VALUES ({}) \\",
-        placeholders.join(", ")
-    ));
+    w.line(&format!(" VALUES ({}) \\", placeholders.join(", ")));
     w.line(&format!(
         " ON CONFLICT ({}) DO UPDATE SET \\",
         config.conflict_keys.join(", ")
@@ -379,8 +370,7 @@ pub fn emit_crud(
     w.indent();
     w.line(&format!(
         "sqlx::query_as::<_, {row_name}>(\"SELECT {} FROM {} ORDER BY indexed_at DESC LIMIT $1\")",
-        select_cols,
-        config.table_name,
+        select_cols, config.table_name,
     ));
     w.line(".bind(limit)");
     w.line(".fetch_all(pool)");
@@ -475,16 +465,9 @@ pub fn emit_from_json(
     let body_id = find_record_body(schema, nsid);
     let props = children_by_edge(schema, &body_id, "prop");
     for (edge, prop_vertex) in &props {
-        let field_name = edge
-            .name
-            .as_ref()
-            .map(|n| n.as_str())
-            .unwrap_or("unknown");
+        let field_name = edge.name.as_ref().map(|n| n.as_str()).unwrap_or("unknown");
 
-        if config.skip_fields.contains(&field_name)
-            || field_name == "did"
-            || field_name == "rkey"
-        {
+        if config.skip_fields.contains(&field_name) || field_name == "did" || field_name == "rkey" {
             continue;
         }
 
@@ -504,18 +487,18 @@ pub fn emit_from_json(
         if let Some(ovr) = type_override {
             // Generate type-specific extractor based on override
             let extractor = match ovr.rust_type {
-                "Option<f32>" => format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_f64()).map(|v| v as f32)"
-                ),
+                "Option<f32>" => {
+                    format!("rec.get(\"{field_name}\").and_then(|v| v.as_f64()).map(|v| v as f32)")
+                }
                 "f32" => format!(
                     "rec.get(\"{field_name}\").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32"
                 ),
                 "i32" => format!(
                     "rec.get(\"{field_name}\").and_then(|v| v.as_i64()).unwrap_or(0) as i32"
                 ),
-                "Option<i32>" => format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_i64()).map(|v| v as i32)"
-                ),
+                "Option<i32>" => {
+                    format!("rec.get(\"{field_name}\").and_then(|v| v.as_i64()).map(|v| v as i32)")
+                }
                 _ => format!(
                     "rec.get(\"{field_name}\").and_then(|v| v.as_str()).unwrap_or(\"\").to_string()"
                 ),
@@ -620,9 +603,7 @@ fn json_extractor(kind: &panproto_gat::Name, field_name: &str, required: bool) -
     // DateTime fields
     if field_name.ends_with("At") && kind.as_str() == "string" {
         if required {
-            return format!(
-                "parse_datetime(rec, \"{field_name}\")"
-            );
+            return format!("parse_datetime(rec, \"{field_name}\")");
         } else {
             return format!(
                 "rec.get(\"{field_name}\").and_then(|v| v.as_str()).and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok()).map(|dt| dt.with_timezone(&chrono::Utc))"
@@ -637,53 +618,35 @@ fn json_extractor(kind: &panproto_gat::Name, field_name: &str, required: bool) -
                     "rec.get(\"{field_name}\").and_then(|v| v.as_str()).unwrap_or(\"\").to_string()"
                 )
             } else {
-                format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_str()).map(String::from)"
-                )
+                format!("rec.get(\"{field_name}\").and_then(|v| v.as_str()).map(String::from)")
             }
         }
         "integer" => {
             if required {
-                format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_i64()).unwrap_or(0)"
-                )
+                format!("rec.get(\"{field_name}\").and_then(|v| v.as_i64()).unwrap_or(0)")
             } else {
-                format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_i64())"
-                )
+                format!("rec.get(\"{field_name}\").and_then(|v| v.as_i64())")
             }
         }
         "number" => {
             if required {
-                format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_f64()).unwrap_or(0.0)"
-                )
+                format!("rec.get(\"{field_name}\").and_then(|v| v.as_f64()).unwrap_or(0.0)")
             } else {
-                format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_f64())"
-                )
+                format!("rec.get(\"{field_name}\").and_then(|v| v.as_f64())")
             }
         }
         "boolean" => {
             if required {
-                format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_bool()).unwrap_or(false)"
-                )
+                format!("rec.get(\"{field_name}\").and_then(|v| v.as_bool()).unwrap_or(false)")
             } else {
-                format!(
-                    "rec.get(\"{field_name}\").and_then(|v| v.as_bool())"
-                )
+                format!("rec.get(\"{field_name}\").and_then(|v| v.as_bool())")
             }
         }
         _ => {
             if required {
-                format!(
-                    "rec.get(\"{field_name}\").cloned().unwrap_or(serde_json::Value::Null)"
-                )
+                format!("rec.get(\"{field_name}\").cloned().unwrap_or(serde_json::Value::Null)")
             } else {
-                format!(
-                    "rec.get(\"{field_name}\").cloned()"
-                )
+                format!("rec.get(\"{field_name}\").cloned()")
             }
         }
     }
