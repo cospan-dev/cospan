@@ -34,7 +34,7 @@ async fn node_upsert_and_list(pool: PgPool) {
 
     db::node::upsert(&pool, &node2).await.unwrap();
 
-    let nodes = db::node::list(&pool, 10).await.unwrap();
+    let nodes = db::node::list(&pool, 10, None).await.unwrap();
     assert_eq!(nodes.len(), 2);
 
     // Upsert same DID updates the row (no new row)
@@ -47,7 +47,7 @@ async fn node_upsert_and_list(pool: PgPool) {
     };
     db::node::upsert(&pool, &updated).await.unwrap();
 
-    let nodes = db::node::list(&pool, 10).await.unwrap();
+    let nodes = db::node::list(&pool, 10, None).await.unwrap();
     assert_eq!(nodes.len(), 2);
 }
 

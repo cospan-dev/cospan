@@ -23,6 +23,7 @@ async fn build_state(pool: PgPool) -> Arc<AppState> {
         database_url: String::new(), // not used, pool already connected
         jetstream_url: "wss://localhost:0/unused".to_string(),
         listen: "127.0.0.1:0".to_string(),
+        lexicons_dir: "packages/lexicons".to_string(),
     };
 
     let oauth_config = OAuthConfig {

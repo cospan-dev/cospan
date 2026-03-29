@@ -270,7 +270,7 @@ fn main() -> Result<()> {
     // Write appview-integrated copies and format them
     let appview_gen_dir = workspace_root.join("crates/cospan-appview/src/db/generated");
     fs::create_dir_all(&appview_gen_dir)?;
-    let gen_rs_files = ["types.rs", "crud.rs"];
+    let gen_rs_files = ["types.rs", "crud.rs", "mod.rs"];
     fs::write(appview_gen_dir.join("types.rs"), &all_row_types)?;
     fs::write(appview_gen_dir.join("crud.rs"), &all_crud)?;
     fs::write(
