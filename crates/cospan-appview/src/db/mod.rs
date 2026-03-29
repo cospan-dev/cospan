@@ -3,6 +3,8 @@ pub mod collaborator;
 pub mod cursor;
 pub mod dependency;
 pub mod follow;
+#[allow(dead_code)]
+pub mod generated;
 pub mod issue;
 pub mod issue_comment;
 pub mod issue_state;

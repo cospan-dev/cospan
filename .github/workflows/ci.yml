@@ -68,4 +68,18 @@ jobs:
       - run: cargo run -p cospan-codegen
       - run: test -f generated/sql/schema.sql
       - run: test -f generated/rust/types.rs
+      - run: test -f generated/rust/row_types.rs
+      - run: test -f generated/rust/crud.rs
+      - run: test -f generated/rust/from_json.rs
       - run: test -f generated/typescript/types.ts
+      - run: test -f generated/sql/baseline.json
+
+  schema-check:
+    name: Schema Breaking Change Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo run -p cospan-codegen
+      - run: cargo run -p cospan-codegen -- --check

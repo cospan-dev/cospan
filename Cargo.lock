@@ -482,7 +482,7 @@ name = "cospan-codegen"
 version = "0.3.2"
 dependencies = [
  "anyhow",
- "panproto-core",
+ "panproto-check",
  "panproto-gat",
  "panproto-mig",
  "panproto-protocols",

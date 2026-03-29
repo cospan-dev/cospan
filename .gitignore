@@ -13,5 +13,6 @@ build/
 planning/
 PROGRESS.md
 /generated/
+crates/cospan-appview/src/db/generated/
 .claude/
 pnpm-lock.yaml

@@ -13,10 +13,10 @@ name = "cospan-codegen"
 path = "src/main.rs"
 
 [dependencies]
-panproto-core.workspace = true
 panproto-schema.workspace = true
 panproto-protocols.workspace = true
 panproto-mig.workspace = true
+panproto-check.workspace = true
 panproto-gat.workspace = true
 
 serde.workspace = true

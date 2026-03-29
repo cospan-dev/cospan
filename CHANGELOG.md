@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.4.0
+
+### Panproto-powered codegen
+
+- Enhanced cospan-codegen to generate sqlx-compatible Row types with denormalization config for all 19 record types
+- Generated CRUD functions (upsert, get, delete, list) for all 19 record types
+- Generated `from_json()` Jetstream record deserializers with AT-URI decomposition, field renames, and type overrides
+- TypeScript interfaces now exported (`export interface`)
+- Integrated panproto-check for Lexicon breaking change detection (`--check` mode)
+- Added `schema-check` CI job for automated breaking change detection
+- Schema baseline saved to `generated/sql/baseline.json` for diffing
+- Removed unused `panproto-core` dependency from cospan-codegen
+- Generated code written to `crates/cospan-appview/src/db/generated/` for direct appview integration
+
+## v0.3.2
+
+- fix: include all 248 languages (was filtering out injection grammars)
+
+## v0.3.1
+
+- fix: profile avatar display, consistent page titles, UX polish
+
 ## v0.3.0
 
 ### Frontend UX revamp
@@ -27,6 +49,22 @@
 - Fixed node container permissions for `/data` volume
 - Fixed web container missing `@sveltejs/kit` runtime dependency
 - Rust 1.88+ in Dockerfiles (MSRV for home, time crates)
+
+## v0.2.4
+
+- fix(auth): request `transition:generic` scope for write permissions
+
+## v0.2.3
+
+- feat: add logo to header and favicon (dark mode optimized with light strokes)
+
+## v0.2.2
+
+- fix(auth): add root URL to `redirect_uris` for browser OAuth client
+
+## v0.2.1
+
+- fix(auth): use `token_endpoint_auth_method: "none"` for browser OAuth client
 
 ## v0.2.0
 
