@@ -81,41 +81,34 @@ async fn dispatch_special_upsert(
     match collection {
         // ─── Repo (node URL lookup) ─────────────────────────────────
         "dev.cospan.repo" | "sh.tangled.repo" => {
-            let node_uri = rec.get("node").and_then(|v| v.as_str()).unwrap_or("");
-            let node_did = extract_did_from_at_uri(node_uri);
-
-            let node_url = {
-                let nodes = db::node::list(&state.db, 1000, None).await?;
-                nodes
-                    .iter()
-                    .find(|n| n.did == node_did)
-                    .and_then(|n| n.public_endpoint.clone())
-                    .unwrap_or_default()
-            };
-
+            // DB projection extracts nodeDid from the AT-URI via panproto expression
             let mut row: db::repo::RepoRow =
                 serde_json::from_value(transform_record(state, collection, rec))?;
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
-            row.node_did = node_did;
-            row.node_url = node_url;
+
+            // Look up node URL from nodes table (business logic, not schema-derivable)
+            if !row.node_did.is_empty() {
+                let nodes = db::node::list(&state.db, 1000, None).await?;
+                if let Some(url) = nodes
+                    .iter()
+                    .find(|n| n.did == row.node_did)
+                    .and_then(|n| n.public_endpoint.clone())
+                {
+                    row.node_url = url;
+                }
+            }
             db::repo::upsert(&state.db, &row).await?;
         }
 
-        // ─── Ref Update (breaking change count + SSE) ───────────────
+        // ─── Ref Update (breaking change count computed by DB projection + SSE) ──
         "dev.cospan.vcs.refUpdate" | "sh.tangled.git.refUpdate" => {
-            let breaking_changes = rec
-                .get("breakingChanges")
-                .and_then(|v| v.as_array())
-                .map(|a| a.len() as i32)
-                .unwrap_or(0);
-
+            // DB projection compute_array_len handles breakingChanges → breakingChangeCount
             let mut row: db::ref_update::RefUpdateRow =
                 serde_json::from_value(transform_record(state, collection, rec))?;
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
-            row.breaking_change_count = breaking_changes;
             db::ref_update::upsert(&state.db, &row).await?;
 
             let _ = state.event_tx.send(IndexEvent::RefUpdate {
@@ -164,7 +157,7 @@ async fn dispatch_special_upsert(
             db::issue_comment::upsert(&state.db, &row).await?;
 
             if existing.is_none() {
-                let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&issue_uri);
+                let (issue_did, issue_rkey) = parse_at_uri(&issue_uri);
                 db::issue::increment_comment_count(&state.db, &issue_did, &issue_rkey).await?;
             }
         }
@@ -189,7 +182,7 @@ async fn dispatch_special_upsert(
             row.indexed_at = Utc::now();
             db::issue_state::upsert(&state.db, &row).await?;
 
-            let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&issue_uri);
+            let (issue_did, issue_rkey) = parse_at_uri(&issue_uri);
             if let Some(issue) = db::issue::get_by_pk(&state.db, &issue_did, &issue_rkey).await? {
                 let old_state = &issue.state;
                 if old_state != &new_state {
@@ -261,7 +254,7 @@ async fn dispatch_special_upsert(
             db::pull_comment::upsert(&state.db, &row).await?;
 
             if existing.is_none() {
-                let (pull_did, pull_rkey) = parse_at_uri_did_rkey(&pull_uri);
+                let (pull_did, pull_rkey) = parse_at_uri(&pull_uri);
                 db::pull::increment_comment_count(&state.db, &pull_did, &pull_rkey).await?;
             }
         }
@@ -282,7 +275,7 @@ async fn dispatch_special_upsert(
             let new_state = row.state.clone();
             db::pull_state::upsert(&state.db, &row).await?;
 
-            let (pull_did, pull_rkey) = parse_at_uri_did_rkey(&pull_uri);
+            let (pull_did, pull_rkey) = parse_at_uri(&pull_uri);
             if let Some(pull) = db::pull::get_by_pk(&state.db, &pull_did, &pull_rkey).await? {
                 let old_state = &pull.state;
                 if old_state != &new_state {
@@ -322,7 +315,7 @@ async fn dispatch_special_upsert(
             db::star::upsert(&state.db, &row).await?;
 
             if existing.is_none() {
-                let (repo_did, repo_name) = parse_repo_at_uri(&row.subject);
+                let (repo_did, repo_name) = parse_at_uri(&row.subject);
                 db::star::increment_repo_star_count(&state.db, &repo_did, &repo_name).await?;
 
                 // SSE only for cospan-native events
@@ -337,29 +330,12 @@ async fn dispatch_special_upsert(
 
         // ─── Pipeline (algebraicChecks extraction) ──────────────────
         "dev.cospan.pipeline" | "sh.tangled.pipeline" => {
-            let checks = rec.get("algebraicChecks");
-
+            // DB projection path_extract transforms handle algebraicChecks flattening
             let mut row: db::pipeline::PipelineRow =
                 serde_json::from_value(transform_record(state, collection, rec))?;
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
-            row.gat_type_check = checks
-                .and_then(|c| c.get("gatTypeCheck"))
-                .and_then(|v| v.as_str())
-                .map(String::from);
-            row.equation_verification = checks
-                .and_then(|c| c.get("equationVerification"))
-                .and_then(|v| v.as_str())
-                .map(String::from);
-            row.lens_law_check = checks
-                .and_then(|c| c.get("lensLawCheck"))
-                .and_then(|v| v.as_str())
-                .map(String::from);
-            row.breaking_change_check = checks
-                .and_then(|c| c.get("breakingChangeCheck"))
-                .and_then(|v| v.as_str())
-                .map(String::from);
             db::pipeline::upsert(&state.db, &row).await?;
         }
 
@@ -408,7 +384,7 @@ async fn dispatch_special_upsert(
         // ─── Tangled Pipeline Status (SQL update) ───────────────────
         "sh.tangled.pipeline.status" => {
             let pipeline_uri = rec.get("pipeline").and_then(|v| v.as_str()).unwrap_or("");
-            let (pipeline_did, pipeline_rkey) = parse_at_uri_did_rkey(pipeline_uri);
+            let (pipeline_did, pipeline_rkey) = parse_at_uri(pipeline_uri);
 
             let raw_status = rec
                 .get("status")
@@ -500,7 +476,7 @@ async fn dispatch_special_delete(
         // ─── Issue Comment (counter decrement) ──────────────────────
         "dev.cospan.repo.issue.comment" | "sh.tangled.repo.issue.comment" => {
             if let Some(comment) = db::issue_comment::get(&state.db, did, rkey).await? {
-                let (issue_did, issue_rkey) = parse_at_uri_did_rkey(&comment.issue_uri);
+                let (issue_did, issue_rkey) = parse_at_uri(&comment.issue_uri);
                 db::issue::decrement_comment_count(&state.db, &issue_did, &issue_rkey).await?;
             }
             db::issue_comment::delete(&state.db, did, rkey).await?;
@@ -519,7 +495,7 @@ async fn dispatch_special_delete(
         // ─── Pull Comment (counter decrement) ───────────────────────
         "dev.cospan.repo.pull.comment" | "sh.tangled.repo.pull.comment" => {
             if let Some(comment) = db::pull_comment::get(&state.db, did, rkey).await? {
-                let (pull_did, pull_rkey) = parse_at_uri_did_rkey(&comment.pull_uri);
+                let (pull_did, pull_rkey) = parse_at_uri(&comment.pull_uri);
                 db::pull::decrement_comment_count(&state.db, &pull_did, &pull_rkey).await?;
             }
             db::pull_comment::delete(&state.db, did, rkey).await?;
@@ -528,7 +504,7 @@ async fn dispatch_special_delete(
         // ─── Star (counter decrement + SSE) ─────────────────────────
         "dev.cospan.feed.star" | "sh.tangled.feed.star" => {
             if let Some(star) = db::star::get(&state.db, did, rkey).await? {
-                let (repo_did, repo_name) = parse_repo_at_uri(&star.subject);
+                let (repo_did, repo_name) = parse_at_uri(&star.subject);
                 db::star::decrement_repo_star_count(&state.db, &repo_did, &repo_name).await?;
 
                 if collection.starts_with("dev.cospan.") {
@@ -578,29 +554,9 @@ async fn dispatch_special_delete(
 
 // ─── Helper functions ───────────────────────────────────────────────────────
 
-fn extract_did_from_at_uri(uri: &str) -> String {
-    // at://did:plc:abc123/collection/rkey -> did:plc:abc123
-    uri.strip_prefix("at://")
-        .and_then(|s| s.split('/').next())
-        .unwrap_or("")
-        .to_string()
-}
-
-fn parse_repo_at_uri(uri: &str) -> (String, String) {
-    // at://did:plc:abc123/dev.cospan.repo/repo-name -> (did:plc:abc123, repo-name)
-    let parts: Vec<&str> = uri
-        .strip_prefix("at://")
-        .unwrap_or("")
-        .splitn(3, '/')
-        .collect();
-    let did = parts.first().unwrap_or(&"").to_string();
-    let name = parts.get(2).unwrap_or(&"").to_string();
-    (did, name)
-}
-
-/// Parse an AT-URI into (did, rkey) — used for issue/pull URIs.
-/// at://did:plc:abc123/dev.cospan.repo.issue/tid123 -> (did:plc:abc123, tid123)
-fn parse_at_uri_did_rkey(uri: &str) -> (String, String) {
+/// Parse an AT-URI into (did, rkey/name).
+/// `at://did:plc:abc/dev.cospan.repo/name` → `("did:plc:abc", "name")`
+fn parse_at_uri(uri: &str) -> (String, String) {
     let parts: Vec<&str> = uri
         .strip_prefix("at://")
         .unwrap_or("")
