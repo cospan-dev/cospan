@@ -8,6 +8,7 @@ use crate::auth::did_resolver::DidResolver;
 use crate::auth::dpop::DpopKey;
 use crate::auth::session::SessionStore;
 use crate::config::AppConfig;
+use crate::interop::TangledInterop;
 use crate::xrpc::sse::IndexEvent;
 
 /// Channel capacity for the event bus. Events are dropped if all receivers lag.
@@ -23,6 +24,8 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     /// Broadcast channel for streaming index events to SSE clients.
     pub event_tx: broadcast::Sender<IndexEvent>,
+    /// Tangled → Cospan interop morphisms (compiled at startup).
+    pub tangled_interop: TangledInterop,
 }
 
 impl AppState {
@@ -42,6 +45,11 @@ impl AppState {
 
         let (event_tx, _) = broadcast::channel(EVENT_BUS_CAPACITY);
 
+        // Load Tangled→Cospan interop morphisms from compiled codegen output.
+        let lexicons_dir = std::path::PathBuf::from(&config.lexicons_dir);
+        let tangled_interop = TangledInterop::load(&lexicons_dir)
+            .expect("failed to load tangled interop morphisms — run `cargo run -p cospan-codegen` first");
+
         Ok(Self {
             config,
             db,
@@ -51,6 +59,7 @@ impl AppState {
             dpop_key: Arc::new(dpop_key),
             http_client,
             event_tx,
+            tangled_interop,
         })
     }
 }

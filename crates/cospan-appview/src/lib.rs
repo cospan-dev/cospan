@@ -4,6 +4,7 @@ pub mod config;
 pub mod db;
 pub mod error;
 pub mod indexer;
+pub mod interop;
 pub mod middleware;
 pub mod node_proxy;
 pub mod state;

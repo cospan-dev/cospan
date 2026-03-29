@@ -16,6 +16,7 @@ path = "src/main.rs"
 panproto-schema.workspace = true
 panproto-protocols.workspace = true
 panproto-mig.workspace = true
+panproto-inst.workspace = true
 panproto-check.workspace = true
 panproto-gat.workspace = true
 

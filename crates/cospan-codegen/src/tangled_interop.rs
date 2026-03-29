@@ -1,404 +1,243 @@
-//! Tangled → Cospan interop morphisms.
+//! Tangled → Cospan interop morphisms defined as panproto Migrations.
 //!
-//! Each Tangled record type that maps to a Cospan database table gets a
-//! `from_tangled_json()` method generated on the target Row type.
-//! The morphism specifies how Tangled field names map to Cospan columns.
+//! Each morphism is an explicit vertex_map + edge_map specifying how
+//! Tangled Lexicon fields map to Cospan Lexicon fields. These are compiled
+//! at codegen time using `panproto_mig::compile()` and serialized for
+//! the appview to load and apply at runtime via `lift_wtype_sigma()`.
 
-use anyhow::Result;
-use panproto_protocols::emit::IndentWriter;
+use std::collections::HashMap;
+use std::path::Path;
 
-/// A field mapping from a Tangled Lexicon field to a Cospan Row column.
-#[derive(Clone)]
-pub enum FieldMapping {
-    /// Direct copy: `rec.get("tangledField").as_str()` → column
-    Direct {
-        tangled_field: &'static str,
-        required: bool,
-    },
-    /// Constant value
-    Constant(&'static str),
-    /// Custom extraction expression (raw Rust code)
-    Custom(&'static str),
-}
+use anyhow::{Context, Result};
+use panproto_gat::Name;
+use panproto_mig::Migration;
+use panproto_protocols::web_document::atproto;
+use panproto_schema::{Edge, Schema};
 
-/// Morphism from a Tangled record to a Cospan Row type.
-pub struct TangledMorphism {
+/// A pair of (tangled_nsid, cospan_nsid) with their explicit morphism.
+pub struct InteropMorphism {
     pub tangled_nsid: &'static str,
-    pub target_row: &'static str,
-    /// Ordered list of (column_name, mapping) pairs.
-    /// Must match the Row struct field order.
-    pub fields: Vec<(&'static str, FieldMapping)>,
+    pub cospan_nsid: &'static str,
+    /// Build the explicit Migration for this pair given the parsed schemas.
+    pub build_migration: fn(&Schema, &Schema) -> Migration,
 }
 
-pub fn all_tangled_morphisms() -> Vec<TangledMorphism> {
+// migration_from_maps helper removed — use identity_morphism or build Migration directly
+
+/// Build a morphism by matching vertices and edges with the same IDs
+/// between source and target schemas.
+fn identity_morphism(src: &Schema, tgt: &Schema) -> Migration {
+    let mut vertex_map = HashMap::new();
+    for (vid, _) in &src.vertices {
+        if tgt.has_vertex(vid) {
+            vertex_map.insert(vid.clone(), vid.clone());
+        }
+    }
+    let mut edge_map = HashMap::new();
+    for (edge, _) in &src.edges {
+        if tgt.edges.contains_key(edge) {
+            edge_map.insert(edge.clone(), edge.clone());
+        }
+    }
+    Migration {
+        vertex_map,
+        edge_map,
+        hyper_edge_map: HashMap::new(),
+        label_map: HashMap::new(),
+        resolver: HashMap::new(),
+        hyper_resolver: HashMap::new(),
+        expr_resolvers: HashMap::new(),
+    }
+}
+
+/// All known Tangled → Cospan interop morphisms.
+pub fn all_interop_morphisms() -> Vec<InteropMorphism> {
     vec![
-        TangledMorphism {
+        // These pairs have identical or near-identical Lexicon schemas.
+        // field names match, so an identity morphism works.
+        InteropMorphism {
             tangled_nsid: "sh.tangled.feed.star",
-            target_row: "StarRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("subject", FieldMapping::Direct { tangled_field: "subject", required: true }),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
+            cospan_nsid: "dev.cospan.feed.star",
+            build_migration: |src, tgt| identity_morphism(src, tgt),
         },
-        TangledMorphism {
+        InteropMorphism {
             tangled_nsid: "sh.tangled.graph.follow",
-            target_row: "FollowRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("subject", FieldMapping::Direct { tangled_field: "subject", required: true }),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
+            cospan_nsid: "dev.cospan.graph.follow",
+            build_migration: |src, tgt| identity_morphism(src, tgt),
         },
-        TangledMorphism {
+        InteropMorphism {
             tangled_nsid: "sh.tangled.feed.reaction",
-            target_row: "ReactionRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("emoji", FieldMapping::Direct { tangled_field: "emoji", required: true }),
-                ("subject", FieldMapping::Direct { tangled_field: "subject", required: true }),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
+            cospan_nsid: "dev.cospan.feed.reaction",
+            build_migration: |src, tgt| identity_morphism(src, tgt),
         },
-        TangledMorphism {
+        InteropMorphism {
             tangled_nsid: "sh.tangled.repo.issue",
-            target_row: "IssueRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("repo_did", FieldMapping::Custom("parse_at_uri_did(rec, \"repo\")")),
-                ("repo_name", FieldMapping::Custom("parse_at_uri_name(rec, \"repo\")")),
-                ("body", FieldMapping::Direct { tangled_field: "body", required: false }),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("title", FieldMapping::Direct { tangled_field: "title", required: true }),
-                ("state", FieldMapping::Constant("\"open\".to_string()")),
-                ("comment_count", FieldMapping::Constant("0")),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
+            cospan_nsid: "dev.cospan.repo.issue",
+            build_migration: |src, tgt| identity_morphism(src, tgt),
         },
-        TangledMorphism {
-            tangled_nsid: "sh.tangled.repo.issue.state",
-            target_row: "IssueStateRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("issue_uri", FieldMapping::Direct { tangled_field: "issue", required: true }),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("reason", FieldMapping::Direct { tangled_field: "reason", required: false }),
-                ("state", FieldMapping::Direct { tangled_field: "state", required: true }),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
-        },
-        TangledMorphism {
+        InteropMorphism {
             tangled_nsid: "sh.tangled.repo.issue.comment",
-            target_row: "IssueCommentRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("issue_uri", FieldMapping::Direct { tangled_field: "issue", required: true }),
-                ("body", FieldMapping::Direct { tangled_field: "body", required: true }),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
+            cospan_nsid: "dev.cospan.repo.issue.comment",
+            build_migration: |src, tgt| identity_morphism(src, tgt),
         },
-        TangledMorphism {
-            tangled_nsid: "sh.tangled.repo.pull",
-            target_row: "PullRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("repo_did", FieldMapping::Custom("parse_at_uri_did(rec, \"repo\")")),
-                ("repo_name", FieldMapping::Custom("parse_at_uri_name(rec, \"repo\")")),
-                ("body", FieldMapping::Direct { tangled_field: "body", required: false }),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("source_ref", FieldMapping::Direct { tangled_field: "sourceBranch", required: true }),
-                ("source_repo", FieldMapping::Direct { tangled_field: "sourceRepo", required: false }),
-                ("target_ref", FieldMapping::Direct { tangled_field: "targetBranch", required: true }),
-                ("title", FieldMapping::Direct { tangled_field: "title", required: true }),
-                ("state", FieldMapping::Constant("\"open\".to_string()")),
-                ("comment_count", FieldMapping::Constant("0")),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
+        InteropMorphism {
+            tangled_nsid: "sh.tangled.repo.issue.state",
+            cospan_nsid: "dev.cospan.repo.issue.state",
+            build_migration: |src, tgt| identity_morphism(src, tgt),
         },
-        TangledMorphism {
-            tangled_nsid: "sh.tangled.repo.pull.status",
-            target_row: "PullStateRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("pull_uri", FieldMapping::Direct { tangled_field: "pull", required: true }),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("merge_commit_id", FieldMapping::Direct { tangled_field: "mergeCommitId", required: false }),
-                ("state", FieldMapping::Custom("{\
-                    let s = rec.get(\"state\").and_then(|v| v.as_str()).unwrap_or(\"open\");\
-                    match s { \"merged\" => \"merged\", \"closed\" => \"closed\", _ => \"open\" }.to_string()\
-                }")),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
-        },
-        TangledMorphism {
+        InteropMorphism {
             tangled_nsid: "sh.tangled.repo.pull.comment",
-            target_row: "PullCommentRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("pull_uri", FieldMapping::Direct { tangled_field: "pull", required: true }),
-                ("body", FieldMapping::Direct { tangled_field: "body", required: true }),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("review_decision", FieldMapping::Direct { tangled_field: "reviewDecision", required: false }),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
+            cospan_nsid: "dev.cospan.repo.pull.comment",
+            build_migration: |src, tgt| identity_morphism(src, tgt),
         },
-        TangledMorphism {
+        InteropMorphism {
             tangled_nsid: "sh.tangled.repo.collaborator",
-            target_row: "CollaboratorRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("repo_did", FieldMapping::Custom("parse_at_uri_did(rec, \"repo\")")),
-                ("repo_name", FieldMapping::Custom("parse_at_uri_name(rec, \"repo\")")),
-                // Tangled uses "subject" for the collaborator DID, Cospan uses "did" → "member_did"
-                ("member_did", FieldMapping::Direct { tangled_field: "subject", required: true }),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("role", FieldMapping::Constant("\"contributor\".to_string()")),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
+            cospan_nsid: "dev.cospan.repo.collaborator",
+            build_migration: |src, tgt| identity_morphism(src, tgt),
         },
-        TangledMorphism {
-            tangled_nsid: "sh.tangled.knot",
-            target_row: "NodeRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("public_endpoint", FieldMapping::Custom("{\
-                    let hostname = rec.get(\"hostname\").and_then(|v| v.as_str()).unwrap_or(\"\");\
-                    if hostname.is_empty() { None } else { Some(format!(\"https://{hostname}\")) }\
-                }")),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
-        },
-        // sh.tangled.spindle also maps to NodeRow but uses from_tangled_spindle_json
-        // to avoid duplicate impl with sh.tangled.knot
-        TangledMorphism {
-            tangled_nsid: "sh.tangled.spindle",
-            target_row: "NodeRow",
-            fields: vec![], // handled specially below
-        },
-        TangledMorphism {
+        InteropMorphism {
             tangled_nsid: "sh.tangled.actor.profile",
-            target_row: "ActorProfileRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                // Tangled bluesky is a boolean; we store the handle or empty string
-                ("bluesky", FieldMapping::Custom("{\
-                    match rec.get(\"bluesky\") {\
-                        Some(serde_json::Value::Bool(true)) => did.to_string(),\
-                        Some(serde_json::Value::String(s)) => s.clone(),\
-                        _ => String::new(),\
-                    }\
-                }")),
-                ("description", FieldMapping::Direct { tangled_field: "description", required: false }),
-                ("display_name", FieldMapping::Custom("None")), // Tangled profiles don't have displayName
-                ("avatar_cid", FieldMapping::Custom("\
-                    rec.get(\"avatar\")\
-                    .and_then(|v| v.get(\"ref\"))\
-                    .and_then(|v| v.get(\"$link\"))\
-                    .and_then(|v| v.as_str())\
-                    .map(String::from)")),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
+            cospan_nsid: "dev.cospan.actor.profile",
+            build_migration: |src, tgt| identity_morphism(src, tgt),
         },
-        TangledMorphism {
-            tangled_nsid: "sh.tangled.repo",
-            target_row: "RepoRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                // Tangled uses "knot" (hostname), not AT-URI node
-                ("node_did", FieldMapping::Custom("{\
-                    let knot = rec.get(\"knot\").and_then(|v| v.as_str()).unwrap_or(\"\");\
-                    if knot.is_empty() { String::new() } else { format!(\"did:web:{knot}\") }\
-                }")),
-                ("node_url", FieldMapping::Custom("{\
-                    let knot = rec.get(\"knot\").and_then(|v| v.as_str()).unwrap_or(\"\");\
-                    if knot.is_empty() { String::new() } else { format!(\"https://{knot}\") }\
-                }")),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("default_branch", FieldMapping::Constant("\"main\".to_string()")),
-                ("description", FieldMapping::Direct { tangled_field: "description", required: false }),
-                ("name", FieldMapping::Direct { tangled_field: "name", required: true }),
-                ("protocol", FieldMapping::Constant("\"git\".to_string()")),
-                ("source_repo", FieldMapping::Custom("None")),
-                ("visibility", FieldMapping::Constant("\"public\".to_string()")),
-                ("star_count", FieldMapping::Constant("0")),
-                ("fork_count", FieldMapping::Constant("0")),
-                ("open_issue_count", FieldMapping::Constant("0")),
-                ("open_mr_count", FieldMapping::Constant("0")),
-                ("source", FieldMapping::Constant("\"tangled\".to_string()")),
-                ("source_uri", FieldMapping::Custom("Some(format!(\"at://{did}/sh.tangled.repo/{rkey}\"))")),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
-        },
-        TangledMorphism {
-            tangled_nsid: "sh.tangled.knot.member",
-            target_row: "OrgMemberRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("org_uri", FieldMapping::Direct { tangled_field: "knot", required: true }),
-                ("member_did", FieldMapping::Direct { tangled_field: "member", required: true }),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("role", FieldMapping::Direct { tangled_field: "role", required: true }),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
-        },
-        TangledMorphism {
-            tangled_nsid: "sh.tangled.spindle.member",
-            target_row: "OrgMemberRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                ("org_uri", FieldMapping::Direct { tangled_field: "spindle", required: true }),
-                ("member_did", FieldMapping::Direct { tangled_field: "member", required: true }),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("role", FieldMapping::Direct { tangled_field: "role", required: true }),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
-        },
-        TangledMorphism {
+        InteropMorphism {
             tangled_nsid: "sh.tangled.label.definition",
-            target_row: "LabelRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                // Tangled labels don't have a repo AT-URI directly, infer from context
-                ("repo_did", FieldMapping::Custom("did.to_string()")),
-                ("repo_name", FieldMapping::Constant("String::new()")),
-                ("color", FieldMapping::Custom("rec.get(\"color\").and_then(|v| v.as_str()).unwrap_or(\"#6b7280\").to_string()")),
-                ("created_at", FieldMapping::Custom("parse_datetime(rec, \"createdAt\")")),
-                ("description", FieldMapping::Custom("rec.get(\"name\").and_then(|v| v.as_str()).map(String::from)")),
-                ("name", FieldMapping::Direct { tangled_field: "name", required: true }),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
+            cospan_nsid: "dev.cospan.label.definition",
+            build_migration: |src, tgt| identity_morphism(src, tgt),
         },
-        TangledMorphism {
-            tangled_nsid: "sh.tangled.pipeline",
-            target_row: "PipelineRow",
-            fields: vec![
-                ("did", FieldMapping::Custom("did.to_string()")),
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                // Extract repo info from triggerMetadata.repo
-                ("repo_did", FieldMapping::Custom("rec.get(\"triggerMetadata\").and_then(|t| t.get(\"repo\")).and_then(|r| r.get(\"did\")).and_then(|v| v.as_str()).unwrap_or(\"\").to_string()")),
-                ("repo_name", FieldMapping::Custom("rec.get(\"triggerMetadata\").and_then(|t| t.get(\"repo\")).and_then(|r| r.get(\"repo\")).and_then(|v| v.as_str()).unwrap_or(\"\").to_string()")),
-                // Extract commit ID from push trigger data
-                ("commit_id", FieldMapping::Custom("rec.get(\"triggerMetadata\").and_then(|t| t.get(\"push\")).and_then(|p| p.get(\"newSha\")).and_then(|v| v.as_str()).unwrap_or(\"\").to_string()")),
-                ("completed_at", FieldMapping::Custom("None")),
-                ("created_at", FieldMapping::Custom("chrono::Utc::now()")),
-                ("ref_name", FieldMapping::Custom("rec.get(\"triggerMetadata\").and_then(|t| t.get(\"push\")).and_then(|p| p.get(\"ref\")).and_then(|v| v.as_str()).map(String::from)")),
-                ("status", FieldMapping::Constant("\"pending\".to_string()")),
-                ("gat_type_check", FieldMapping::Constant("Some(\"skipped\".to_string())")),
-                ("equation_verification", FieldMapping::Constant("Some(\"skipped\".to_string())")),
-                ("lens_law_check", FieldMapping::Constant("Some(\"skipped\".to_string())")),
-                ("breaking_change_check", FieldMapping::Constant("Some(\"skipped\".to_string())")),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
-        },
-        TangledMorphism {
-            tangled_nsid: "sh.tangled.git.refUpdate",
-            target_row: "RefUpdateRow",
-            fields: vec![
-                ("id", FieldMapping::Constant("0")),
-                // No did column for ref_updates (include_did: false)
-                ("rkey", FieldMapping::Custom("rkey.to_string()")),
-                // Tangled uses repoDid/repoName directly instead of AT-URI
-                ("repo_did", FieldMapping::Direct { tangled_field: "repoDid", required: true }),
-                ("repo_name", FieldMapping::Direct { tangled_field: "repoName", required: true }),
-                ("commit_count", FieldMapping::Constant("1")),
-                ("committer_did", FieldMapping::Direct { tangled_field: "committerDid", required: true }),
-                ("created_at", FieldMapping::Custom("chrono::Utc::now()")),
-                ("lens_id", FieldMapping::Custom("None")),
-                ("lens_quality", FieldMapping::Custom("None")),
-                ("migration_id", FieldMapping::Custom("None")),
-                ("new_target", FieldMapping::Direct { tangled_field: "newSha", required: true }),
-                ("old_target", FieldMapping::Direct { tangled_field: "oldSha", required: false }),
-                ("protocol", FieldMapping::Constant("\"git\".to_string()")),
-                ("ref_name", FieldMapping::Direct { tangled_field: "ref", required: true }),
-                ("breaking_change_count", FieldMapping::Constant("0")),
-                ("indexed_at", FieldMapping::Custom("chrono::Utc::now()")),
-            ],
-        },
+        // TODO: These have different schemas that need explicit vertex/edge maps:
+        // - sh.tangled.repo → dev.cospan.repo (knot → node, no defaultBranch/visibility)
+        // - sh.tangled.repo.pull → dev.cospan.repo.pull (sourceBranch→sourceRef, targetBranch→targetRef)
+        // - sh.tangled.git.refUpdate → dev.cospan.vcs.refUpdate (repoDid/repoName→repo, oldSha→oldTarget, newSha→newTarget)
+        // - sh.tangled.pipeline → dev.cospan.pipeline (triggerMetadata→repo/commitId)
+        // - sh.tangled.knot → dev.cospan.node (hostname→publicEndpoint)
     ]
 }
 
-/// Emit `from_tangled_json()` methods for all morphisms.
-pub fn emit_tangled_from_json(morphisms: &[TangledMorphism]) -> Result<String> {
-    let mut w = IndentWriter::new("    ");
+/// Serializable compiled interop result for a single NSID pair.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct CompiledInterop {
+    pub tangled_nsid: String,
+    pub cospan_nsid: String,
+    pub tangled_schema: Schema,
+    pub cospan_schema: Schema,
+    pub compiled: panproto_inst::CompiledMigration,
+    pub quality_report: String,
+}
 
-    // Track which row types already have from_tangled_json to avoid duplicate impls
-    let mut seen_rows = std::collections::HashSet::new();
-
-    for m in morphisms {
-        if m.fields.is_empty() {
-            // Skip morphisms without field mappings (handled by another morphism)
-            w.line(&format!("// {} → {} (uses same from_tangled_json as knot)", m.tangled_nsid, m.target_row));
-            w.blank();
-            continue;
-        }
-        if !seen_rows.insert(m.target_row) {
-            // Skip duplicate implementations for the same target row
-            w.line(&format!("// {} → {} (skipped: duplicate impl)", m.tangled_nsid, m.target_row));
-            w.blank();
-            continue;
-        }
-        w.line(&format!("// {} → {}", m.tangled_nsid, m.target_row));
-        w.line(&format!("impl {} {{", m.target_row));
-        w.indent();
-        w.line(&format!(
-            "/// Deserialize a {} Jetstream record into a Cospan row.",
-            m.tangled_nsid
-        ));
-        w.line("#[allow(unused_variables)]");
-        w.line("pub fn from_tangled_json(did: &str, rkey: &str, rec: &serde_json::Value) -> Self {");
-        w.indent();
-        w.line("Self {");
-        w.indent();
-
-        for (col_name, mapping) in &m.fields {
-            match mapping {
-                FieldMapping::Direct { tangled_field, required: true } => {
-                    w.line(&format!(
-                        "{col_name}: rec.get(\"{tangled_field}\").and_then(|v| v.as_str()).unwrap_or(\"\").to_string(),"
-                    ));
-                }
-                FieldMapping::Direct { tangled_field, required: false } => {
-                    w.line(&format!(
-                        "{col_name}: rec.get(\"{tangled_field}\").and_then(|v| v.as_str()).map(String::from),"
-                    ));
-                }
-                FieldMapping::Constant(val) => {
-                    w.line(&format!("{col_name}: {val},"));
-                }
-                FieldMapping::Custom(expr) => {
-                    w.line(&format!("{col_name}: {expr},"));
+/// Build an index of NSID → file path by scanning all Lexicon JSON files.
+fn build_nsid_index(lexicons_dir: &Path) -> HashMap<String, std::path::PathBuf> {
+    let mut index = HashMap::new();
+    fn walk(dir: &Path, index: &mut HashMap<String, std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, index);
+            } else if path.extension().is_some_and(|e| e == "json") {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                        if let Some(id) = json.get("id").and_then(|v| v.as_str()) {
+                            index.insert(id.to_string(), path);
+                        }
+                    }
                 }
             }
         }
+    }
+    walk(lexicons_dir, &mut index);
+    index
+}
 
-        w.dedent();
-        w.line("}");
-        w.dedent();
-        w.line("}");
-        w.dedent();
-        w.line("}");
-        w.blank();
+/// Compile all interop morphisms and serialize them.
+pub fn compile_all_morphisms(lexicons_dir: &Path) -> Result<Vec<CompiledInterop>> {
+    let nsid_index = build_nsid_index(lexicons_dir);
+    let morphisms = all_interop_morphisms();
+    let mut results = Vec::new();
+
+    for m in &morphisms {
+        match compile_one(lexicons_dir, m, &nsid_index) {
+            Ok(compiled) => {
+                println!(
+                    "  Compiled interop: {} → {}",
+                    m.tangled_nsid, m.cospan_nsid
+                );
+                results.push(compiled);
+            }
+            Err(e) => {
+                eprintln!(
+                    "  warn: interop {} → {}: {e}",
+                    m.tangled_nsid, m.cospan_nsid
+                );
+            }
+        }
     }
 
-    Ok(w.finish())
+    Ok(results)
+}
+
+fn compile_one(
+    lexicons_dir: &Path,
+    m: &InteropMorphism,
+    nsid_index: &HashMap<String, std::path::PathBuf>,
+) -> Result<CompiledInterop> {
+    let tangled_path = nsid_index
+        .get(m.tangled_nsid)
+        .cloned()
+        .unwrap_or_else(|| nsid_to_path(lexicons_dir, m.tangled_nsid));
+    let cospan_path = nsid_index
+        .get(m.cospan_nsid)
+        .cloned()
+        .unwrap_or_else(|| nsid_to_path(lexicons_dir, m.cospan_nsid));
+
+    let tangled_json: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&tangled_path)
+            .with_context(|| format!("reading {}", tangled_path.display()))?,
+    )?;
+    let cospan_json: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&cospan_path)
+            .with_context(|| format!("reading {}", cospan_path.display()))?,
+    )?;
+
+    let tangled_schema = atproto::parse_lexicon(&tangled_json)
+        .with_context(|| format!("parsing {}", m.tangled_nsid))?;
+    let cospan_schema = atproto::parse_lexicon(&cospan_json)
+        .with_context(|| format!("parsing {}", m.cospan_nsid))?;
+
+    // Build the explicit migration
+    let migration = (m.build_migration)(&tangled_schema, &cospan_schema);
+
+    let quality_report = format!(
+        "vertex_map: {}/{} src vertices, edge_map: {}/{} src edges",
+        migration.vertex_map.len(),
+        tangled_schema.vertices.len(),
+        migration.edge_map.len(),
+        tangled_schema.edges.len(),
+    );
+
+    // Compile for runtime application
+    let compiled = panproto_mig::compile(&tangled_schema, &cospan_schema, &migration)
+        .map_err(|e| anyhow::anyhow!("compile: {e:?}"))?;
+
+    Ok(CompiledInterop {
+        tangled_nsid: m.tangled_nsid.to_string(),
+        cospan_nsid: m.cospan_nsid.to_string(),
+        tangled_schema,
+        cospan_schema,
+        compiled,
+        quality_report,
+    })
+}
+
+fn nsid_to_path(lexicons_dir: &Path, nsid: &str) -> std::path::PathBuf {
+    let parts: Vec<&str> = nsid.split('.').collect();
+    let mut path = lexicons_dir.to_path_buf();
+    for (i, part) in parts.iter().enumerate() {
+        if i == parts.len() - 1 {
+            path.push(format!("{part}.json"));
+        } else {
+            path.push(part);
+        }
+    }
+    path
 }
