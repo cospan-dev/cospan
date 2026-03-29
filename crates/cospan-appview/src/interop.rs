@@ -1,12 +1,12 @@
-//! Tangled → Cospan interop via pre-compiled panproto morphisms.
+//! Schema-driven record transformation via pre-compiled panproto morphisms.
 //!
-//! Morphisms are defined explicitly and compiled at codegen time
-//! (see cospan-codegen/src/tangled_interop.rs). The compiled migrations
-//! are serialized to generated/interop/compiled_morphisms.json.
+//! All record transformations flow through panproto:
 //!
-//! At runtime, this module loads the compiled migrations and applies
-//! them to incoming Tangled Jetstream records using panproto's
-//! `lift_wtype_sigma()`.
+//! **Cospan records**: parse_json → lift (DB projection transforms) → to_json
+//! **Tangled records**: parse_json → lift (Tangled→Cospan + DB transforms) → to_json
+//!
+//! Morphisms and field transforms are compiled at codegen time and serialized.
+//! This module loads them at startup and applies them at runtime.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -16,7 +16,7 @@ use panproto_inst::CompiledMigration;
 use panproto_mig::lift_wtype_sigma;
 use panproto_schema::Schema;
 
-/// A pre-compiled interop mapping loaded from codegen output.
+/// A pre-compiled Tangled → Cospan morphism (includes DB projection).
 #[derive(serde::Deserialize)]
 pub struct CompiledInterop {
     pub tangled_nsid: String,
@@ -27,75 +27,151 @@ pub struct CompiledInterop {
     pub quality_report: String,
 }
 
-/// Registry of pre-compiled Tangled → Cospan morphisms.
-pub struct TangledInterop {
-    mappings: HashMap<String, CompiledInterop>,
+/// A pre-compiled Cospan → Database projection.
+#[derive(serde::Deserialize)]
+pub struct CompiledDbProjection {
+    pub nsid: String,
+    pub schema: Schema,
+    pub compiled: CompiledMigration,
 }
 
-impl TangledInterop {
-    /// Create an empty registry (no morphisms loaded).
+/// Registry of all pre-compiled panproto morphisms.
+pub struct RecordTransformer {
+    /// Tangled NSID → compiled Tangled→Cospan+DB morphism
+    tangled_morphisms: HashMap<String, CompiledInterop>,
+    /// Cospan NSID → compiled Cospan→DB projection
+    db_projections: HashMap<String, CompiledDbProjection>,
+}
+
+impl RecordTransformer {
+    /// Create an empty transformer (no morphisms loaded).
     pub fn empty() -> Self {
         Self {
-            mappings: HashMap::new(),
+            tangled_morphisms: HashMap::new(),
+            db_projections: HashMap::new(),
         }
     }
 
-    /// Load pre-compiled morphisms from the codegen output file.
+    /// Load pre-compiled morphisms from codegen output.
     pub fn load(lexicons_dir: &Path) -> Result<Self> {
-        // The compiled morphisms are at generated/interop/compiled_morphisms.json
-        // relative to the workspace root. lexicons_dir is packages/lexicons/,
-        // so workspace root is two levels up.
         let workspace_root = lexicons_dir
             .parent()
             .and_then(|p| p.parent())
             .unwrap_or(lexicons_dir);
-        let morphisms_path = workspace_root.join("generated/interop/compiled_morphisms.json");
+        let interop_dir = workspace_root.join("generated/interop");
 
-        if !morphisms_path.exists() {
+        // Load Tangled morphisms
+        let morphisms_path = interop_dir.join("compiled_morphisms.json");
+        let tangled_morphisms = if morphisms_path.exists() {
+            let json = std::fs::read_to_string(&morphisms_path)
+                .with_context(|| format!("reading {}", morphisms_path.display()))?;
+            let interops: Vec<CompiledInterop> = serde_json::from_str(&json)
+                .with_context(|| "deserializing compiled morphisms")?;
+            let mut map = HashMap::new();
+            for interop in interops {
+                tracing::info!(
+                    tangled = %interop.tangled_nsid,
+                    cospan = %interop.cospan_nsid,
+                    quality = %interop.quality_report,
+                    "loaded tangled morphism"
+                );
+                map.insert(interop.tangled_nsid.clone(), interop);
+            }
+            map
+        } else {
+            tracing::warn!("no compiled morphisms found, tangled interop disabled");
+            HashMap::new()
+        };
+
+        // Load DB projections
+        let projections_path = interop_dir.join("db_projections.json");
+        let db_projections = if projections_path.exists() {
+            let json = std::fs::read_to_string(&projections_path)
+                .with_context(|| format!("reading {}", projections_path.display()))?;
+            let projections: Vec<CompiledDbProjection> = serde_json::from_str(&json)
+                .with_context(|| "deserializing DB projections")?;
+            let mut map = HashMap::new();
+            for proj in projections {
+                tracing::info!(nsid = %proj.nsid, "loaded DB projection");
+                map.insert(proj.nsid.clone(), proj);
+            }
+            map
+        } else {
             anyhow::bail!(
-                "compiled morphisms not found at {}. Run `cargo run -p cospan-codegen` first.",
-                morphisms_path.display()
+                "no DB projections found at {}. Run `cargo run -p cospan-codegen` first.",
+                projections_path.display()
             );
-        }
+        };
 
-        let json = std::fs::read_to_string(&morphisms_path)
-            .with_context(|| format!("reading {}", morphisms_path.display()))?;
-        let interops: Vec<CompiledInterop> = serde_json::from_str(&json)
-            .with_context(|| "deserializing compiled morphisms")?;
+        tracing::info!(
+            tangled = tangled_morphisms.len(),
+            db = db_projections.len(),
+            "loaded panproto morphisms"
+        );
 
-        let mut mappings = HashMap::new();
-        for interop in interops {
-            tracing::info!(
-                tangled = %interop.tangled_nsid,
-                cospan = %interop.cospan_nsid,
-                quality = %interop.quality_report,
-                "loaded compiled interop morphism"
-            );
-            mappings.insert(interop.tangled_nsid.clone(), interop);
-        }
-
-        tracing::info!(count = mappings.len(), "loaded tangled interop morphisms");
-        Ok(Self { mappings })
+        Ok(Self {
+            tangled_morphisms,
+            db_projections,
+        })
     }
 
-    /// Transform a Tangled JSON record to Cospan JSON using the pre-compiled
-    /// morphism. Returns None if no morphism exists for this NSID.
+    /// Transform a record through the appropriate panproto morphism.
+    ///
+    /// For Cospan records: applies DB projection (AT-URI decomposition, renames).
+    /// For Tangled records: applies Tangled→Cospan morphism + DB projection.
+    /// Returns None if no morphism exists for this NSID.
     pub fn transform(
+        &self,
+        collection: &str,
+        record: &serde_json::Value,
+    ) -> Option<Result<serde_json::Value>> {
+        if collection.starts_with("sh.tangled.") {
+            self.transform_tangled(collection, record)
+        } else {
+            self.transform_cospan(collection, record)
+        }
+    }
+
+    fn transform_cospan(
+        &self,
+        nsid: &str,
+        record: &serde_json::Value,
+    ) -> Option<Result<serde_json::Value>> {
+        let proj = self.db_projections.get(nsid)?;
+        Some(apply_projection(&proj.schema, &proj.compiled, nsid, record))
+    }
+
+    fn transform_tangled(
         &self,
         tangled_nsid: &str,
         record: &serde_json::Value,
     ) -> Option<Result<serde_json::Value>> {
-        let mapping = self.mappings.get(tangled_nsid)?;
-        Some(apply_lift(mapping, record))
+        let morphism = self.tangled_morphisms.get(tangled_nsid)?;
+        Some(apply_morphism(morphism, record))
     }
 }
 
-/// Apply the pre-compiled morphism: parse → lift → emit.
-fn apply_lift(
+/// Apply a DB projection: parse → lift (with field transforms) → emit.
+fn apply_projection(
+    schema: &Schema,
+    compiled: &CompiledMigration,
+    nsid: &str,
+    record: &serde_json::Value,
+) -> Result<serde_json::Value> {
+    let instance = panproto_inst::parse::parse_json(schema, nsid, record)
+        .map_err(|e| anyhow::anyhow!("parse {nsid}: {e:?}"))?;
+
+    let lifted = lift_wtype_sigma(compiled, schema, &instance)
+        .map_err(|e| anyhow::anyhow!("project {nsid}: {e:?}"))?;
+
+    Ok(panproto_inst::parse::to_json(schema, &lifted))
+}
+
+/// Apply a Tangled→Cospan morphism: parse → lift (rename + DB transforms) → emit.
+fn apply_morphism(
     mapping: &CompiledInterop,
     record: &serde_json::Value,
 ) -> Result<serde_json::Value> {
-    // Parse the Tangled JSON into a panproto WInstance
     let instance = panproto_inst::parse::parse_json(
         &mapping.tangled_schema,
         &mapping.tangled_nsid,
@@ -103,14 +179,21 @@ fn apply_lift(
     )
     .map_err(|e| anyhow::anyhow!("parse {}: {e:?}", mapping.tangled_nsid))?;
 
-    // Lift through the pre-compiled morphism (Sigma for field renames)
     let lifted = lift_wtype_sigma(
         &mapping.compiled,
         &mapping.cospan_schema,
         &instance,
     )
-    .map_err(|e| anyhow::anyhow!("lift {} → {}: {e:?}", mapping.tangled_nsid, mapping.cospan_nsid))?;
+    .map_err(|e| {
+        anyhow::anyhow!(
+            "lift {} → {}: {e:?}",
+            mapping.tangled_nsid,
+            mapping.cospan_nsid
+        )
+    })?;
 
-    // Emit back to JSON in the Cospan schema shape
-    Ok(panproto_inst::parse::to_json(&mapping.cospan_schema, &lifted))
+    Ok(panproto_inst::parse::to_json(
+        &mapping.cospan_schema,
+        &lifted,
+    ))
 }

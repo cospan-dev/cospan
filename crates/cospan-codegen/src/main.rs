@@ -9,6 +9,7 @@
 //! Usage: cargo run -p cospan-codegen
 //!        cargo run -p cospan-codegen -- --check   # breaking change detection
 
+mod db_projection;
 mod emit_rows;
 mod morphism;
 mod record_config;
@@ -181,19 +182,29 @@ fn main() -> Result<()> {
         }
     }
 
-    // --- Compile Tangled → Cospan interop morphisms ---
+    // --- Compile panproto morphisms ---
     fs::create_dir_all(generated_dir.join("interop"))?;
+
+    // Tangled → Cospan interop morphisms (with DB projection transforms baked in)
     let compiled_interops = tangled_interop::compile_all_morphisms(&lexicons_dir)?;
     println!(
         "  Compiled {} Tangled interop morphisms via panproto",
         compiled_interops.len()
     );
-
-    // Serialize compiled morphisms for runtime use
-    let interop_json = serde_json::to_string_pretty(&compiled_interops)?;
     fs::write(
         generated_dir.join("interop/compiled_morphisms.json"),
-        &interop_json,
+        serde_json::to_string_pretty(&compiled_interops)?,
+    )?;
+
+    // Cospan → Database projections (AT-URI decomposition, renames, defaults)
+    let db_projections = tangled_interop::compile_db_projections(&lexicons_dir)?;
+    println!(
+        "  Compiled {} Cospan DB projections via panproto",
+        db_projections.len()
+    );
+    fs::write(
+        generated_dir.join("interop/db_projections.json"),
+        serde_json::to_string_pretty(&db_projections)?,
     )?;
 
     // Write generated files (reference copies in generated/)

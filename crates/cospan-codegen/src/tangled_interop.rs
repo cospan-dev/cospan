@@ -9,10 +9,9 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use panproto_gat::Name;
 use panproto_mig::Migration;
 use panproto_protocols::web_document::atproto;
-use panproto_schema::{Edge, Schema};
+use panproto_schema::Schema;
 
 /// A pair of (tangled_nsid, cospan_nsid) with their explicit morphism.
 pub struct InteropMorphism {
@@ -216,8 +215,18 @@ fn compile_one(
     );
 
     // Compile for runtime application
-    let compiled = panproto_mig::compile(&tangled_schema, &cospan_schema, &migration)
+    let mut compiled = panproto_mig::compile(&tangled_schema, &cospan_schema, &migration)
         .map_err(|e| anyhow::anyhow!("compile: {e:?}"))?;
+
+    // Inject DB projection field transforms (AT-URI decomposition, renames, etc.)
+    let db_transforms = crate::db_projection::db_transforms(m.cospan_nsid);
+    for (vertex, transforms) in db_transforms {
+        compiled
+            .field_transforms
+            .entry(vertex)
+            .or_default()
+            .extend(transforms);
+    }
 
     Ok(CompiledInterop {
         tangled_nsid: m.tangled_nsid.to_string(),
@@ -227,6 +236,80 @@ fn compile_one(
         compiled,
         quality_report,
     })
+}
+
+/// A compiled DB projection for a Cospan record type.
+/// Used for direct Cospan records (not Tangled interop).
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct CompiledDbProjection {
+    pub nsid: String,
+    pub schema: Schema,
+    pub compiled: panproto_inst::CompiledMigration,
+}
+
+/// Compile DB projections for all Cospan record types.
+pub fn compile_db_projections(lexicons_dir: &Path) -> Result<Vec<CompiledDbProjection>> {
+    let nsid_index = build_nsid_index(lexicons_dir);
+    let mut results = Vec::new();
+
+    let cospan_nsids = [
+        "dev.cospan.node",
+        "dev.cospan.actor.profile",
+        "dev.cospan.repo",
+        "dev.cospan.vcs.refUpdate",
+        "dev.cospan.repo.issue",
+        "dev.cospan.repo.issue.comment",
+        "dev.cospan.repo.issue.state",
+        "dev.cospan.repo.pull",
+        "dev.cospan.repo.pull.comment",
+        "dev.cospan.repo.pull.state",
+        "dev.cospan.feed.star",
+        "dev.cospan.feed.reaction",
+        "dev.cospan.graph.follow",
+        "dev.cospan.label.definition",
+        "dev.cospan.org",
+        "dev.cospan.org.member",
+        "dev.cospan.repo.collaborator",
+        "dev.cospan.repo.dependency",
+        "dev.cospan.pipeline",
+    ];
+
+    for nsid in &cospan_nsids {
+        let path = nsid_index
+            .get(*nsid)
+            .cloned()
+            .unwrap_or_else(|| nsid_to_path(lexicons_dir, nsid));
+
+        let json_str = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let json: serde_json::Value = serde_json::from_str(&json_str)?;
+        let schema = atproto::parse_lexicon(&json)
+            .with_context(|| format!("parsing {nsid}"))?;
+
+        // Build identity migration (same schema in and out)
+        let migration = identity_morphism(&schema, &schema);
+        let mut compiled = panproto_mig::compile(&schema, &schema, &migration)
+            .map_err(|e| anyhow::anyhow!("compile db projection for {nsid}: {e:?}"))?;
+
+        // Inject DB projection field transforms
+        let db_transforms = crate::db_projection::db_transforms(nsid);
+        for (vertex, transforms) in db_transforms {
+            compiled
+                .field_transforms
+                .entry(vertex)
+                .or_default()
+                .extend(transforms);
+        }
+
+        println!("  Compiled DB projection: {nsid}");
+        results.push(CompiledDbProjection {
+            nsid: nsid.to_string(),
+            schema,
+            compiled,
+        });
+    }
+
+    Ok(results)
 }
 
 fn nsid_to_path(lexicons_dir: &Path, nsid: &str) -> std::path::PathBuf {
