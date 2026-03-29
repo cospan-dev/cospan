@@ -25,19 +25,9 @@ pub async fn handler(
     Json(input): Json<Input>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Parse the issue AT-URI: at://did/dev.cospan.repo.issue/rkey
-    let parts: Vec<&str> = input
-        .issue
-        .strip_prefix("at://")
-        .unwrap_or(&input.issue)
-        .splitn(3, '/')
-        .collect();
-    if parts.len() < 3 {
-        return Err(AppError::InvalidRequest(
-            "issue must be a valid AT-URI like at://did/dev.cospan.repo.issue/rkey".to_string(),
-        ));
-    }
-    let issue_did = parts[0];
-    let issue_rkey = parts[2];
+    let uri = crate::at_uri::validate(&input.issue).map_err(AppError::InvalidRequest)?;
+    let issue_did = &uri.did;
+    let issue_rkey = &uri.rkey;
 
     let rkey = uuid::Uuid::new_v4().to_string();
     let now = Utc::now();

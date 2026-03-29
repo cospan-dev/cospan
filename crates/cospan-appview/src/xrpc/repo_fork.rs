@@ -26,19 +26,9 @@ pub async fn handler(
     Json(input): Json<Input>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Parse source repo AT-URI: at://did/dev.cospan.repo/repo-name
-    let parts: Vec<&str> = input
-        .source_repo
-        .strip_prefix("at://")
-        .unwrap_or(&input.source_repo)
-        .splitn(3, '/')
-        .collect();
-    if parts.len() < 3 {
-        return Err(AppError::InvalidRequest(
-            "sourceRepo must be a valid AT-URI like at://did/dev.cospan.repo/name".to_string(),
-        ));
-    }
-    let source_did = parts[0];
-    let source_name = parts[2];
+    let uri = crate::at_uri::validate(&input.source_repo).map_err(AppError::InvalidRequest)?;
+    let source_did = &uri.did;
+    let source_name = &uri.rkey;
 
     // Look up the source repo to copy its metadata.
     let source = db::repo::get(&state.db, source_did, source_name)

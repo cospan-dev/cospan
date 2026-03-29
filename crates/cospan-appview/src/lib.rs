@@ -1,3 +1,4 @@
+pub mod at_uri;
 pub mod auth;
 pub mod cache;
 pub mod config;
