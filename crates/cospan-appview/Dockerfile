@@ -10,6 +10,9 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
 COPY packages/ packages/
 
+# Run codegen first (generates Row types, CRUD, compiled morphisms)
+RUN cargo run -p cospan-codegen
+
 # Build the cospan-appview binary
 RUN cargo build --release -p cospan-appview
 
@@ -20,6 +23,8 @@ RUN apt-get update && apt-get install -y ca-certificates libssl3 curl && rm -rf 
 
 COPY --from=builder /app/target/release/cospan-appview /usr/local/bin/
 COPY --from=builder /app/crates/cospan-appview/migrations /app/migrations
+COPY --from=builder /app/packages/lexicons /app/packages/lexicons
+COPY --from=builder /app/generated/interop /app/generated/interop
 
 WORKDIR /app
 
