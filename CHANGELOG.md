@@ -2,26 +2,37 @@
 
 ## v0.4.0
 
-### Panproto-powered codegen
+### Panproto-native architecture
 
-- Enhanced cospan-codegen to generate sqlx-compatible Row types with denormalization config for all 19 record types
-- Generated CRUD functions (upsert, get, delete, list) for all 19 record types
-- Generated `from_json()` Jetstream record deserializers with AT-URI decomposition, field renames, and type overrides
+Every data layer is now powered by panproto — schemas, morphisms, field transforms, and instance parsing replace all hand-written string munging.
+
+**Schema-driven record processing**
+- All 130 Lexicon files (56 Cospan + 74 Tangled) parsed via `panproto_protocols::atproto::parse_lexicon()`
+- Every incoming Jetstream record goes through `parse_json()` → `lift_wtype_sigma()` → `to_json()` → `serde_json::from_value()`
+- DB projection field transforms (AT-URI decomposition, field renames, counter defaults, nested extraction) defined as panproto `FieldTransform` expressions (`ComputeField`, `RenameField`, `AddField`, `DropField`, `PathTransform`)
+- 19 Cospan DB projections compiled at codegen time via `panproto_mig::compile()`
+
+**Tangled interop via panproto morphisms**
+- 17 Tangled→Cospan morphisms defined as explicit `Migration` vertex/edge maps
+- Compiled at codegen time, serialized to msgpack, loaded at appview startup
+- Applied at runtime via `lift_wtype_sigma()` — no string template code generation
+- Added `scripts/fetch-tangled-lexicons.sh` to pull latest from tangled.org/tangled.org/core
+
+**Generated code from Lexicons**
+- sqlx-compatible Row types for all 19 record types
+- CRUD functions (upsert, delete, get, list) per record type
+- SQL DDL migrations generated from Schema vertices/edges/constraints
+- 24 XRPC Input/Params types generated from Lexicon query/procedure definitions
+- 36 new Lexicon files for all XRPC query and procedure endpoints
 - TypeScript interfaces now exported (`export interface`)
-- Integrated panproto-check for Lexicon breaking change detection (`--check` mode)
-- Added `schema-check` CI job for automated breaking change detection
-- Schema baseline saved to `generated/sql/baseline.json` for diffing
-- Removed unused `panproto-core` dependency from cospan-codegen
-- Generated code written to `crates/cospan-appview/src/db/generated/` for direct appview integration
-- Replaced 19 hand-written database modules with re-exports from generated code (keeping custom queries)
-- Replaced manual JSON field extraction in consumer.rs with generated `from_json()` deserializers
+- Breaking change detection via `panproto_check::diff()` + `classify()` (`--check` mode)
 
-### Tangled interop codegen
+**Consumer dispatch**
+- Generic dispatch table for simple records (upsert/delete with no side effects)
+- Special-case arms only for records with business logic (counter updates, SSE events, state transitions)
+- Centralized `at_uri` module replaces all inline AT-URI parsing
 
-- Added 74 Tangled lexicon files under `packages/lexicons/sh/tangled/`
-- Added `scripts/fetch-tangled-lexicons.sh` for pulling latest from tangled.org/tangled.org/core
-- Generated 19 Tangled→Cospan interop morphisms with `from_tangled_json()` methods
-- Replaced 15 manual Tangled Row constructions in consumer.rs with generated morphisms
+**Replaced ~2,700 lines of hand-written code** with panproto-powered codegen and runtime transforms.
 
 ## v0.3.2
 
