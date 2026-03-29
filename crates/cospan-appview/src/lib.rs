@@ -6,6 +6,7 @@ pub mod error;
 pub mod indexer;
 pub mod interop;
 pub mod middleware;
+pub mod record_parser;
 pub mod node_proxy;
 pub mod state;
 pub mod xrpc;

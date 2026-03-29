@@ -6,20 +6,34 @@ use crate::db;
 use crate::state::AppState;
 use crate::xrpc::sse::IndexEvent;
 
-/// Transform a Tangled record to Cospan schema via panproto morphism,
-/// falling back to the original record if no morphism exists.
-fn tangled_to_cospan(
+/// Parse a record through panproto's schema-driven parser.
+/// For Cospan records, validates and normalizes via the Lexicon schema.
+/// For Tangled records, applies the compiled morphism first.
+fn parse_record(
     state: &AppState,
     collection: &str,
     rec: &serde_json::Value,
 ) -> serde_json::Value {
-    match state.tangled_interop.transform(collection, rec) {
-        Some(Ok(cospan_rec)) => cospan_rec,
+    // For Tangled records, try morphism transform first
+    if collection.starts_with("sh.tangled.") {
+        if let Some(result) = state.tangled_interop.transform(collection, rec) {
+            match result {
+                Ok(cospan_rec) => return cospan_rec,
+                Err(e) => {
+                    tracing::warn!(collection, error = %e, "morphism transform failed");
+                }
+            }
+        }
+    }
+
+    // Parse via Lexicon schema (Cospan records, or Tangled fallthrough)
+    match state.schemas.parse_record(collection, rec) {
+        Some(Ok(parsed)) => parsed,
         Some(Err(e)) => {
-            tracing::warn!(collection, error = %e, "morphism transform failed, using raw record");
+            tracing::debug!(collection, error = %e, "schema parse failed, using raw");
             rec.clone()
         }
-        None => rec.clone(), // no morphism, pass through
+        None => rec.clone(),
     }
 }
 
@@ -46,7 +60,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Node ───────────────────────────────────────────────────
         ("dev.cospan.node", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::node::NodeRow::from_json(did, rkey, rec);
+                let row = db::node::NodeRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::node::upsert(&state.db, &row).await?;
             }
         }
@@ -57,7 +71,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Actor Profile ──────────────────────────────────────────
         ("dev.cospan.actor.profile", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::actor_profile::ActorProfileRow::from_json(did, rkey, rec);
+                let row = db::actor_profile::ActorProfileRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::actor_profile::upsert(&state.db, &row).await?;
             }
         }
@@ -82,7 +96,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                         .unwrap_or_default()
                 };
 
-                let mut row = db::repo::RepoRow::from_json(did, rkey, rec);
+                let mut row = db::repo::RepoRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 row.node_did = node_did;
                 row.node_url = node_url;
                 db::repo::upsert(&state.db, &row).await?;
@@ -106,7 +120,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .map(|a| a.len() as i32)
                     .unwrap_or(0);
 
-                let mut row = db::ref_update::RefUpdateRow::from_json(did, rkey, rec);
+                let mut row = db::ref_update::RefUpdateRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 row.breaking_change_count = breaking_changes;
                 db::ref_update::upsert(&state.db, &row).await?;
 
@@ -128,7 +142,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Issue ──────────────────────────────────────────────────
         ("dev.cospan.repo.issue", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::issue::IssueRow::from_json(did, rkey, rec);
+                let row = db::issue::IssueRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::issue::upsert(&state.db, &row).await?;
 
                 // Publish SSE event
@@ -161,7 +175,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("")
                     .to_string();
 
-                let row = db::issue_comment::IssueCommentRow::from_json(did, rkey, rec);
+                let row = db::issue_comment::IssueCommentRow::from_json(did, rkey, &parse_record(state, collection, rec));
 
                 // Check if this is a new comment (not an update) for counter purposes
                 let existing = db::issue_comment::get(&state.db, did, rkey).await?;
@@ -197,7 +211,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("open")
                     .to_string();
 
-                let row = db::issue_state::IssueStateRow::from_json(did, rkey, rec);
+                let row = db::issue_state::IssueStateRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::issue_state::upsert(&state.db, &row).await?;
 
                 // Update the issue's state and repo counters
@@ -246,7 +260,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Pull Request ───────────────────────────────────────────
         ("dev.cospan.repo.pull", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::pull::PullRow::from_json(did, rkey, rec);
+                let row = db::pull::PullRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::pull::upsert(&state.db, &row).await?;
 
                 // Publish SSE event
@@ -278,7 +292,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("")
                     .to_string();
 
-                let row = db::pull_comment::PullCommentRow::from_json(did, rkey, rec);
+                let row = db::pull_comment::PullCommentRow::from_json(did, rkey, &parse_record(state, collection, rec));
 
                 // Check if this is a new comment (not an update) for counter purposes
                 let existing = db::pull_comment::get(&state.db, did, rkey).await?;
@@ -312,7 +326,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("open")
                     .to_string();
 
-                let row = db::pull_state::PullStateRow::from_json(did, rkey, rec);
+                let row = db::pull_state::PullStateRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::pull_state::upsert(&state.db, &row).await?;
 
                 // Update the pull's state and repo counters
@@ -365,7 +379,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("")
                     .to_string();
 
-                let row = db::star::StarRow::from_json(did, rkey, rec);
+                let row = db::star::StarRow::from_json(did, rkey, &parse_record(state, collection, rec));
 
                 let existing = db::star::get(&state.db, did, rkey).await?;
                 db::star::upsert(&state.db, &row).await?;
@@ -399,7 +413,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Follow ─────────────────────────────────────────────────
         ("dev.cospan.graph.follow", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::follow::FollowRow::from_json(did, rkey, rec);
+                let row = db::follow::FollowRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::follow::upsert(&state.db, &row).await?;
             }
         }
@@ -410,7 +424,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Reaction ───────────────────────────────────────────────
         ("dev.cospan.feed.reaction", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::reaction::ReactionRow::from_json(did, rkey, rec);
+                let row = db::reaction::ReactionRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::reaction::upsert(&state.db, &row).await?;
             }
         }
@@ -421,7 +435,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Label Definition ───────────────────────────────────────
         ("dev.cospan.label.definition", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::label::LabelRow::from_json(did, rkey, rec);
+                let row = db::label::LabelRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::label::upsert(&state.db, &row).await?;
             }
         }
@@ -432,7 +446,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Org ────────────────────────────────────────────────────
         ("dev.cospan.org", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::org::OrgRow::from_json(did, rkey, rec);
+                let row = db::org::OrgRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::org::upsert(&state.db, &row).await?;
             }
         }
@@ -443,7 +457,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Org Member ─────────────────────────────────────────────
         ("dev.cospan.org.member", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::org_member::OrgMemberRow::from_json(did, rkey, rec);
+                let row = db::org_member::OrgMemberRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::org_member::upsert(&state.db, &row).await?;
             }
         }
@@ -454,7 +468,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Collaborator ───────────────────────────────────────────
         ("dev.cospan.repo.collaborator", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::collaborator::CollaboratorRow::from_json(did, rkey, rec);
+                let row = db::collaborator::CollaboratorRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::collaborator::upsert(&state.db, &row).await?;
             }
         }
@@ -467,7 +481,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
             if let Some(rec) = record {
                 let checks = rec.get("algebraicChecks");
 
-                let mut row = db::pipeline::PipelineRow::from_json(did, rkey, rec);
+                let mut row = db::pipeline::PipelineRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 row.gat_type_check = checks
                     .and_then(|c| c.get("gatTypeCheck"))
                     .and_then(|v| v.as_str())
@@ -494,7 +508,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Dependency ─────────────────────────────────────────────
         ("dev.cospan.repo.dependency", "create" | "update") => {
             if let Some(rec) = record {
-                let row = db::dependency::DependencyRow::from_json(did, rkey, rec);
+                let row = db::dependency::DependencyRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::dependency::upsert(&state.db, &row).await?;
             }
         }
@@ -509,8 +523,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Star ──────────────────────────────────────────
         ("sh.tangled.feed.star", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::star::StarRow::from_json(did, rkey, &cospan_rec);
+                let row = db::star::StarRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 let existing = db::star::get(&state.db, did, rkey).await?;
                 db::star::upsert(&state.db, &row).await?;
 
@@ -533,8 +546,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Follow ────────────────────────────────────────
         ("sh.tangled.graph.follow", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::follow::FollowRow::from_json(did, rkey, &cospan_rec);
+                let row = db::follow::FollowRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::follow::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled follow");
             }
@@ -546,8 +558,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Reaction ──────────────────────────────────────
         ("sh.tangled.feed.reaction", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::reaction::ReactionRow::from_json(did, rkey, &cospan_rec);
+                let row = db::reaction::ReactionRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::reaction::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled reaction");
             }
@@ -559,8 +570,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Issue ─────────────────────────────────────────
         ("sh.tangled.repo.issue", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::issue::IssueRow::from_json(did, rkey, &cospan_rec);
+                let row = db::issue::IssueRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::issue::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled issue");
             }
@@ -589,8 +599,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("open")
                     .to_string();
 
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::issue_state::IssueStateRow::from_json(did, rkey, &cospan_rec);
+                let row = db::issue_state::IssueStateRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::issue_state::upsert(&state.db, &row).await?;
 
                 // Update the issue's state and repo counters
@@ -636,8 +645,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("")
                     .to_string();
 
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::issue_comment::IssueCommentRow::from_json(did, rkey, &cospan_rec);
+                let row = db::issue_comment::IssueCommentRow::from_json(did, rkey, &parse_record(state, collection, rec));
 
                 let existing = db::issue_comment::get(&state.db, did, rkey).await?;
                 db::issue_comment::upsert(&state.db, &row).await?;
@@ -660,8 +668,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Pull Request ──────────────────────────────────
         ("sh.tangled.repo.pull", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::pull::PullRow::from_json(did, rkey, &cospan_rec);
+                let row = db::pull::PullRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::pull::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled pull");
             }
@@ -683,8 +690,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::pull_state::PullStateRow::from_json(did, rkey, &cospan_rec);
+                let row = db::pull_state::PullStateRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 let new_state = row.state.clone();
                 db::pull_state::upsert(&state.db, &row).await?;
 
@@ -729,8 +735,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
                     .unwrap_or("")
                     .to_string();
 
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::pull_comment::PullCommentRow::from_json(did, rkey, &cospan_rec);
+                let row = db::pull_comment::PullCommentRow::from_json(did, rkey, &parse_record(state, collection, rec));
 
                 let existing = db::pull_comment::get(&state.db, did, rkey).await?;
                 db::pull_comment::upsert(&state.db, &row).await?;
@@ -753,8 +758,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Collaborator ──────────────────────────────────
         ("sh.tangled.repo.collaborator", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::collaborator::CollaboratorRow::from_json(did, rkey, &cospan_rec);
+                let row = db::collaborator::CollaboratorRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::collaborator::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled collaborator");
             }
@@ -766,8 +770,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Knot → Node ──────────────────────────────────
         ("sh.tangled.knot", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::node::NodeRow::from_json(did, rkey, &cospan_rec);
+                let row = db::node::NodeRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::node::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled knot as node");
             }
@@ -809,8 +812,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Actor Profile ─────────────────────────────────
         ("sh.tangled.actor.profile", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::actor_profile::ActorProfileRow::from_json(did, rkey, &cospan_rec);
+                let row = db::actor_profile::ActorProfileRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::actor_profile::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled actor profile");
             }
@@ -822,8 +824,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Repo ──────────────────────────────────────────
         ("sh.tangled.repo", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::repo::RepoRow::from_json(did, rkey, &cospan_rec);
+                let row = db::repo::RepoRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::repo::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled repo");
             }
@@ -835,8 +836,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Knot Member → Org Member ─────────────────────
         ("sh.tangled.knot.member", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::org_member::OrgMemberRow::from_json(did, rkey, &cospan_rec);
+                let row = db::org_member::OrgMemberRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::org_member::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled knot member as org member");
             }
@@ -912,8 +912,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Pipeline ──────────────────────────────────────
         ("sh.tangled.pipeline", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::pipeline::PipelineRow::from_json(did, rkey, &cospan_rec);
+                let row = db::pipeline::PipelineRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::pipeline::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled pipeline");
             }
@@ -970,8 +969,7 @@ pub async fn process_event(state: &Arc<AppState>, event: &serde_json::Value) -> 
         // ─── Tangled Git RefUpdate ─────────────────────────────────
         ("sh.tangled.git.refUpdate", "create" | "update") => {
             if let Some(rec) = record {
-                let cospan_rec = tangled_to_cospan(state, collection, rec);
-                let row = db::ref_update::RefUpdateRow::from_json(did, rkey, &cospan_rec);
+                let row = db::ref_update::RefUpdateRow::from_json(did, rkey, &parse_record(state, collection, rec));
                 db::ref_update::upsert(&state.db, &row).await?;
                 tracing::debug!(did, rkey, "indexed tangled git refUpdate");
             }
