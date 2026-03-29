@@ -36,7 +36,13 @@ pub fn atproto_to_rust(
 
     for (edge, prop_vertex) in &props {
         let field_name = edge.name.as_ref().map(|n| n.as_str()).unwrap_or("unknown");
-        let snake_name = camel_to_snake(field_name);
+        let mut snake_name = camel_to_snake(field_name);
+        // Escape Rust keywords
+        if snake_name == "ref" {
+            snake_name = "ref_name".to_string();
+        } else if snake_name == "type" {
+            snake_name = "type_name".to_string();
+        }
         let field_id = format!("{struct_name}.{snake_name}");
 
         builder = builder.vertex(&field_id, "field", None)?;

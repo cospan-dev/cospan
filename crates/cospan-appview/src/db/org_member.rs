@@ -1,60 +1,8 @@
+pub use super::generated::crud::org_members::{delete, get, list, upsert};
+pub use super::generated::types::OrgMemberRow;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OrgMemberRow {
-    pub did: String,
-    pub rkey: String,
-    pub org_uri: String,
-    pub member_did: String,
-    pub role: String,
-    pub created_at: DateTime<Utc>,
-    pub indexed_at: DateTime<Utc>,
-}
-
-pub async fn upsert(pool: &PgPool, row: &OrgMemberRow) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO org_members (did, rkey, org_uri, member_did, role, created_at) \
-         VALUES ($1, $2, $3, $4, $5, $6) \
-         ON CONFLICT (did, rkey) DO UPDATE SET \
-           role = EXCLUDED.role, \
-           indexed_at = NOW()",
-    )
-    .bind(&row.did)
-    .bind(&row.rkey)
-    .bind(&row.org_uri)
-    .bind(&row.member_did)
-    .bind(&row.role)
-    .bind(row.created_at)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn delete(pool: &PgPool, did: &str, rkey: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM org_members WHERE did = $1 AND rkey = $2")
-        .bind(did)
-        .bind(rkey)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-pub async fn get(
-    pool: &PgPool,
-    did: &str,
-    rkey: &str,
-) -> Result<Option<OrgMemberRow>, sqlx::Error> {
-    sqlx::query_as::<_, OrgMemberRow>(
-        "SELECT did, rkey, org_uri, member_did, role, created_at, indexed_at \
-         FROM org_members WHERE did = $1 AND rkey = $2",
-    )
-    .bind(did)
-    .bind(rkey)
-    .fetch_optional(pool)
-    .await
-}
 
 pub async fn list_for_org(
     pool: &PgPool,

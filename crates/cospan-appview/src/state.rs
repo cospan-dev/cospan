@@ -8,6 +8,7 @@ use crate::auth::did_resolver::DidResolver;
 use crate::auth::dpop::DpopKey;
 use crate::auth::session::SessionStore;
 use crate::config::AppConfig;
+use crate::interop::RecordTransformer;
 use crate::xrpc::sse::IndexEvent;
 
 /// Channel capacity for the event bus. Events are dropped if all receivers lag.
@@ -23,6 +24,8 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     /// Broadcast channel for streaming index events to SSE clients.
     pub event_tx: broadcast::Sender<IndexEvent>,
+    /// Pre-compiled panproto morphisms for all record transformations.
+    pub transformer: RecordTransformer,
 }
 
 impl AppState {
@@ -42,6 +45,12 @@ impl AppState {
 
         let (event_tx, _) = broadcast::channel(EVENT_BUS_CAPACITY);
 
+        let lexicons_dir = std::path::PathBuf::from(&config.lexicons_dir);
+
+        // Load pre-compiled panproto morphisms for record transformation.
+        let transformer = RecordTransformer::load(&lexicons_dir)
+            .expect("failed to load panproto morphisms — run `cargo run -p cospan-codegen` first");
+
         Ok(Self {
             config,
             db,
@@ -51,6 +60,7 @@ impl AppState {
             dpop_key: Arc::new(dpop_key),
             http_client,
             event_tx,
+            transformer,
         })
     }
 }

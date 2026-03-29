@@ -1,60 +1,8 @@
+pub use super::generated::crud::dependencies::{delete, get, list, upsert};
+pub use super::generated::types::DependencyRow;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DependencyRow {
-    pub did: String,
-    pub rkey: String,
-    pub source_repo_did: String,
-    pub source_repo_name: String,
-    pub target_repo_did: String,
-    pub target_repo_name: String,
-    pub morphism_id: String,
-    pub source_protocol: Option<String>,
-    pub target_protocol: Option<String>,
-    pub description: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub indexed_at: DateTime<Utc>,
-}
-
-pub async fn upsert(pool: &PgPool, row: &DependencyRow) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO dependencies (did, rkey, source_repo_did, source_repo_name, \
-              target_repo_did, target_repo_name, morphism_id, source_protocol, target_protocol, \
-              description, created_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
-         ON CONFLICT (did, rkey) DO UPDATE SET \
-           morphism_id = EXCLUDED.morphism_id, \
-           source_protocol = EXCLUDED.source_protocol, \
-           target_protocol = EXCLUDED.target_protocol, \
-           description = EXCLUDED.description, \
-           indexed_at = NOW()",
-    )
-    .bind(&row.did)
-    .bind(&row.rkey)
-    .bind(&row.source_repo_did)
-    .bind(&row.source_repo_name)
-    .bind(&row.target_repo_did)
-    .bind(&row.target_repo_name)
-    .bind(&row.morphism_id)
-    .bind(&row.source_protocol)
-    .bind(&row.target_protocol)
-    .bind(&row.description)
-    .bind(row.created_at)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn delete(pool: &PgPool, did: &str, rkey: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM dependencies WHERE did = $1 AND rkey = $2")
-        .bind(did)
-        .bind(rkey)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
 
 pub async fn list_for_repo(
     pool: &PgPool,

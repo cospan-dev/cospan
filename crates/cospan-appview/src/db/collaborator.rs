@@ -1,47 +1,8 @@
+pub use super::generated::crud::collaborators::{delete, get, list, upsert};
+pub use super::generated::types::CollaboratorRow;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CollaboratorRow {
-    pub did: String,
-    pub rkey: String,
-    pub repo_did: String,
-    pub repo_name: String,
-    pub member_did: String,
-    pub role: String,
-    pub created_at: DateTime<Utc>,
-    pub indexed_at: DateTime<Utc>,
-}
-
-pub async fn upsert(pool: &PgPool, row: &CollaboratorRow) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO collaborators (did, rkey, repo_did, repo_name, member_did, role, created_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7) \
-         ON CONFLICT (did, rkey) DO UPDATE SET \
-           role = EXCLUDED.role, \
-           indexed_at = NOW()",
-    )
-    .bind(&row.did)
-    .bind(&row.rkey)
-    .bind(&row.repo_did)
-    .bind(&row.repo_name)
-    .bind(&row.member_did)
-    .bind(&row.role)
-    .bind(row.created_at)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn delete(pool: &PgPool, did: &str, rkey: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM collaborators WHERE did = $1 AND rkey = $2")
-        .bind(did)
-        .bind(rkey)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
 
 pub async fn list_for_repo(
     pool: &PgPool,

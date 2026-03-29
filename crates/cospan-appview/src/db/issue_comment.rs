@@ -1,58 +1,8 @@
+pub use super::generated::crud::issue_comments::{delete, get, list, upsert};
+pub use super::generated::types::IssueCommentRow;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IssueCommentRow {
-    pub did: String,
-    pub rkey: String,
-    pub issue_uri: String,
-    pub body: String,
-    pub created_at: DateTime<Utc>,
-    pub indexed_at: DateTime<Utc>,
-}
-
-pub async fn upsert(pool: &PgPool, row: &IssueCommentRow) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO issue_comments (did, rkey, issue_uri, body, created_at) \
-         VALUES ($1, $2, $3, $4, $5) \
-         ON CONFLICT (did, rkey) DO UPDATE SET \
-           body = EXCLUDED.body, \
-           indexed_at = NOW()",
-    )
-    .bind(&row.did)
-    .bind(&row.rkey)
-    .bind(&row.issue_uri)
-    .bind(&row.body)
-    .bind(row.created_at)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn delete(pool: &PgPool, did: &str, rkey: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM issue_comments WHERE did = $1 AND rkey = $2")
-        .bind(did)
-        .bind(rkey)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-pub async fn get(
-    pool: &PgPool,
-    did: &str,
-    rkey: &str,
-) -> Result<Option<IssueCommentRow>, sqlx::Error> {
-    sqlx::query_as::<_, IssueCommentRow>(
-        "SELECT did, rkey, issue_uri, body, created_at, indexed_at \
-         FROM issue_comments WHERE did = $1 AND rkey = $2",
-    )
-    .bind(did)
-    .bind(rkey)
-    .fetch_optional(pool)
-    .await
-}
 
 pub async fn list_for_issue(
     pool: &PgPool,

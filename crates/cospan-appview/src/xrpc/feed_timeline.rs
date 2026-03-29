@@ -93,14 +93,9 @@ pub async fn handler(
     let starred_repos: Vec<(String, String)> = stars
         .iter()
         .filter_map(|s| {
-            let parts: Vec<&str> = s.subject.splitn(5, '/').collect();
-            if parts.len() >= 5 {
-                let did = parts[2].to_string();
-                let name = parts[4].to_string();
-                Some((did, name))
-            } else {
-                None
-            }
+            crate::at_uri::validate(&s.subject)
+                .ok()
+                .map(|uri| (uri.did, uri.rkey))
         })
         .collect();
 

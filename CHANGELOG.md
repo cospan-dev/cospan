@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.4.0
+
+### Panproto-native architecture
+
+Every data layer is now powered by panproto — schemas, morphisms, field transforms, and instance parsing replace all hand-written string munging.
+
+**Schema-driven record processing**
+- All 130 Lexicon files (56 Cospan + 74 Tangled) parsed via `panproto_protocols::atproto::parse_lexicon()`
+- Every incoming Jetstream record goes through `parse_json()` → `lift_wtype_sigma()` → `to_json()` → `serde_json::from_value()`
+- DB projection field transforms (AT-URI decomposition, field renames, counter defaults, nested extraction) defined as panproto `FieldTransform` expressions (`ComputeField`, `RenameField`, `AddField`, `DropField`, `PathTransform`)
+- 19 Cospan DB projections compiled at codegen time via `panproto_mig::compile()`
+
+**Tangled interop via panproto morphisms**
+- 17 Tangled→Cospan morphisms defined as explicit `Migration` vertex/edge maps
+- Compiled at codegen time, serialized to msgpack, loaded at appview startup
+- Applied at runtime via `lift_wtype_sigma()` — no string template code generation
+- Added `scripts/fetch-tangled-lexicons.sh` to pull latest from tangled.org/tangled.org/core
+
+**Generated code from Lexicons**
+- sqlx-compatible Row types for all 19 record types
+- CRUD functions (upsert, delete, get, list) per record type
+- SQL DDL migrations generated from Schema vertices/edges/constraints
+- 24 XRPC Input/Params types generated from Lexicon query/procedure definitions
+- 36 new Lexicon files for all XRPC query and procedure endpoints
+- TypeScript interfaces now exported (`export interface`)
+- Breaking change detection via `panproto_check::diff()` + `classify()` (`--check` mode)
+
+**Consumer dispatch**
+- Generic dispatch table for simple records (upsert/delete with no side effects)
+- Special-case arms only for records with business logic (counter updates, SSE events, state transitions)
+- Centralized `at_uri` module replaces all inline AT-URI parsing
+
+**Replaced ~2,700 lines of hand-written code** with panproto-powered codegen and runtime transforms.
+
+## v0.3.2
+
+- fix: include all 248 languages (was filtering out injection grammars)
+
+## v0.3.1
+
+- fix: profile avatar display, consistent page titles, UX polish
+
 ## v0.3.0
 
 ### Frontend UX revamp
@@ -27,6 +69,22 @@
 - Fixed node container permissions for `/data` volume
 - Fixed web container missing `@sveltejs/kit` runtime dependency
 - Rust 1.88+ in Dockerfiles (MSRV for home, time crates)
+
+## v0.2.4
+
+- fix(auth): request `transition:generic` scope for write permissions
+
+## v0.2.3
+
+- feat: add logo to header and favicon (dark mode optimized with light strokes)
+
+## v0.2.2
+
+- fix(auth): add root URL to `redirect_uris` for browser OAuth client
+
+## v0.2.1
+
+- fix(auth): use `token_endpoint_auth_method: "none"` for browser OAuth client
 
 ## v0.2.0
 

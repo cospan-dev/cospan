@@ -1,0 +1,22 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.repo.collaborator.add",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["repo", "did", "role", "ownerDid"],
+          "properties": {
+            "repo": { "type": "string", "format": "at-uri" },
+            "did": { "type": "string", "format": "did" },
+            "role": { "type": "string" },
+            "ownerDid": { "type": "string", "format": "did" }
+          }
+        }
+      }
+    }
+  }
+}

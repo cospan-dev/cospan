@@ -436,7 +436,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cospan-appview"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -455,11 +455,14 @@ dependencies = [
  "panproto-expr-parser",
  "panproto-gat",
  "panproto-inst",
+ "panproto-mig",
+ "panproto-protocols",
  "panproto-schema",
  "panproto-xrpc",
  "rand 0.8.5",
  "redis",
  "reqwest",
+ "rmp-serde",
  "serde",
  "serde_json",
  "sha2",
@@ -479,21 +482,24 @@ dependencies = [
 
 [[package]]
 name = "cospan-codegen"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "anyhow",
- "panproto-core",
+ "panproto-check",
+ "panproto-expr",
  "panproto-gat",
+ "panproto-inst",
  "panproto-mig",
  "panproto-protocols",
  "panproto-schema",
+ "rmp-serde",
  "serde",
  "serde_json",
 ]
 
 [[package]]
 name = "cospan-node"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",

@@ -1,4 +1,5 @@
 mod consumer;
+mod dispatch;
 mod jetstream;
 
 use std::sync::Arc;

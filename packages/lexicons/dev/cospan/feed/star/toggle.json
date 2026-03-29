@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.feed.star.toggle",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subject", "starred", "did"],
+          "properties": {
+            "subject": { "type": "string", "format": "at-uri" },
+            "starred": { "type": "boolean" },
+            "did": { "type": "string", "format": "did" }
+          }
+        }
+      }
+    }
+  }
+}

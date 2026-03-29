@@ -1,44 +1,8 @@
+pub use super::generated::crud::reactions::{delete, get, list, upsert};
+pub use super::generated::types::ReactionRow;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ReactionRow {
-    pub did: String,
-    pub rkey: String,
-    pub subject: String,
-    pub emoji: String,
-    pub created_at: DateTime<Utc>,
-    pub indexed_at: DateTime<Utc>,
-}
-
-pub async fn upsert(pool: &PgPool, row: &ReactionRow) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO reactions (did, rkey, subject, emoji, created_at) \
-         VALUES ($1, $2, $3, $4, $5) \
-         ON CONFLICT (did, rkey) DO UPDATE SET \
-           subject = EXCLUDED.subject, \
-           emoji = EXCLUDED.emoji, \
-           indexed_at = NOW()",
-    )
-    .bind(&row.did)
-    .bind(&row.rkey)
-    .bind(&row.subject)
-    .bind(&row.emoji)
-    .bind(row.created_at)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn delete(pool: &PgPool, did: &str, rkey: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM reactions WHERE did = $1 AND rkey = $2")
-        .bind(did)
-        .bind(rkey)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
 
 pub async fn list_for_subject(
     pool: &PgPool,

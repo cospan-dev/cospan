@@ -18,7 +18,7 @@ pub async fn handler(
     Query(params): Query<Params>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let limit = params.limit.unwrap_or(50).min(200);
-    let nodes = db::node::list(&state.db, limit).await?;
+    let nodes = db::node::list(&state.db, limit, None).await?;
 
     Ok(Json(serde_json::json!({ "nodes": nodes })))
 }
