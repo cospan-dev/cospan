@@ -13,6 +13,15 @@
 - Schema baseline saved to `generated/sql/baseline.json` for diffing
 - Removed unused `panproto-core` dependency from cospan-codegen
 - Generated code written to `crates/cospan-appview/src/db/generated/` for direct appview integration
+- Replaced 19 hand-written database modules with re-exports from generated code (keeping custom queries)
+- Replaced manual JSON field extraction in consumer.rs with generated `from_json()` deserializers
+
+### Tangled interop codegen
+
+- Added 74 Tangled lexicon files under `packages/lexicons/sh/tangled/`
+- Added `scripts/fetch-tangled-lexicons.sh` for pulling latest from tangled.org/tangled.org/core
+- Generated 19 Tangled→Cospan interop morphisms with `from_tangled_json()` methods
+- Replaced 15 manual Tangled Row constructions in consumer.rs with generated morphisms
 
 ## v0.3.2
 
