@@ -92,7 +92,7 @@ pub async fn dispatch_simple_upsert(
             db::repo::ensure_exists(&state.db, &row.source_repo_did, &row.source_repo_name, "cospan").await?;
             db::repo::ensure_exists(&state.db, &row.target_repo_did, &row.target_repo_name, "cospan").await?;
             db::dependency::upsert(&state.db, &row).await?;
-            return Ok(true);
+            Ok(true)
         }
 
         // ─── sh.tangled simple records (same DB tables) ─────────────
