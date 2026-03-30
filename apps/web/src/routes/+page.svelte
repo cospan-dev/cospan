@@ -6,12 +6,15 @@
 
 	let { data } = $props();
 
-	let activeProtocol = $derived(data.protocol);
 	let searchQuery = $state('');
 	let showDropdown = $state(false);
-
-	// Source tab from URL
 	let activeSource = $derived($page.url.searchParams.get('source') ?? 'all');
+
+	// Multi-select protocols from URL
+	let activeProtocols = $derived<string[]>(() => {
+		const p = $page.url.searchParams.get('protocol');
+		return p ? p.split(',').filter(Boolean) : [];
+	});
 
 	let filtered = $derived(
 		searchQuery.trim()
@@ -22,10 +25,28 @@
 			: ALL_LANGUAGES.slice(0, 20)
 	);
 
-	function selectProtocol(value: string) {
+	function toggleProtocol(value: string) {
+		const current = activeProtocols();
+		const next = current.includes(value)
+			? current.filter((p) => p !== value)
+			: [...current, value];
 		showDropdown = false;
 		searchQuery = '';
-		goto(`/?protocol=${value}`);
+		const params = new URLSearchParams($page.url.searchParams);
+		if (next.length === 0) {
+			params.delete('protocol');
+		} else {
+			params.set('protocol', next.join(','));
+		}
+		const qs = params.toString();
+		goto(qs ? `/?${qs}` : '/', { noScroll: true, replaceState: true });
+	}
+
+	function clearProtocols() {
+		const params = new URLSearchParams($page.url.searchParams);
+		params.delete('protocol');
+		const qs = params.toString();
+		goto(qs ? `/?${qs}` : '/', { noScroll: true, replaceState: true });
 	}
 
 	const sourceTabs = [
@@ -36,97 +57,144 @@
 
 	function setSource(source: string) {
 		const params = new URLSearchParams($page.url.searchParams);
-		if (source === 'all') {
-			params.delete('source');
-		} else {
-			params.set('source', source);
-		}
+		if (source === 'all') params.delete('source');
+		else params.set('source', source);
 		const qs = params.toString();
-		goto(qs ? `/?${qs}` : '/');
+		goto(qs ? `/?${qs}` : '/', { noScroll: true, replaceState: true });
 	}
 
-	// Generate a deterministic color from language name
 	function langColor(value: string): string {
 		let hash = 0;
-		for (let i = 0; i < value.length; i++) {
-			hash = value.charCodeAt(i) + ((hash << 5) - hash);
-		}
-		const hue = Math.abs(hash % 360);
-		return `oklch(0.65 0.15 ${hue})`;
+		for (let i = 0; i < value.length; i++) hash = value.charCodeAt(i) + ((hash << 5) - hash);
+		return `oklch(0.65 0.15 ${Math.abs(hash % 360)})`;
 	}
+
+	let totalRepos = $derived(data.trending.items.length + data.recent.items.length);
+	let activeView = $state<'trending' | 'recent'>('trending');
+	let activeItems = $derived(activeView === 'trending' ? data.trending.items : data.recent.items);
+	let hasAnyRepos = $derived(data.trending.items.length > 0 || data.recent.items.length > 0);
 </script>
 
 <svelte:head>
-	<title>Cospan</title>
+	<title>Cospan | Schematic code hosting</title>
 </svelte:head>
 
-<!-- Hero section -->
-<section class="noise-overlay graph-paper relative -mx-4 -mt-6 mb-8 px-4 py-16" style="background: linear-gradient(180deg, oklch(0.14 0.02 270) 0%, oklch(0.11 0.008 270) 100%);">
-	<div class="relative mx-auto max-w-6xl">
-		<div class="flex items-start justify-between">
-			<div>
-				<h1 class="text-[28px] font-medium leading-tight text-text-primary">
-					Schema-first code hosting.
-				</h1>
-				<p class="mt-3 text-[15px] leading-relaxed text-text-secondary">
-					Structural diffs. Algebraic CI. Breaking change detection.
-				</p>
-				<p class="mt-4 text-xs text-text-muted">Built on AT Protocol</p>
-			</div>
+<!-- ═══ HERO ═══ -->
+<section class="relative -mx-6 -mt-6 overflow-hidden border-b border-line/40">
+	<!-- Ambient grid -->
+	<div class="dot-grid pointer-events-none absolute inset-0 opacity-60"></div>
 
-			<!-- Abstract cospan diagram decoration -->
-			<svg class="hidden h-24 w-40 md:block" viewBox="0 0 160 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-				<!-- Connecting lines -->
-				<line x1="30" y1="70" x2="80" y2="26" stroke="oklch(0.40 0.01 270)" stroke-width="1" opacity="0.2" />
-				<line x1="130" y1="70" x2="80" y2="26" stroke="oklch(0.40 0.01 270)" stroke-width="1" opacity="0.2" />
-				<line x1="30" y1="70" x2="50" y2="80" stroke="oklch(0.40 0.01 270)" stroke-width="1" opacity="0.15" />
-				<line x1="130" y1="70" x2="110" y2="80" stroke="oklch(0.40 0.01 270)" stroke-width="1" opacity="0.15" />
-				<!-- Vertices -->
-				<circle cx="80" cy="26" r="5" fill="oklch(0.50 0.08 250)" opacity="0.25" />
-				<circle cx="30" cy="70" r="4" fill="oklch(0.45 0.06 250)" opacity="0.20" />
-				<circle cx="130" cy="70" r="4" fill="oklch(0.45 0.06 250)" opacity="0.20" />
-				<circle cx="50" cy="80" r="3" fill="oklch(0.40 0.04 250)" opacity="0.15" />
-				<circle cx="110" cy="80" r="3" fill="oklch(0.40 0.04 250)" opacity="0.15" />
+	<!-- Gradient atmosphere -->
+	<div class="pointer-events-none absolute inset-0" style="background: radial-gradient(ellipse 80% 60% at 50% 0%, oklch(0.18 0.04 260 / 0.5), transparent 70%);"></div>
+
+	<div class="relative mx-auto max-w-[1200px] px-6 pb-20 pt-24">
+		<div class="max-w-2xl">
+			<!-- Headline -->
+			<h1 class="text-[clamp(2rem,5vw,3.25rem)] font-semibold leading-[1.1] tracking-tight text-ink">
+				Code hosting with<br>
+				<span class="text-caption">schematic version control.</span>
+			</h1>
+
+			<!-- Description -->
+			<p class="mt-6 max-w-lg text-[15px] leading-relaxed text-caption">
+				Structural diffs, schema-aware merges, and algebraic validation powered by panproto. Built on AT Protocol.
+			</p>
+
+		</div>
+
+		<!-- Cospan diagram: abstract decorative element -->
+		<div class="pointer-events-none absolute right-6 top-20 hidden opacity-[0.07] lg:block">
+			<svg width="400" height="300" viewBox="0 0 400 300" fill="none">
+				<!-- Large cospan: two morphisms meeting at apex -->
+				<circle cx="200" cy="50" r="20" stroke="currentColor" stroke-width="1"/>
+				<circle cx="60" cy="240" r="14" stroke="currentColor" stroke-width="0.8"/>
+				<circle cx="340" cy="240" r="14" stroke="currentColor" stroke-width="0.8"/>
+				<line x1="60" y1="240" x2="200" y2="50" stroke="currentColor" stroke-width="0.6"/>
+				<line x1="340" y1="240" x2="200" y2="50" stroke="currentColor" stroke-width="0.6"/>
+
+				<!-- Secondary structure: a pushout square -->
+				<circle cx="130" cy="145" r="8" stroke="currentColor" stroke-width="0.5"/>
+				<circle cx="270" cy="145" r="8" stroke="currentColor" stroke-width="0.5"/>
+				<line x1="130" y1="145" x2="200" y2="50" stroke="currentColor" stroke-width="0.4" stroke-dasharray="4 4"/>
+				<line x1="270" y1="145" x2="200" y2="50" stroke="currentColor" stroke-width="0.4" stroke-dasharray="4 4"/>
+				<line x1="130" y1="145" x2="60" y2="240" stroke="currentColor" stroke-width="0.4" stroke-dasharray="4 4"/>
+				<line x1="270" y1="145" x2="340" y2="240" stroke="currentColor" stroke-width="0.4" stroke-dasharray="4 4"/>
 			</svg>
 		</div>
 	</div>
 </section>
 
-<!-- Source tabs + language filter -->
-<section class="mx-auto max-w-6xl">
-	<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-		<!-- Source tabs -->
-		<div class="flex items-center gap-1">
-			{#each sourceTabs as tab}
+<!-- ═══ CONTROLS ═══ -->
+<section>
+	<div class="flex flex-wrap items-center justify-between gap-4 border-b border-line/40 py-4">
+		<div class="flex items-center gap-3">
+			<!-- Source tabs -->
+			<div class="flex items-center gap-0.5 rounded-lg bg-surface p-1">
+				{#each sourceTabs as tab}
+					<button
+						type="button"
+						onclick={() => setSource(tab.value)}
+						class="rounded-md px-3.5 py-1.5 text-[12px] font-medium transition-all duration-150
+							{activeSource === tab.value
+								? 'bg-raised text-ink shadow-sm'
+								: 'text-ghost hover:text-caption'}"
+					>
+						{tab.label}
+					</button>
+				{/each}
+			</div>
+
+			<div class="h-5 w-px bg-line/60"></div>
+
+			<!-- View tabs: Trending / Recent -->
+			<div class="flex items-center gap-0.5 rounded-lg bg-surface p-1">
 				<button
 					type="button"
-					onclick={() => setSource(tab.value)}
-					class="relative px-3 py-1.5 text-sm transition-colors duration-150
-						{activeSource === tab.value
-							? 'text-accent'
-							: 'text-text-muted hover:text-text-secondary'}"
+					onclick={() => activeView = 'trending'}
+					class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition-all
+						{activeView === 'trending' ? 'bg-raised text-ink shadow-sm' : 'text-ghost hover:text-caption'}"
 				>
-					{tab.label}
-					{#if activeSource === tab.value}
-						<span class="absolute bottom-0 left-0 right-0 h-[2px] bg-accent"></span>
-					{/if}
+					<svg class="h-3 w-3 {activeView === 'trending' ? 'text-warn' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+					</svg>
+					Trending
 				</button>
-			{/each}
+				<button
+					type="button"
+					onclick={() => activeView = 'recent'}
+					class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition-all
+						{activeView === 'recent' ? 'bg-raised text-ink shadow-sm' : 'text-ghost hover:text-caption'}"
+				>
+					<svg class="h-3 w-3 {activeView === 'recent' ? 'text-focus' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+					</svg>
+					Recent
+				</button>
+			</div>
 		</div>
 
-		<!-- Language filter -->
+		<!-- Language filter (multiselect) -->
 		<div class="flex items-center gap-2">
-			{#if activeProtocol}
-				<span class="flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/5 px-2.5 py-1 text-xs text-accent">
-					<span class="h-1.5 w-1.5 rounded-full" style="background-color: {langColor(activeProtocol)}"></span>
-					{ALL_LANGUAGES.find((l) => l.value === activeProtocol)?.label ?? activeProtocol}
-					<a href="/" class="ml-0.5 text-text-muted hover:text-text-primary" title="Clear language filter">
-						<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-						</svg>
-					</a>
-				</span>
+			{#if activeProtocols().length > 1}
+				<button
+					type="button"
+					onclick={clearProtocols}
+					class="text-[11px] text-ghost hover:text-caption transition-colors"
+				>
+					Clear all
+				</button>
 			{/if}
+			{#each activeProtocols() as proto}
+				<button
+					type="button"
+					onclick={() => toggleProtocol(proto)}
+					class="flex items-center gap-1.5 rounded-full border border-focus/30 bg-focus/5 px-2.5 py-1 text-[11px] font-medium text-focus-bright transition-colors hover:bg-focus/10"
+				>
+					<span class="h-1.5 w-1.5 rounded-full" style="background-color: {langColor(proto)}"></span>
+					{ALL_LANGUAGES.find((l) => l.value === proto)?.label ?? proto}
+					<span class="ml-0.5 text-ghost">×</span>
+				</button>
+			{/each}
 
 			<div class="relative">
 				<input
@@ -134,23 +202,35 @@
 					bind:value={searchQuery}
 					onfocus={() => showDropdown = true}
 					onblur={() => setTimeout(() => showDropdown = false, 200)}
-					placeholder="Filter by language..."
+					onkeydown={(e) => {
+						if (e.key === 'Enter' && filtered.length > 0) {
+							e.preventDefault();
+							toggleProtocol(filtered[0].value);
+						}
+					}}
+					placeholder="Filter by language…"
 					autocomplete="off"
 					spellcheck="false"
-					class="w-44 rounded-md border border-border bg-surface-0 px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+					class="w-40 rounded-md border border-line bg-surface px-3 py-1.5 text-[12px] text-ink placeholder:text-ghost
+						focus:border-focus/50 focus:outline-none transition-colors"
 				/>
-
-				{#if showDropdown}
-					<ul class="absolute right-0 top-full z-50 mt-1 max-h-48 w-56 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
+				{#if showDropdown && filtered.length > 0}
+					<ul class="absolute right-0 top-full z-50 mt-1 max-h-52 w-56 overflow-y-auto rounded-lg border border-line bg-raised shadow-xl shadow-black/40">
 						{#each filtered as lang}
 							<li>
 								<button
 									type="button"
-									onmousedown={() => selectProtocol(lang.value)}
-									class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-surface-2
-										{activeProtocol === lang.value ? 'text-accent' : 'text-text-muted'}"
+									onmousedown={() => toggleProtocol(lang.value)}
+									class="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors hover:bg-elevated
+										{activeProtocols().includes(lang.value) ? 'text-focus-bright' : 'text-caption'}"
 								>
-									<span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background-color: {langColor(lang.value)}"></span>
+									{#if activeProtocols().includes(lang.value)}
+										<svg class="h-3 w-3 text-focus" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+										</svg>
+									{:else}
+										<span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background-color: {langColor(lang.value)}"></span>
+									{/if}
 									{lang.label}
 								</button>
 							</li>
@@ -160,49 +240,27 @@
 			</div>
 		</div>
 	</div>
+</section>
 
-	<!-- Trending section -->
-	<div class="mb-10">
-		<div class="mb-4 flex items-center gap-2">
-			<svg class="h-4 w-4 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
-			</svg>
-			<h2 class="text-sm font-medium text-text-primary">Trending</h2>
-			<span class="text-xs text-text-muted">by recent stars</span>
-		</div>
-
-		{#if data.trending.items.length === 0}
-			<p class="py-12 text-center text-sm text-text-muted">
-				{activeProtocol ? `No ${activeProtocol} repositories found.` : 'No repositories yet.'}
-			</p>
-		{:else}
-			<div class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));">
-				{#each data.trending.items as repo (repo.did + '/' + repo.name)}
-					<RepoCard {repo} />
-				{/each}
+<!-- ═══ REPOS ═══ -->
+<section class="py-8">
+	{#if activeItems.length === 0}
+		<div class="flex flex-col items-center justify-center py-24 text-center">
+			<div class="mb-4 text-ghost">
+				<svg class="mx-auto h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+				</svg>
 			</div>
-		{/if}
-	</div>
-
-	<!-- Recently updated section -->
-	<div>
-		<div class="mb-4 flex items-center gap-2">
-			<svg class="h-4 w-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-			</svg>
-			<h2 class="text-sm font-medium text-text-primary">Recently Updated</h2>
-		</div>
-
-		{#if data.recent.items.length === 0}
-			<p class="py-12 text-center text-sm text-text-muted">
-				No recently updated repositories.
+			<p class="text-sm text-caption">
+				{activeProtocols().length > 0 ? `No repositories found for selected languages.` : 'No repositories yet.'}
 			</p>
-		{:else}
-			<div class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));">
-				{#each data.recent.items as repo (repo.did + '/' + repo.name)}
-					<RepoCard {repo} />
-				{/each}
-			</div>
-		{/if}
-	</div>
+			<p class="mt-1 text-xs text-ghost">Repositories from Cospan and Tangled will appear here.</p>
+		</div>
+	{:else}
+		<div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));">
+			{#each activeItems as repo (repo.did + '/' + repo.name)}
+				<RepoCard {repo} />
+			{/each}
+		</div>
+	{/if}
 </section>

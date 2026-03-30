@@ -1,70 +1,112 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=DM+Mono:wght@300;400;500&display=swap');
 
 @theme {
-	/* Base: blue-tinted dark, mathematical precision */
-	--color-bg: oklch(0.11 0.008 270);
-	--color-surface-0: oklch(0.14 0.008 270);
-	--color-surface-1: oklch(0.17 0.008 270);
-	--color-surface-2: oklch(0.21 0.01 270);
-	--color-border: oklch(0.24 0.008 270);
-	--color-border-hover: oklch(0.35 0.01 270);
-	--color-text-primary: oklch(0.90 0.01 270);
-	--color-text-secondary: oklch(0.58 0.01 270);
-	--color-text-muted: oklch(0.40 0.01 270);
-	--color-accent: oklch(0.65 0.14 250);
-	--color-accent-hover: oklch(0.72 0.14 250);
+	/* ── Palette: deep indigo-black with cold precision ── */
+	--color-void: #07080f;
+	--color-ground: #0c0d17;
+	--color-surface: #12131f;
+	--color-raised: #1a1b2a;
+	--color-elevated: #222336;
+	--color-line: #2a2b40;
+	--color-line-bright: #3d3e5a;
+
+	/* Text: high contrast hierarchy */
+	--color-ink: #e8e9f0;
+	--color-caption: #8b8da3;
+	--color-ghost: #4e5068;
+
+	/* Accent: a single electric blue, used sparingly */
+	--color-focus: #5b7ff5;
+	--color-focus-bright: #7b9aff;
+	--color-focus-dim: #3a5ad1;
 
 	/* Semantic */
-	--color-success: oklch(0.60 0.14 155);
-	--color-danger: oklch(0.60 0.14 25);
-	--color-warning: oklch(0.65 0.14 85);
-	--color-info: oklch(0.60 0.10 280);
+	--color-ok: #3dd68c;
+	--color-err: #f55b6a;
+	--color-warn: #f5c542;
+	--color-info: #5bb8f5;
 
-	/* Legacy aliases for existing components */
-	--color-breaking: oklch(0.60 0.14 25);
-	--color-compatible: oklch(0.60 0.14 155);
-	--color-conflict: oklch(0.65 0.14 85);
-	--color-lens: oklch(0.60 0.10 280);
+	/* Legacy aliases */
+	--color-breaking: #f55b6a;
+	--color-compatible: #3dd68c;
+	--color-conflict: #f5c542;
+	--color-lens: #5bb8f5;
+	--color-accent: #5b7ff5;
+	--color-accent-hover: #7b9aff;
+	--color-success: #3dd68c;
+	--color-danger: #f55b6a;
+	--color-warning: #f5c542;
+
+	/* Backwards compat tokens */
+	--color-bg: #07080f;
+	--color-surface-0: #0c0d17;
+	--color-surface-1: #12131f;
+	--color-surface-2: #1a1b2a;
+	--color-border: #2a2b40;
+	--color-border-hover: #3d3e5a;
+	--color-text-primary: #e8e9f0;
+	--color-text-secondary: #8b8da3;
+	--color-text-muted: #4e5068;
 
 	/* Typography */
-	--font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
-	--font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+	--font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+	--font-mono: 'DM Mono', 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+/* ── Base ── */
+html {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-feature-settings: 'ss01', 'ss02', 'cv01';
 }
 
 body {
-	background-color: var(--color-bg);
-	color: var(--color-text-primary);
+	background: var(--color-void);
+	color: var(--color-ink);
 	font-family: var(--font-sans);
+	font-size: 14px;
+	line-height: 1.65;
 }
 
-/* Graph-paper dot pattern */
-.graph-paper {
-	background-image: radial-gradient(
-		circle,
-		oklch(0.30 0.008 270) 0.5px,
-		transparent 0.5px
-	);
-	background-size: 24px 24px;
+::selection {
+	background: oklch(0.45 0.12 260 / 0.4);
 }
 
-/* Noise texture overlay */
-.noise-overlay {
-	position: relative;
-}
-.noise-overlay::after {
-	content: '';
-	position: absolute;
-	inset: 0;
-	background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-	opacity: 0.03;
-	pointer-events: none;
+/* ── Grid texture: the mathematical substrate ── */
+.grid-texture {
+	background-image:
+		linear-gradient(to right, oklch(0.20 0.02 270 / 0.08) 1px, transparent 1px),
+		linear-gradient(to bottom, oklch(0.20 0.02 270 / 0.08) 1px, transparent 1px);
+	background-size: 40px 40px;
 }
 
-/* Hide scrollbar for horizontal scroll areas while keeping scroll behavior */
-.scrollbar-none {
-	-ms-overflow-style: none;
-	scrollbar-width: none;
+.dot-grid {
+	background-image: radial-gradient(oklch(0.35 0.02 270 / 0.25) 1px, transparent 1px);
+	background-size: 20px 20px;
 }
-.scrollbar-none::-webkit-scrollbar {
-	display: none;
+
+/* ── Glow effects ── */
+.glow-focus {
+	box-shadow: 0 0 0 1px var(--color-focus-dim), 0 0 20px oklch(0.45 0.12 260 / 0.15);
 }
+
+/* ── Scrollbar ── */
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-line); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-line-bright); }
+
+/* ── Focus ring ── */
+:focus-visible {
+	outline: 1.5px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+/* ── Graph paper (legacy util) ── */
+.graph-paper { background-image: radial-gradient(circle, oklch(0.30 0.008 270) 0.5px, transparent 0.5px); background-size: 24px 24px; }
+.noise-overlay { position: relative; }
+.noise-overlay::after { content: ''; position: absolute; inset: 0; opacity: 0.025; pointer-events: none; background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }

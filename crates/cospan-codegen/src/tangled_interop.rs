@@ -197,51 +197,124 @@ fn renamed_morphism(
 pub fn all_interop_morphisms() -> Vec<InteropMorphism> {
     vec![
         // These pairs have identical or near-identical Lexicon schemas.
-        // field names match, so an identity morphism works.
+        // Field names match across NSIDs — renamed_morphism maps the NSID-prefixed
+        // vertex IDs while preserving field-level structure.
         InteropMorphism {
             tangled_nsid: "sh.tangled.feed.star",
             cospan_nsid: "dev.cospan.feed.star",
-            build_migration: |src, tgt| identity_morphism(src, tgt),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.feed.star",
+                    "dev.cospan.feed.star",
+                    &[],
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.graph.follow",
             cospan_nsid: "dev.cospan.graph.follow",
-            build_migration: |src, tgt| identity_morphism(src, tgt),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.graph.follow",
+                    "dev.cospan.graph.follow",
+                    &[],
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.feed.reaction",
             cospan_nsid: "dev.cospan.feed.reaction",
-            build_migration: |src, tgt| identity_morphism(src, tgt),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.feed.reaction",
+                    "dev.cospan.feed.reaction",
+                    &[],
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.repo.issue",
             cospan_nsid: "dev.cospan.repo.issue",
-            build_migration: |src, tgt| identity_morphism(src, tgt),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.repo.issue",
+                    "dev.cospan.repo.issue",
+                    &[],
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.repo.issue.comment",
             cospan_nsid: "dev.cospan.repo.issue.comment",
-            build_migration: |src, tgt| identity_morphism(src, tgt),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.repo.issue.comment",
+                    "dev.cospan.repo.issue.comment",
+                    &[],
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.repo.issue.state",
             cospan_nsid: "dev.cospan.repo.issue.state",
-            build_migration: |src, tgt| identity_morphism(src, tgt),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.repo.issue.state",
+                    "dev.cospan.repo.issue.state",
+                    &[],
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.repo.pull.comment",
             cospan_nsid: "dev.cospan.repo.pull.comment",
-            build_migration: |src, tgt| identity_morphism(src, tgt),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.repo.pull.comment",
+                    "dev.cospan.repo.pull.comment",
+                    &[],
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.repo.collaborator",
             cospan_nsid: "dev.cospan.repo.collaborator",
-            build_migration: |src, tgt| identity_morphism(src, tgt),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.repo.collaborator",
+                    "dev.cospan.repo.collaborator",
+                    &[("subject", "did")],
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.actor.profile",
             cospan_nsid: "dev.cospan.actor.profile",
-            build_migration: |src, tgt| identity_morphism(src, tgt),
+            build_migration: |src, tgt| {
+                renamed_morphism(
+                    src,
+                    tgt,
+                    "sh.tangled.actor.profile",
+                    "dev.cospan.actor.profile",
+                    &[],
+                )
+            },
         },
         InteropMorphism {
             tangled_nsid: "sh.tangled.label.definition",
@@ -462,6 +535,17 @@ fn compile_one(
     // Compile for runtime application
     let mut compiled = panproto_mig::compile(&tangled_schema, &cospan_schema, &migration)
         .map_err(|e| anyhow::anyhow!("compile: {e:?}"))?;
+
+    // Inject Tangled-specific field transforms (type coercions, semantic mappings)
+    let tangled_transforms =
+        crate::db_projection::tangled_transforms(m.tangled_nsid, m.cospan_nsid);
+    for (vertex, transforms) in tangled_transforms {
+        compiled
+            .field_transforms
+            .entry(vertex)
+            .or_default()
+            .extend(transforms);
+    }
 
     // Inject DB projection field transforms (AT-URI decomposition, renames, etc.)
     let db_transforms = crate::db_projection::db_transforms(m.cospan_nsid);

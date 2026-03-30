@@ -324,6 +324,140 @@ fn compute_array_len(source_field: &str, target_field: &str) -> FieldTransform {
     }
 }
 
+/// Tangled-specific field transforms for type coercions and semantic differences.
+/// Applied to the Tangled morphism's compiled migration (keyed by Cospan target body vertex).
+pub fn tangled_transforms(
+    tangled_nsid: &str,
+    cospan_nsid: &str,
+) -> HashMap<Name, Vec<FieldTransform>> {
+    let mut transforms = HashMap::new();
+    let body_vertex = record_body_vertex(cospan_nsid);
+
+    match tangled_nsid {
+        "sh.tangled.actor.profile" => {
+            // Tangled bluesky is a boolean; Cospan expects a string (handle or empty)
+            // Case analysis: if bluesky is true, use empty string (DID will be set by consumer);
+            // if false, use empty string
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![FieldTransform::ApplyExpr {
+                    key: "bluesky".to_string(),
+                    expr: Expr::Match {
+                        scrutinee: Box::new(Expr::Var(Arc::from("bluesky"))),
+                        arms: vec![
+                            (
+                                panproto_expr::Pattern::Lit(panproto_expr::Literal::Bool(true)),
+                                Expr::Lit(panproto_expr::Literal::Str(String::new())),
+                            ),
+                            (
+                                panproto_expr::Pattern::Wildcard,
+                                Expr::Lit(panproto_expr::Literal::Str(String::new())),
+                            ),
+                        ],
+                    },
+                    inverse: None,
+                    coercion_class: CoercionClass::Retraction,
+                }],
+            );
+        }
+        "sh.tangled.repo" => {
+            // Tangled knot is a hostname string; Cospan node is an AT-URI
+            // Compute nodeDid = "did:web:{knot}" and nodeUrl = "https://{knot}"
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    FieldTransform::ComputeField {
+                        target_key: "nodeDid".to_string(),
+                        expr: Expr::Builtin(
+                            BuiltinOp::Concat,
+                            vec![
+                                Expr::Lit(panproto_expr::Literal::Str("did:web:".into())),
+                                Expr::Var(Arc::from("knot")),
+                            ],
+                        ),
+                        inverse: None,
+                        coercion_class: CoercionClass::Retraction,
+                    },
+                    FieldTransform::ComputeField {
+                        target_key: "nodeUrl".to_string(),
+                        expr: Expr::Builtin(
+                            BuiltinOp::Concat,
+                            vec![
+                                Expr::Lit(panproto_expr::Literal::Str("https://".into())),
+                                Expr::Var(Arc::from("knot")),
+                            ],
+                        ),
+                        inverse: None,
+                        coercion_class: CoercionClass::Retraction,
+                    },
+                    drop_field("knot"),
+                    add_field_str("defaultBranch", "main"),
+                    add_field_str("visibility", "public"),
+                    add_field_str("source", "tangled"),
+                ],
+            );
+        }
+        "sh.tangled.knot" => {
+            // Tangled knot hostname → Cospan node publicEndpoint
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    FieldTransform::ComputeField {
+                        target_key: "publicEndpoint".to_string(),
+                        expr: Expr::Builtin(
+                            BuiltinOp::Concat,
+                            vec![
+                                Expr::Lit(panproto_expr::Literal::Str("https://".into())),
+                                Expr::Var(Arc::from("hostname")),
+                            ],
+                        ),
+                        inverse: None,
+                        coercion_class: CoercionClass::Retraction,
+                    },
+                    drop_field("hostname"),
+                ],
+            );
+        }
+        "sh.tangled.knot.member" => {
+            // Tangled knot.member has "knot" (hostname) → Cospan org.member has "orgUri"
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    rename_field("knot", "orgUri"),
+                    rename_field("subject", "memberDid"),
+                ],
+            );
+        }
+        "sh.tangled.spindle.member" => {
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    rename_field("spindle", "orgUri"),
+                    rename_field("subject", "memberDid"),
+                ],
+            );
+        }
+        "sh.tangled.spindle" => {
+            // Tangled spindle hostname → Cospan org
+            transforms.insert(
+                Name::from(body_vertex),
+                vec![
+                    FieldTransform::ComputeField {
+                        target_key: "name".to_string(),
+                        expr: Expr::Var(Arc::from("hostname")),
+                        inverse: None,
+                        coercion_class: CoercionClass::Retraction,
+                    },
+                    drop_field("hostname"),
+                ],
+            );
+        }
+        _ => {}
+    }
+
+    transforms
+}
+
 /// Get the record body vertex ID for a given NSID.
 /// ATProto Lexicon schemas have the body under `{nsid}.record`.
 fn record_body_vertex(nsid: &str) -> String {
