@@ -133,6 +133,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://cospan:${POSTGRES_PASSWORD}@db:5432/cospan
+      REDIS_URL: redis://redis:6379
       JETSTREAM_URL: wss://jetstream2.us-east.bsky.network/subscribe
       TAP_URL: ws://tap:2480/channel
       APPVIEW_LISTEN: "0.0.0.0:3000"

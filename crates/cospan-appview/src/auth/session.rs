@@ -61,8 +61,6 @@ impl SessionStore for InMemorySessionStore {
     async fn get_session(&self, session_id: &str) -> anyhow::Result<Option<Session>> {
         let sessions = self.sessions.read().await;
         let session = sessions.get(session_id).cloned();
-        // Check expiration: if the access token has expired, the session still exists
-        // but the caller should trigger a refresh. We don't auto-delete here.
         Ok(session)
     }
 
@@ -80,10 +78,8 @@ impl SessionStore for InMemorySessionStore {
     }
 
     async fn take_auth_flow(&self, state: &str) -> anyhow::Result<Option<AuthFlowState>> {
-        // Remove and return (single use)
         let flow = self.auth_flows.write().await.remove(state);
 
-        // Check expiry
         if let Some(ref f) = flow
             && chrono::Utc::now() > f.expires_at
         {
@@ -92,5 +88,94 @@ impl SessionStore for InMemorySessionStore {
         }
 
         Ok(flow)
+    }
+}
+
+/// Redis-backed session store for production.
+/// Sessions survive container restarts and deploys.
+#[derive(Clone)]
+pub struct RedisSessionStore {
+    client: redis::Client,
+}
+
+impl RedisSessionStore {
+    pub fn new(redis_url: &str) -> anyhow::Result<Self> {
+        let client = redis::Client::open(redis_url)?;
+        Ok(Self { client })
+    }
+}
+
+const SESSION_TTL: i64 = 7 * 24 * 3600; // 7 days
+const AUTH_FLOW_TTL: i64 = 600; // 10 minutes
+
+#[async_trait]
+impl SessionStore for RedisSessionStore {
+    async fn put_session(&self, session_id: &str, session: Session) -> anyhow::Result<()> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let key = format!("session:{session_id}");
+        let value = serde_json::to_string(&session)?;
+        redis::cmd("SET")
+            .arg(&key)
+            .arg(&value)
+            .arg("EX")
+            .arg(SESSION_TTL)
+            .query_async::<()>(&mut conn)
+            .await?;
+        Ok(())
+    }
+
+    async fn get_session(&self, session_id: &str) -> anyhow::Result<Option<Session>> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let key = format!("session:{session_id}");
+        let value: Option<String> = redis::cmd("GET")
+            .arg(&key)
+            .query_async(&mut conn)
+            .await?;
+        match value {
+            Some(v) => Ok(Some(serde_json::from_str(&v)?)),
+            None => Ok(None),
+        }
+    }
+
+    async fn delete_session(&self, session_id: &str) -> anyhow::Result<()> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let key = format!("session:{session_id}");
+        redis::cmd("DEL").arg(&key).query_async::<()>(&mut conn).await?;
+        Ok(())
+    }
+
+    async fn put_auth_flow(&self, state: &str, flow: AuthFlowState) -> anyhow::Result<()> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let key = format!("authflow:{state}");
+        let value = serde_json::to_string(&flow)?;
+        redis::cmd("SET")
+            .arg(&key)
+            .arg(&value)
+            .arg("EX")
+            .arg(AUTH_FLOW_TTL)
+            .query_async::<()>(&mut conn)
+            .await?;
+        Ok(())
+    }
+
+    async fn take_auth_flow(&self, state: &str) -> anyhow::Result<Option<AuthFlowState>> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let key = format!("authflow:{state}");
+        // GET then DEL atomically
+        let value: Option<String> = redis::cmd("GETDEL")
+            .arg(&key)
+            .query_async(&mut conn)
+            .await?;
+        match value {
+            Some(v) => {
+                let flow: AuthFlowState = serde_json::from_str(&v)?;
+                if chrono::Utc::now() > flow.expires_at {
+                    tracing::warn!(state = state, "auth flow state expired");
+                    return Ok(None);
+                }
+                Ok(Some(flow))
+            }
+            None => Ok(None),
+        }
     }
 }

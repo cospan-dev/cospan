@@ -5,7 +5,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use cospan_appview::auth::OAuthConfig;
 use cospan_appview::auth::dpop::DpopKey;
-use cospan_appview::auth::session::InMemorySessionStore;
+use cospan_appview::auth::session::{InMemorySessionStore, RedisSessionStore, SessionStore};
 use cospan_appview::config::AppConfig;
 use cospan_appview::state::AppState;
 
@@ -56,7 +56,15 @@ async fn main() -> anyhow::Result<()> {
     let dpop_key = DpopKey::generate();
     tracing::info!(kid = %dpop_key.kid, "DPoP signing key generated");
 
-    let session_store = Arc::new(InMemorySessionStore::new());
+    let session_store: Arc<dyn SessionStore> =
+        if let Ok(redis_url) = std::env::var("REDIS_URL") {
+            let store = RedisSessionStore::new(&redis_url)?;
+            tracing::info!("using Redis session store");
+            Arc::new(store)
+        } else {
+            tracing::warn!("REDIS_URL not set, using in-memory session store (sessions lost on restart)");
+            Arc::new(InMemorySessionStore::new())
+        };
 
     let state =
         Arc::new(AppState::new(config.clone(), pool, oauth_config, session_store, dpop_key).await?);
