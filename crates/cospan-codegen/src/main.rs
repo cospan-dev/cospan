@@ -149,13 +149,12 @@ fn main() -> Result<()> {
             .pointer("/defs/main/type")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        if def_type == "query" || def_type == "procedure" {
-            if let Ok(code) = emit_xrpc::emit_xrpc_types(&atproto_schema, nsid, def_type) {
-                if !code.is_empty() {
-                    all_xrpc_types.push_str(&format!("// {nsid}\n"));
-                    all_xrpc_types.push_str(&code);
-                }
-            }
+        if (def_type == "query" || def_type == "procedure")
+            && let Ok(code) = emit_xrpc::emit_xrpc_types(&atproto_schema, nsid, def_type)
+            && !code.is_empty()
+        {
+            all_xrpc_types.push_str(&format!("// {nsid}\n"));
+            all_xrpc_types.push_str(&code);
         }
 
         // --- Database Row types + CRUD ---

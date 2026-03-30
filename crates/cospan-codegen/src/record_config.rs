@@ -18,6 +18,7 @@ pub struct ExtraColumn {
 
 /// How to decompose an AT-URI field into separate columns.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct UriDecomposition {
     /// The Lexicon field name (camelCase) containing the AT-URI.
     pub source_field: &'static str,
@@ -29,6 +30,7 @@ pub struct UriDecomposition {
 
 /// Store an AT-URI field as a single string column (renamed).
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct UriStorage {
     /// The Lexicon field name (camelCase).
     pub source_field: &'static str,
@@ -38,6 +40,7 @@ pub struct UriStorage {
 
 /// Rename a Lexicon field in the database.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct FieldRename {
     /// The Lexicon field name (camelCase).
     pub source_field: &'static str,

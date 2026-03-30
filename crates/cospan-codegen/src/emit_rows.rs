@@ -9,6 +9,7 @@ use panproto_protocols::emit::{IndentWriter, children_by_edge};
 use crate::record_config::RecordConfig;
 
 /// Column info extracted from the panproto schema + record config.
+#[allow(dead_code)]
 pub struct Column {
     pub name: String,
     pub camel_name: String,
@@ -274,7 +275,9 @@ pub fn emit_crud(
     w.line(")");
     for col_name in &insert_cols {
         let col = cols.iter().find(|c| c.name == *col_name).unwrap();
-        if col.rust_type.starts_with("Option<") || col.rust_type == "String" {
+        // Borrow String and Option<String>; pass Copy types by value
+        let needs_borrow = col.rust_type == "String" || col.rust_type == "Option<String>";
+        if needs_borrow {
             w.line(&format!(".bind(&row.{col_name})"));
         } else {
             w.line(&format!(".bind(row.{col_name})"));
@@ -419,10 +422,10 @@ fn is_field_required(schema: &panproto_schema::Schema, body_id: &str, field_name
 
 fn lexicon_kind_to_db_types(kind: &panproto_gat::Name, field_name: &str) -> (String, String) {
     // DateTime fields
-    if field_name.ends_with("At") || field_name == "createdAt" || field_name == "completedAt" {
-        if kind.as_str() == "string" {
-            return ("DateTime<Utc>".into(), "TIMESTAMPTZ".into());
-        }
+    if (field_name.ends_with("At") || field_name == "createdAt" || field_name == "completedAt")
+        && kind.as_str() == "string"
+    {
+        return ("DateTime<Utc>".into(), "TIMESTAMPTZ".into());
     }
     match kind.as_str() {
         "string" => ("String".into(), "TEXT".into()),

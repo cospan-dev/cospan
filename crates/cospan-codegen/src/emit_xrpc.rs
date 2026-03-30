@@ -4,7 +4,7 @@
 //! ATProto protocol parser, then emits Rust structs with serde derives.
 
 use anyhow::Result;
-use panproto_protocols::emit::{IndentWriter, children_by_edge, constraint_value};
+use panproto_protocols::emit::{IndentWriter, children_by_edge};
 use panproto_schema::Schema;
 
 /// Emit Rust types for a query (Params struct) or procedure (Input struct).

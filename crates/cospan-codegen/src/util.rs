@@ -55,14 +55,12 @@ pub fn is_field_required(schema: &Schema, body_id: &str, field_name: &str) -> bo
 pub fn snake_to_camel(s: &str) -> String {
     let mut result = String::new();
     let mut capitalize_next = false;
-    for (i, c) in s.chars().enumerate() {
+    for c in s.chars() {
         if c == '_' {
             capitalize_next = true;
         } else if capitalize_next {
             result.push(c.to_uppercase().next().unwrap_or(c));
             capitalize_next = false;
-        } else if i == 0 {
-            result.push(c);
         } else {
             result.push(c);
         }

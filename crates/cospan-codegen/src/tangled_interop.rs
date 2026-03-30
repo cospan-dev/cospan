@@ -28,13 +28,13 @@ pub struct InteropMorphism {
 /// between source and target schemas.
 fn identity_morphism(src: &Schema, tgt: &Schema) -> Migration {
     let mut vertex_map = HashMap::new();
-    for (vid, _) in &src.vertices {
+    for vid in src.vertices.keys() {
         if tgt.has_vertex(vid) {
             vertex_map.insert(vid.clone(), vid.clone());
         }
     }
     let mut edge_map = HashMap::new();
-    for (edge, _) in &src.edges {
+    for edge in src.edges.keys() {
         if tgt.edges.contains_key(edge) {
             edge_map.insert(edge.clone(), edge.clone());
         }
@@ -84,7 +84,7 @@ fn renamed_morphism(
     let rename_map: HashMap<&str, &str> = renames.iter().copied().collect();
 
     // Walk source vertices to find body.X vertices and map them
-    for (vid, _) in &src.vertices {
+    for vid in src.vertices.keys() {
         let vid_str = vid.to_string();
         if let Some(suffix) = vid_str.strip_prefix(&format!("{src_body}.")) {
             // Check if this is a top-level field (no further dots) or a sub-object field
@@ -118,8 +118,8 @@ fn renamed_morphism(
     }
 
     // Walk source edges to find property edges and map them
-    for (edge, _) in &src.edges {
-        if edge.kind.to_string() != "prop" {
+    for edge in src.edges.keys() {
+        if edge.kind != "prop" {
             continue;
         }
         let src_str = edge.src.to_string();
@@ -383,14 +383,12 @@ fn build_nsid_index(lexicons_dir: &Path) -> HashMap<String, std::path::PathBuf> 
             let path = entry.path();
             if path.is_dir() {
                 walk(&path, index);
-            } else if path.extension().is_some_and(|e| e == "json") {
-                if let Ok(content) = std::fs::read_to_string(&path) {
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(id) = json.get("id").and_then(|v| v.as_str()) {
-                            index.insert(id.to_string(), path);
-                        }
-                    }
-                }
+            } else if path.extension().is_some_and(|e| e == "json")
+                && let Ok(content) = std::fs::read_to_string(&path)
+                && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+                && let Some(id) = json.get("id").and_then(|v| v.as_str())
+            {
+                index.insert(id.to_string(), path);
             }
         }
     }
