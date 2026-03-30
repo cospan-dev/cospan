@@ -8,7 +8,6 @@
 
 	let searchQuery = $state('');
 	let showDropdown = $state(false);
-	let activeSource = $derived($page.url.searchParams.get('source') ?? 'all');
 
 	// Multi-select protocols from URL
 	let activeProtocols = $derived<string[]>(() => {
@@ -49,19 +48,6 @@
 		goto(qs ? `/?${qs}` : '/', { noScroll: true, replaceState: true });
 	}
 
-	const sourceTabs = [
-		{ value: 'all', label: 'All' },
-		{ value: 'cospan', label: 'Cospan' },
-		{ value: 'tangled', label: 'Tangled' },
-	] as const;
-
-	function setSource(source: string) {
-		const params = new URLSearchParams($page.url.searchParams);
-		if (source === 'all') params.delete('source');
-		else params.set('source', source);
-		const qs = params.toString();
-		goto(qs ? `/?${qs}` : '/', { noScroll: true, replaceState: true });
-	}
 
 	function langColor(value: string): string {
 		let hash = 0;
@@ -128,24 +114,6 @@
 <section>
 	<div class="flex flex-wrap items-center justify-between gap-4 border-b border-line/40 py-4">
 		<div class="flex items-center gap-3">
-			<!-- Source tabs -->
-			<div class="flex items-center gap-0.5 rounded-lg bg-surface p-1">
-				{#each sourceTabs as tab}
-					<button
-						type="button"
-						onclick={() => setSource(tab.value)}
-						class="rounded-md px-3.5 py-1.5 text-[12px] font-medium transition-all duration-150
-							{activeSource === tab.value
-								? 'bg-raised text-ink shadow-sm'
-								: 'text-ghost hover:text-caption'}"
-					>
-						{tab.label}
-					</button>
-				{/each}
-			</div>
-
-			<div class="h-5 w-px bg-line/60"></div>
-
 			<!-- View tabs: Trending / Recent -->
 			<div class="flex items-center gap-0.5 rounded-lg bg-surface p-1">
 				<button

@@ -8,6 +8,7 @@
 
 	const navLinks = [
 		{ href: '/', label: 'Explore' },
+		{ href: '/import', label: 'Import' },
 		{ href: '/feed', label: 'Feed' },
 		{ href: '/search', label: 'Search' },
 	] as const;

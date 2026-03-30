@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import CommitList from '$lib/components/repo/CommitList.svelte';
 	import RepoTabBar from '$lib/components/repo/RepoTabBar.svelte';
 	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
@@ -6,22 +7,31 @@
 	import StarButton from '$lib/components/shared/StarButton.svelte';
 	import ForkButton from '$lib/components/shared/ForkButton.svelte';
 	import { getAuth } from '$lib/stores/auth.svelte';
+	import { resolveHandle } from '$lib/api/handle.js';
 	import type { RefUpdate } from '$lib/api/ref-update.js';
 
 	let { data } = $props();
 
 	let auth = $derived(getAuth());
 	let isOwner = $derived(auth.authenticated && data.repo?.did === auth.did);
+	let handle = $state('');
+
+	onMount(async () => {
+		const did = data.repo?.did ?? data.did;
+		handle = await resolveHandle(did);
+	});
+
+	let ownerLabel = $derived(handle || data.repo?.did || data.did);
 
 	let basePath = $derived(data.repo ? `/${data.repo.did}/${data.repo.name}` : `/${data.did}/${data.repoName}`);
 
 	let crumbs = $derived(data.repo
 		? [
-				{ label: data.repo.did, href: `/${data.repo.did}` },
+				{ label: ownerLabel, href: `/${data.repo.did}` },
 				{ label: data.repo.name }
 			]
 		: [
-				{ label: data.did, href: `/${data.did}` },
+				{ label: ownerLabel, href: `/${data.did}` },
 				{ label: data.repoName }
 			]
 	);
