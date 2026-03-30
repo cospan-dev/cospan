@@ -12,6 +12,7 @@ use crate::state::AppState;
 pub struct Params {
     pub did: Option<String>,
     pub source: Option<String>,
+    pub sort: Option<String>,
     pub limit: Option<i64>,
     pub cursor: Option<String>,
 }
@@ -21,11 +22,16 @@ pub async fn handler(
     Query(params): Query<Params>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let limit = params.limit.unwrap_or(25).min(100);
+    let sort_popular = params.sort.as_deref() == Some("popular");
 
     let repos = if let Some(did) = &params.did {
         db::repo::list_by_did(&state.db, did, limit + 1, params.cursor.as_deref()).await?
     } else if let Some(source) = &params.source {
-        db::repo::list_by_source(&state.db, source, limit + 1, params.cursor.as_deref()).await?
+        if sort_popular {
+            db::repo::list_by_source_popular(&state.db, source, limit + 1, params.cursor.as_deref()).await?
+        } else {
+            db::repo::list_by_source(&state.db, source, limit + 1, params.cursor.as_deref()).await?
+        }
     } else {
         db::repo::list_recent(&state.db, limit + 1, params.cursor.as_deref()).await?
     };
@@ -33,7 +39,13 @@ pub async fn handler(
     let has_more = repos.len() as i64 > limit;
     let repos: Vec<_> = repos.into_iter().take(limit as usize).collect();
     let cursor = if has_more {
-        repos.last().map(|r| r.created_at.to_rfc3339())
+        repos.last().map(|r| {
+            if sort_popular {
+                r.star_count.to_string()
+            } else {
+                r.created_at.to_rfc3339()
+            }
+        })
     } else {
         None
     };

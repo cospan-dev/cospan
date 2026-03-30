@@ -9,6 +9,13 @@ interface AuthState {
 	loading: boolean;
 }
 
+export interface ServerUser {
+	did: string;
+	handle?: string;
+	displayName?: string;
+	avatar?: string;
+}
+
 let state = $state<AuthState>({
 	authenticated: false,
 	loading: true,
@@ -16,7 +23,7 @@ let state = $state<AuthState>({
 
 let initialized = false;
 
-export async function initAuth(): Promise<void> {
+export async function initAuth(serverUser?: ServerUser | null): Promise<void> {
 	if (initialized || typeof window === 'undefined') return;
 	initialized = true;
 
@@ -31,12 +38,34 @@ export async function initAuth(): Promise<void> {
 				avatar: result.avatar,
 				loading: false,
 			};
+		} else if (serverUser) {
+			// IndexedDB session lost but server cookie still valid
+			state = {
+				authenticated: true,
+				did: serverUser.did,
+				handle: serverUser.handle,
+				displayName: serverUser.displayName,
+				avatar: serverUser.avatar,
+				loading: false,
+			};
 		} else {
 			state = { authenticated: false, loading: false };
 		}
 	} catch (e) {
 		console.error('Auth init failed:', e);
-		state = { authenticated: false, loading: false };
+		// Fall back to server session if available
+		if (serverUser) {
+			state = {
+				authenticated: true,
+				did: serverUser.did,
+				handle: serverUser.handle,
+				displayName: serverUser.displayName,
+				avatar: serverUser.avatar,
+				loading: false,
+			};
+		} else {
+			state = { authenticated: false, loading: false };
+		}
 	}
 }
 

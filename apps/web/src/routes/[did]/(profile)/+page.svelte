@@ -9,6 +9,7 @@
 	<title>{data.profile?.displayName ?? data.profile?.handle ?? data.did} · Cospan</title>
 </svelte:head>
 
+<section>
 	<!-- Repositories tab content (default) -->
 	{#if data.repos.items.length === 0}
 		<EmptyState icon="folder" message="No repositories yet." />

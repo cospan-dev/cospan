@@ -4,11 +4,11 @@
 	import Header from '$lib/components/layout/Header.svelte';
 	import { initAuth, getAuth } from '$lib/stores/auth.svelte';
 
-	let { children } = $props();
+	let { children, data } = $props();
 	let auth = $derived(getAuth());
 
 	onMount(() => {
-		initAuth();
+		initAuth(data.user);
 	});
 </script>
 

@@ -111,6 +111,41 @@ pub async fn list_recent(
     }
 }
 
+pub async fn list_by_source_popular(
+    pool: &PgPool,
+    source: &str,
+    limit: i64,
+    cursor: Option<&str>,
+) -> Result<Vec<RepoRow>, sqlx::Error> {
+    if let Some(cursor_stars) = cursor {
+        let stars: i32 = cursor_stars.parse().unwrap_or(0);
+        sqlx::query_as::<_, RepoRow>(
+            "SELECT did, rkey, name, description, protocol, node_did, node_url, \
+                  default_branch, visibility, source_repo, star_count, fork_count, \
+                  open_issue_count, open_mr_count, source, source_uri, created_at, indexed_at \
+             FROM repos WHERE source = $1 AND star_count < $2 \
+             ORDER BY star_count DESC, created_at DESC LIMIT $3",
+        )
+        .bind(source)
+        .bind(stars)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query_as::<_, RepoRow>(
+            "SELECT did, rkey, name, description, protocol, node_did, node_url, \
+                  default_branch, visibility, source_repo, star_count, fork_count, \
+                  open_issue_count, open_mr_count, source, source_uri, created_at, indexed_at \
+             FROM repos WHERE source = $1 \
+             ORDER BY star_count DESC, created_at DESC LIMIT $2",
+        )
+        .bind(source)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    }
+}
+
 /// Insert a stub repo row if one doesn't already exist for (did, name).
 /// Used during backfill when child records (issues, pulls, etc.) arrive
 /// before their parent repo. The stub will be overwritten with full data

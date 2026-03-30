@@ -32,6 +32,7 @@ interface RawRepoListResponse {
 export async function listRepos(params?: {
 	did?: string;
 	source?: string;
+	sort?: string;
 	limit?: number;
 	cursor?: string;
 }): Promise<RepoListResponse> {
