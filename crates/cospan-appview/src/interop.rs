@@ -147,7 +147,17 @@ impl RecordTransformer {
         record: &serde_json::Value,
     ) -> Option<Result<serde_json::Value>> {
         let morphism = self.tangled_morphisms.get(tangled_nsid)?;
-        Some(apply_morphism(morphism, record))
+        let cospan_record = match apply_morphism(morphism, record) {
+            Ok(r) => r,
+            Err(e) => return Some(Err(e)),
+        };
+        // After morphism, apply the Cospan DB projection (AT-URI decomposition, etc.)
+        let cospan_nsid = &morphism.cospan_nsid;
+        if let Some(proj) = self.db_projections.get(cospan_nsid) {
+            Some(apply_projection(&proj.schema, &proj.compiled, cospan_nsid, &cospan_record))
+        } else {
+            Some(Ok(cospan_record))
+        }
     }
 }
 
