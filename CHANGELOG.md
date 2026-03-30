@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.6.3
+
+### Layout consolidation + backfill reliability
+
+- Shared `+layout.svelte` for repo pages: breadcrumbs, tab bar, and keyboard shortcuts rendered once instead of duplicated across 18 sub-pages
+- Shared `+layout.svelte` for profile pages via `(profile)` group route: ProfileHeader rendered once across repos/stars/followers/following
+- Active tab auto-detected from `$page.route.id`; form pages (`/fork`, `/new`) hide tabs automatically
+- Child pages extend breadcrumbs via Svelte context (`setExtraCrumbs`)
+- DID-to-handle resolution in breadcrumbs and repo cards via Bluesky public API
+- Tangled repos show only Overview/Issues/MRs tabs (no Code/Branches/Tags/Releases/Settings)
+- Backfill ordering fix: `ensure_repo_exists` upserts a stub repo row before inserting child records (issues, pulls, ref_updates, labels, collaborators, pipelines, dependencies) so FK constraints are satisfied regardless of arrival order
+- Profile pages show Cospan/Tangled follow counts instead of Bluesky social graph counts
+- Landing page defaults to cospan-only repos; Tangled repos on dedicated fork page
+- Fork page: separates user's repos (Import) from browse-all (Fork), with search
+- Consistent `·` (middle dot) title separators across all pages
+- Fixed "schema-aware" → "schematic" terminology
+
 ## v0.6.0
 
 ### Full network backfill via Tap
