@@ -71,7 +71,7 @@
 				error = body.message ?? 'Failed to save profile';
 			}
 		} catch (e) {
-			error = 'Network error — could not save profile';
+			error = 'Network error, could not save profile';
 		} finally {
 			saving = false;
 		}

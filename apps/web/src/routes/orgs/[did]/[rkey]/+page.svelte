@@ -10,12 +10,12 @@
 
 <section>
 	<div class="mb-8">
-		<div class="flex items-center gap-2 text-sm text-text-secondary">
+		<div class="flex items-center gap-2 text-sm text-text-muted">
 			<a href="/orgs" class="text-accent hover:text-accent-hover transition-colors">
 				Organizations
 			</a>
 			<span>/</span>
-			<span>{data.org.name}</span>
+			<span class="text-text-secondary">{data.org.name}</span>
 		</div>
 
 		<div class="mt-4 flex flex-col items-start gap-4 sm:flex-row sm:items-center">

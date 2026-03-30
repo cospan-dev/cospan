@@ -32,7 +32,7 @@
 			class="whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition-colors
 				{activeTab === tab.id
 					? 'border-accent text-text-primary'
-					: 'border-transparent text-text-secondary hover:text-text-primary'}"
+					: 'border-transparent text-text-muted hover:text-text-primary'}"
 		>
 			{tab.label}
 			{#if tab.badge > 0}

@@ -5,13 +5,13 @@
 
 	let colorClass = $derived(
 		state === 'open'
-			? 'bg-compatible/15 text-compatible'
+			? 'text-success'
 			: state === 'merged'
-				? 'bg-lens/15 text-lens'
-				: 'bg-breaking/15 text-breaking'
+				? 'text-info'
+				: 'text-text-muted'
 	);
 </script>
 
-<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {colorClass}">
+<span class="inline-flex items-center text-xs font-medium {colorClass}">
 	{label}
 </span>

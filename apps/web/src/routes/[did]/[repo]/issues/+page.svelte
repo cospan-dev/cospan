@@ -30,7 +30,7 @@
 		<h1 class="text-xl font-semibold text-text-primary">Issues</h1>
 		<a
 			href="{basePath}/issues/new"
-			class="rounded-md bg-accent px-4 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+			class="rounded-md bg-accent px-3.5 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-accent-hover"
 		>
 			New issue
 		</a>

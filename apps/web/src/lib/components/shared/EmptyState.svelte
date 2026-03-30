@@ -33,7 +33,7 @@
 	let iconPath = $derived(icons[icon] ?? icons.inbox);
 </script>
 
-<div class="flex flex-col items-center gap-3 py-12 text-text-secondary">
+<div class="flex flex-col items-center gap-3 py-12 text-text-muted">
 	<svg class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 		<path stroke-linecap="round" stroke-linejoin="round" d={iconPath} />
 	</svg>

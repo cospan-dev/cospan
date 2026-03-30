@@ -6,8 +6,16 @@ export interface Repo {
 	description: string | null;
 	protocol: string;
 	starCount: number;
+	forkCount: number;
 	openIssueCount: number;
 	openMrCount: number;
+	source: string;
+	sourceUri: string | null;
+	sourceRepo: string | null;
+	nodeDid: string;
+	nodeUrl: string;
+	defaultBranch: string;
+	visibility: string;
 	createdAt: string;
 }
 
@@ -23,6 +31,7 @@ interface RawRepoListResponse {
 
 export async function listRepos(params?: {
 	did?: string;
+	source?: string;
 	limit?: number;
 	cursor?: string;
 }): Promise<RepoListResponse> {

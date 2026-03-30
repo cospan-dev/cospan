@@ -26,7 +26,9 @@
 <section>
 	<Breadcrumb {crumbs} />
 
-	<h1 class="mt-3 mb-6 text-xl font-semibold text-text-primary">Merge Requests</h1>
+	<div class="mt-3 mb-6">
+		<h1 class="text-xl font-semibold text-text-primary">Merge Requests</h1>
+	</div>
 
 	<RepoTabBar {basePath} activeTab="pulls" />
 

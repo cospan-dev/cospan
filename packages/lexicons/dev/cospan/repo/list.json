@@ -8,6 +8,7 @@
         "type": "params",
         "properties": {
           "did": { "type": "string", "format": "did" },
+          "source": { "type": "string", "knownValues": ["cospan", "tangled"] },
           "limit": { "type": "integer", "maximum": 100 },
           "cursor": { "type": "string" }
         }
