@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.5.0
+
+### Reskin + Tangled interop
+
+- Complete frontend redesign with DM Sans/DM Mono typography, deep indigo-black palette, dot-grid texture, and protocol-tinted repo cards
+- Hero section with schema-first messaging and abstract cospan diagram
+- Source tabs (All / Cospan / Tangled) and view tabs (Trending / Recent) on the landing page
+- Multi-select language filter with keyboard support
+- Tangled source tracking: repos from the firehose now get `source = "tangled"` with `source_uri`
+- Source filter on repo list endpoint (`?source=tangled|cospan`)
+- Repo import endpoint (`dev.cospan.repo.import`) for importing Tangled repos
+- Fixed all Tangled morphisms: replaced `identity_morphism` with `renamed_morphism` for cross-NSID pairs
+- Tangled type coercions via panproto expressions: boolean→string (bluesky), hostname→AT-URI (knot→did:web), field renames (subject→memberDid)
+- Schema Health display on repo detail (GAT, Equations, Lens Laws, Breaking checks)
+- Repo detail shows algebraic check results, lens quality, breaking change count
+- Restyled all pages: profile, issues, PRs, search, feed, orgs, settings
+- panproto-capabilities skill documenting all panproto expression/transform capabilities
+
 ## v0.4.0
 
 ### Panproto-native architecture
