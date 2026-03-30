@@ -170,7 +170,7 @@
 				<p class="text-sm text-text-secondary">
 					Code is hosted on
 					<a
-						href="https://tangled.sh/{data.repo.did}/{data.repo.name}"
+						href="https://tangled.sh/{ownerLabel}/{data.repo.name}"
 						class="font-medium text-accent transition-colors hover:text-accent-hover"
 						target="_blank"
 						rel="noopener noreferrer"

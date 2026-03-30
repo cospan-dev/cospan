@@ -49,9 +49,8 @@
 	});
 
 	function tangledUrl(repo: Repo): string {
-		const host = repo.nodeUrl || '';
-		if (host) return `${host}/${repo.did}/${repo.name}`;
-		return `https://tangled.sh/${repo.did}/${repo.name}`;
+		const handle = getHandle(repo.did);
+		return `https://tangled.sh/${handle}/${repo.name}`;
 	}
 </script>
 
