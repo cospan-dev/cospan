@@ -118,7 +118,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 2G
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:2480/health || exit 1"]
       interval: 30s
