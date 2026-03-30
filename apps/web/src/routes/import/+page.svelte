@@ -61,8 +61,7 @@
 	<title>Import from Tangled — Cospan</title>
 </svelte:head>
 
-<div class="py-2">
-	<!-- Header -->
+<section>
 	<div class="mb-6">
 		<h1 class="mb-1 text-lg font-semibold text-ink">Import from Tangled</h1>
 		<p class="text-[13px] text-caption">
@@ -157,4 +156,4 @@
 			{/each}
 		</div>
 	{/if}
-</div>
+</section>
