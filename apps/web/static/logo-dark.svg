@@ -1,60 +1,15 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40" fill="none">
+  <!-- Cospan logo (dark variant): wordmark + cospan diagram motif -->
 
-<svg
-   width="2000mm"
-   height="2000mm"
-   viewBox="0 0 2000 2000"
-   version="1.1"
-   id="svg1"
-   inkscape:version="1.4 (e7c3feb1, 2024-10-09)"
-   sodipodi:docname="cospan-logo.svg"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
-  <sodipodi:namedview
-     id="namedview1"
-     pagecolor="#ffffff"
-     bordercolor="#111111"
-     borderopacity="1"
-     inkscape:showpageshadow="0"
-     inkscape:pageopacity="0"
-     inkscape:pagecheckerboard="1"
-     inkscape:deskcolor="#d1d1d1"
-     inkscape:document-units="mm"
-     inkscape:zoom="0.047215208"
-     inkscape:cx="3642.8941"
-     inkscape:cy="2785.1196"
-     inkscape:window-width="1728"
-     inkscape:window-height="974"
-     inkscape:window-x="0"
-     inkscape:window-y="38"
-     inkscape:window-maximized="1"
-     inkscape:current-layer="g4" />
-  <defs
-     id="defs1" />
-  <g
-     inkscape:label="Layer 1"
-     inkscape:groupmode="layer"
-     id="layer1">
-    <g
-       id="g4"
-       transform="matrix(1.1084835,-0.31723246,0.31723246,1.1084835,-416.30129,231.47258)">
-      <circle
-         style="fill:#d64933;fill-opacity:1;stroke:#e8e4df;stroke-width:71.0137;stroke-linecap:square;stroke-linejoin:round;stroke-dasharray:none;paint-order:fill markers stroke"
-         id="path1"
-         cx="998.42218"
-         cy="973.23822"
-         r="328.30444" />
-      <path
-         style="fill:#ff79f7;fill-opacity:0;stroke:#e8e4df;stroke-width:99.9997;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;paint-order:normal"
-         d="M 1325.0443,801.7513 1509.9688,695.27961 1672.4782,840.9777 1851.799,728.90225"
-         id="path2" />
-      <path
-         style="fill:#ff79f7;fill-opacity:0;stroke:#e8e4df;stroke-width:100;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;paint-order:fill markers stroke"
-         d="m 149.52748,1230.1195 184.9245,-106.4717 162.5094,145.6981 179.3208,-112.0754"
-         id="path2-7" />
-    </g>
-  </g>
+  <!-- Morphism lines -->
+  <line x1="8" y1="16" x2="22" y2="8" stroke="#6B8AE8" stroke-width="1" opacity="0.35" stroke-linecap="round"/>
+  <line x1="38" y1="16" x2="24" y2="8" stroke="#6B8AE8" stroke-width="1" opacity="0.35" stroke-linecap="round"/>
+
+  <!-- Schema nodes -->
+  <circle cx="8" cy="16" r="2" fill="#6B8AE8" opacity="0.25"/>
+  <circle cx="23" cy="7.5" r="2.5" fill="#6B8AE8" opacity="0.55"/>
+  <circle cx="38" cy="16" r="2" fill="#6B8AE8" opacity="0.25"/>
+
+  <!-- Wordmark -->
+  <text x="2" y="32" font-family="'Inter', system-ui, -apple-system, sans-serif" font-size="18" font-weight="500" fill="#E4E4ED" letter-spacing="-0.03em">cospan</text>
 </svg>

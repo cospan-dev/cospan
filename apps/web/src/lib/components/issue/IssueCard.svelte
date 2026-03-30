@@ -9,19 +9,18 @@
 
 <a
 	href="{basePath}/issues/{issue.rkey}"
-	class="block rounded-lg border border-border bg-surface-1 p-4 transition-colors hover:border-accent"
+	class="block rounded-lg border border-border bg-surface-1 p-4 transition-all hover:border-border-hover"
 >
 	<div class="flex items-start gap-3">
 		<div class="mt-0.5">
 			<StateBadge state={issue.state} />
 		</div>
 		<div class="min-w-0 flex-1">
-			<h3 class="font-medium text-text-primary">{issue.title}</h3>
-			<div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-secondary">
+			<h3 class="font-semibold text-text-primary">{issue.title}</h3>
+			<div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
 				<span>#{issue.rkey}</span>
-				<span>opened {timeAgo(issue.createdAt)}</span>
 				{#if issue.creatorHandle}
-					<span>by {issue.creatorHandle}</span>
+					<span>opened by {issue.creatorHandle}</span>
 				{/if}
 				{#if issue.commentCount > 0}
 					<span class="flex items-center gap-1">
@@ -31,6 +30,7 @@
 						{issue.commentCount}
 					</span>
 				{/if}
+				<span>{timeAgo(issue.createdAt)}</span>
 			</div>
 			{#if issue.labels.length > 0}
 				<div class="mt-2 flex flex-wrap gap-1">

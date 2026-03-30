@@ -11,6 +11,7 @@ use crate::state::AppState;
 #[derive(Deserialize)]
 pub struct Params {
     pub did: Option<String>,
+    pub source: Option<String>,
     pub limit: Option<i64>,
     pub cursor: Option<String>,
 }
@@ -23,6 +24,8 @@ pub async fn handler(
 
     let repos = if let Some(did) = &params.did {
         db::repo::list_by_did(&state.db, did, limit + 1, params.cursor.as_deref()).await?
+    } else if let Some(source) = &params.source {
+        db::repo::list_by_source(&state.db, source, limit + 1, params.cursor.as_deref()).await?
     } else {
         db::repo::list_recent(&state.db, limit + 1, params.cursor.as_deref()).await?
     };

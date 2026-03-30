@@ -1,5 +1,12 @@
 import { xrpcQuery } from './client.js';
 
+export interface AlgebraicChecks {
+	gatTypeCheck: string | null;
+	equationVerification: string | null;
+	lensLawCheck: string | null;
+	breakingChangeCheck: string | null;
+}
+
 export interface RefUpdate {
 	rkey: string;
 	repo: string;
@@ -9,8 +16,10 @@ export interface RefUpdate {
 	protocol: string;
 	commitCount: number;
 	migrationId: string | null;
+	lensId: string | null;
 	lensQuality: number | null;
 	breakingChangeCount: number;
+	algebraicChecks: AlgebraicChecks | null;
 	committerDid: string;
 	committerHandle: string | null;
 	createdAt: string;

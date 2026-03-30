@@ -11,32 +11,31 @@
 
 <a
 	href="{basePath}/pulls/{pull.rkey}"
-	class="block rounded-lg border border-border bg-surface-1 p-4 transition-colors hover:border-accent"
+	class="block rounded-lg border border-border bg-surface-1 p-4 transition-all hover:border-border-hover"
 >
 	<div class="flex items-start gap-3">
 		<div class="mt-0.5">
 			<StateBadge state={pull.state} />
 		</div>
 		<div class="min-w-0 flex-1">
-			<h3 class="font-medium text-text-primary">{pull.title}</h3>
+			<h3 class="font-semibold text-text-primary">{pull.title}</h3>
 
 			<div class="mt-1.5 flex items-center gap-2">
-				<span class="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-accent">
+				<span class="rounded bg-accent/10 px-1.5 py-0.5 font-mono text-xs text-accent">
 					{sourceLabel}
 				</span>
-				<svg class="h-3 w-3 text-text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				<svg class="h-3 w-3 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
 				</svg>
-				<span class="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-text-secondary">
+				<span class="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-text-muted">
 					{targetLabel}
 				</span>
 			</div>
 
-			<div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-secondary">
+			<div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
 				<span>#{pull.rkey}</span>
-				<span>opened {timeAgo(pull.createdAt)}</span>
 				{#if pull.creatorHandle}
-					<span>by {pull.creatorHandle}</span>
+					<span>opened by {pull.creatorHandle}</span>
 				{/if}
 				{#if pull.commentCount > 0}
 					<span class="flex items-center gap-1">
@@ -46,27 +45,28 @@
 						{pull.commentCount}
 					</span>
 				{/if}
+				<span>{timeAgo(pull.createdAt)}</span>
 			</div>
 
 			{#if pull.mergePreview}
 				<div class="mt-2 flex items-center gap-3 text-xs">
 					{#if pull.mergePreview.breakingChangeCount > 0}
-						<span class="text-breaking">
+						<span class="text-danger font-medium">
 							{pull.mergePreview.breakingChangeCount} breaking
 						</span>
 					{/if}
 					{#if pull.mergePreview.conflictCount > 0}
-						<span class="text-conflict">
+						<span class="text-warning font-medium">
 							{pull.mergePreview.conflictCount} conflicts
 						</span>
 					{/if}
 					{#if pull.mergePreview.lensQuality !== null}
-						<span class="text-text-secondary">
+						<span class="text-text-muted">
 							lens {(pull.mergePreview.lensQuality * 100).toFixed(0)}%
 						</span>
 					{/if}
 					{#if pull.mergePreview.autoMergeEligible}
-						<span class="text-compatible">auto-merge eligible</span>
+						<span class="text-success">auto-merge eligible</span>
 					{/if}
 				</div>
 			{/if}

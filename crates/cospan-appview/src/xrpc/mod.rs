@@ -28,6 +28,7 @@ mod ref_update_list;
 mod repo_create;
 mod repo_fork;
 mod repo_get;
+mod repo_import;
 mod repo_list;
 mod search_repos;
 mod search_structural;
@@ -172,6 +173,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         )
         .route("/xrpc/dev.cospan.repo.create", post(repo_create::handler))
         .route("/xrpc/dev.cospan.repo.fork", post(repo_fork::handler))
+        .route("/xrpc/dev.cospan.repo.import", post(repo_import::handler))
         .route(
             "/xrpc/dev.cospan.actor.profile.put",
             post(profile_put::handler),

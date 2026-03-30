@@ -5,7 +5,7 @@
 <nav class="flex items-center gap-1.5 text-sm">
 	{#each crumbs as crumb, i}
 		{#if i > 0}
-			<span class="text-text-secondary">/</span>
+			<span class="text-text-muted">/</span>
 		{/if}
 		{#if crumb.href && i < crumbs.length - 1}
 			<a
@@ -15,7 +15,7 @@
 				{crumb.label}
 			</a>
 		{:else}
-			<span class="text-text-secondary">{crumb.label}</span>
+			<span class="text-text-muted">{crumb.label}</span>
 		{/if}
 	{/each}
 </nav>

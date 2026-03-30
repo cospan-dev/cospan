@@ -89,6 +89,12 @@ async fn dispatch_special_upsert(
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
 
+            // Set source based on collection origin
+            if collection.starts_with("sh.tangled.") {
+                row.source = "tangled".to_string();
+                row.source_uri = Some(format!("at://{did}/{collection}/{rkey}"));
+            }
+
             // Look up node URL from nodes table (business logic, not schema-derivable)
             if !row.node_did.is_empty() {
                 let nodes = db::node::list(&state.db, 1000, None).await?;
