@@ -129,11 +129,13 @@
 							{#if repo.starCount > 0}
 								<span class="text-[11px] text-ghost">★ {repo.starCount}</span>
 							{/if}
-							<a href={tangledUrl(repo)} target="_blank" rel="noopener" class="text-[11px] text-ghost hover:text-caption transition-colors">↗</a>
 						</div>
 						{#if repo.description}
 							<p class="mt-0.5 truncate text-[12px] text-ghost">{repo.description}</p>
 						{/if}
+						<a href={tangledUrl(repo)} target="_blank" rel="noopener" class="mt-0.5 block text-[11px] text-ghost hover:text-caption transition-colors">
+							View on Tangled ↗
+						</a>
 					</div>
 					<button class="shrink-0 rounded-md border border-line px-2.5 py-1 text-[11px] font-medium text-caption transition-all hover:border-line-bright hover:text-ink">
 						Fork
