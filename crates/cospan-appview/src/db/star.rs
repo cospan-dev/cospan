@@ -5,18 +5,20 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 
 /// Increment the star_count on the repo referenced by the AT-URI subject.
-/// Subject format: at://did/dev.cospan.repo/repo-name
+/// Subject format: at://did/collection/rkey
+/// The rkey in the AT-URI may be the repo name OR the record rkey,
+/// so we match on either.
 pub async fn increment_repo_star_count(
     pool: &PgPool,
     repo_did: &str,
-    repo_name: &str,
+    repo_rkey: &str,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE repos SET star_count = star_count + 1, indexed_at = NOW() \
-         WHERE did = $1 AND name = $2",
+         WHERE did = $1 AND (name = $2 OR rkey = $2)",
     )
     .bind(repo_did)
-    .bind(repo_name)
+    .bind(repo_rkey)
     .execute(pool)
     .await?;
     Ok(())
@@ -25,14 +27,14 @@ pub async fn increment_repo_star_count(
 pub async fn decrement_repo_star_count(
     pool: &PgPool,
     repo_did: &str,
-    repo_name: &str,
+    repo_rkey: &str,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE repos SET star_count = GREATEST(star_count - 1, 0), indexed_at = NOW() \
-         WHERE did = $1 AND name = $2",
+         WHERE did = $1 AND (name = $2 OR rkey = $2)",
     )
     .bind(repo_did)
-    .bind(repo_name)
+    .bind(repo_rkey)
     .execute(pool)
     .await?;
     Ok(())
