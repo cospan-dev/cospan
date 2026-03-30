@@ -207,13 +207,11 @@ pub fn emit_row_types(
     w.line(&format!("pub struct {} {{", config.row_struct_name));
     w.indent();
     for col in &cols {
-        // Add #[serde(default)] for fields not in the Lexicon record
-        // (did, rkey, indexed_at, counters) so serde_json::from_value works
-        if col.name == "indexed_at" {
+        // All fields get #[serde(default)] so serde_json::from_value tolerates
+        // missing fields from panproto transforms that may not produce everything
+        if col.rust_type == "DateTime<Utc>" {
             w.line("#[serde(default = \"default_now\")]");
-        } else if col.rust_type.starts_with("DateTime") {
-            // DateTime fields from Lexicon are already in the transformed JSON
-        } else if col.is_counter || col.name == "did" || col.name == "rkey" || col.name == "id" {
+        } else {
             w.line("#[serde(default)]");
         }
         w.line(&format!("pub {}: {},", col.name, col.rust_type));
