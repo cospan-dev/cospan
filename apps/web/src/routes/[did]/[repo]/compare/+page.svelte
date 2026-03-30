@@ -39,7 +39,7 @@
 </script>
 
 <svelte:head>
-	<title>Compare - {data.repoName} - Cospan</title>
+	<title>Compare · {data.repoName} · Cospan</title>
 </svelte:head>
 
 <section>

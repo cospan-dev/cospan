@@ -184,7 +184,7 @@
 </script>
 
 <svelte:head>
-	<title>Settings - {data.repoName} - Cospan</title>
+	<title>Settings · {data.repoName} · Cospan</title>
 </svelte:head>
 
 <section>

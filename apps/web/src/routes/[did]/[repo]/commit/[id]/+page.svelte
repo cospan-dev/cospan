@@ -20,7 +20,7 @@
 </script>
 
 <svelte:head>
-	<title>Commit {data.commitId.slice(0, 10)} - {data.repoName} - Cospan</title>
+	<title>Commit {data.commitId.slice(0, 10)} · {data.repoName} · Cospan</title>
 </svelte:head>
 
 <section>

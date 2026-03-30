@@ -56,7 +56,7 @@
 </script>
 
 <svelte:head>
-	<title>New Webhook - {repo} Settings - Cospan</title>
+	<title>New Webhook · {repo} Settings · Cospan</title>
 </svelte:head>
 
 <section class="mx-auto max-w-2xl">

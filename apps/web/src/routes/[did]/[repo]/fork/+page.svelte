@@ -52,7 +52,7 @@
 </script>
 
 <svelte:head>
-	<title>Fork {data.repoName} - Cospan</title>
+	<title>Fork {data.repoName} · Cospan</title>
 </svelte:head>
 
 <section class="mx-auto max-w-xl">

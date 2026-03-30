@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-	<title>{$page.status} - Cospan</title>
+	<title>{$page.status} · Cospan</title>
 </svelte:head>
 
 <div class="flex flex-col items-center justify-center py-24">

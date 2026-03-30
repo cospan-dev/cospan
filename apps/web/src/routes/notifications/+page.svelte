@@ -51,7 +51,7 @@
 </script>
 
 <svelte:head>
-	<title>Notifications - Cospan</title>
+	<title>Notifications · Cospan</title>
 </svelte:head>
 
 <section>

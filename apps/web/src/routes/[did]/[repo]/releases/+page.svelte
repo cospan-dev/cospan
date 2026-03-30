@@ -19,7 +19,7 @@
 </script>
 
 <svelte:head>
-	<title>Releases - {data.repo} - Cospan</title>
+	<title>Releases · {data.repo} · Cospan</title>
 </svelte:head>
 
 <section>

@@ -20,7 +20,7 @@
 </script>
 
 <svelte:head>
-	<title>Branches - {data.repoName} - Cospan</title>
+	<title>Branches · {data.repoName} · Cospan</title>
 </svelte:head>
 
 <section>

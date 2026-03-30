@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>Stars - {data.profile?.displayName ?? data.profile?.handle ?? data.did} - Cospan</title>
+	<title>Stars · {data.profile?.displayName ?? data.profile?.handle ?? data.did} · Cospan</title>
 </svelte:head>
 
 <section>

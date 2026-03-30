@@ -5,7 +5,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.org.name} - Organizations - Cospan</title>
+	<title>{data.org.name}· Organizations · Cospan</title>
 </svelte:head>
 
 <section>

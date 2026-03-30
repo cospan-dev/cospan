@@ -33,7 +33,7 @@
 </script>
 
 <svelte:head>
-	<title>Webhooks - {data.repo} Settings - Cospan</title>
+	<title>Webhooks · {data.repo} Settings · Cospan</title>
 </svelte:head>
 
 <section>

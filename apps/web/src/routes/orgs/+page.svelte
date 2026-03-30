@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head>
-	<title>Organizations - Cospan</title>
+	<title>Organizations · Cospan</title>
 </svelte:head>
 
 <section>

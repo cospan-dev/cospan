@@ -21,7 +21,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.issue.title} - Issues - {data.repo} - Cospan</title>
+	<title>{data.issue.title}· Issues · {data.repo} · Cospan</title>
 </svelte:head>
 
 <KeyboardShortcuts {basePath} />

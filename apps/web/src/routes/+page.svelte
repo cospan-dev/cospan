@@ -62,7 +62,7 @@
 </script>
 
 <svelte:head>
-	<title>Cospan | Schematic code hosting</title>
+	<title>Cospan · Schematic code hosting</title>
 </svelte:head>
 
 <!-- ═══ HERO ═══ -->

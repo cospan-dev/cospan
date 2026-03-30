@@ -22,7 +22,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.release?.title ?? 'Release'} - {data.repo} - Cospan</title>
+	<title>{data.release?.title ?? 'Release'} · {data.repo} · Cospan</title>
 </svelte:head>
 
 <section>

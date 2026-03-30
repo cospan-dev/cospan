@@ -28,7 +28,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.query ? `Search: ${data.query}` : 'Search'} - Cospan</title>
+	<title>{data.query ? `Search: ${data.query}` : 'Search'} · Cospan</title>
 </svelte:head>
 
 <section>

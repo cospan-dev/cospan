@@ -79,7 +79,7 @@
 </script>
 
 <svelte:head>
-	<title>Settings - Cospan</title>
+	<title>Settings · Cospan</title>
 </svelte:head>
 
 <section class="mx-auto max-w-2xl">

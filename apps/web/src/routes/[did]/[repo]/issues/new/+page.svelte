@@ -55,7 +55,7 @@
 </script>
 
 <svelte:head>
-	<title>New Issue - {repo} - Cospan</title>
+	<title>New Issue · {repo} · Cospan</title>
 </svelte:head>
 
 <section class="mx-auto max-w-3xl">

@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head>
-	<title>Following - {data.profile?.displayName ?? data.profile?.handle ?? data.did} - Cospan</title>
+	<title>Following · {data.profile?.displayName ?? data.profile?.handle ?? data.did} · Cospan</title>
 </svelte:head>
 
 <section>

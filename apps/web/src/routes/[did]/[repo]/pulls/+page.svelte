@@ -18,7 +18,7 @@
 </script>
 
 <svelte:head>
-	<title>Merge Requests - {data.repo} - Cospan</title>
+	<title>Merge Requests · {data.repo} · Cospan</title>
 </svelte:head>
 
 <KeyboardShortcuts {basePath} />

@@ -35,7 +35,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.path || 'Code'} - {data.repo.name} - Cospan</title>
+	<title>{data.path || 'Code'} · {data.repo.name} · Cospan</title>
 </svelte:head>
 
 <section>

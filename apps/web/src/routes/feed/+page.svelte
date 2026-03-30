@@ -32,7 +32,7 @@
 </script>
 
 <svelte:head>
-	<title>Feed - Cospan</title>
+	<title>Feed · Cospan</title>
 </svelte:head>
 
 <section>

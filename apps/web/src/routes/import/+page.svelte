@@ -58,7 +58,7 @@
 </script>
 
 <svelte:head>
-	<title>Import from Tangled — Cospan</title>
+	<title>Import from Tangled · Cospan</title>
 </svelte:head>
 
 <section>

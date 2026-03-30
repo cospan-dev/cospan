@@ -18,7 +18,7 @@
 </script>
 
 <svelte:head>
-	<title>Issues - {data.repo} - Cospan</title>
+	<title>Issues · {data.repo} · Cospan</title>
 </svelte:head>
 
 <KeyboardShortcuts {basePath} />

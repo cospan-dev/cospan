@@ -61,7 +61,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.repo ? data.repo.name : data.repoName} - Cospan</title>
+	<title>{data.repo ? data.repo.name : data.repoName} · Cospan</title>
 </svelte:head>
 
 <KeyboardShortcuts {basePath} />
