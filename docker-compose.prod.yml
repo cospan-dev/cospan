@@ -123,8 +123,8 @@ services:
       test: ["CMD-SHELL", "curl -sf http://localhost:2480/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 10
+      start_period: 300s
 
   # ATProto AppView
   appview:
@@ -143,7 +143,7 @@ services:
       redis:
         condition: service_healthy
       tap:
-        condition: service_healthy
+        condition: service_started
     networks:
       - cospan
     deploy:
