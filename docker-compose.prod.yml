@@ -108,7 +108,7 @@ services:
       TAP_RELAY_URL: https://relay1.us-east.bsky.network
       TAP_DISABLE_ACKS: "true"
       TAP_LOG_LEVEL: info
-      TAP_RESYNC_PARALLELISM: "10"
+      TAP_RESYNC_PARALLELISM: "3"
       TAP_FIREHOSE_PARALLELISM: "10"
     depends_on:
       db:
@@ -118,7 +118,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 1G
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:2480/health || exit 1"]
       interval: 30s
