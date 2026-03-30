@@ -83,7 +83,7 @@
 
 			<!-- Description -->
 			<p class="mt-6 max-w-lg text-[15px] leading-relaxed text-caption">
-				Structural diffs, schema-aware merges, and algebraic validation powered by panproto. Built on AT Protocol.
+				Structural diffs, schematic merges, and algebraic validation powered by panproto. Built on AT Protocol.
 			</p>
 
 		</div>

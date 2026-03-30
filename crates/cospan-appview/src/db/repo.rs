@@ -111,6 +111,29 @@ pub async fn list_recent(
     }
 }
 
+/// Insert a stub repo row if one doesn't already exist for (did, name).
+/// Used during backfill when child records (issues, pulls, etc.) arrive
+/// before their parent repo. The stub will be overwritten with full data
+/// when the repo record itself is processed.
+pub async fn ensure_exists(
+    pool: &PgPool,
+    did: &str,
+    name: &str,
+    source: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO repos (did, rkey, name, source, created_at) \
+         VALUES ($1, '', $2, $3, NOW()) \
+         ON CONFLICT (did, name) DO NOTHING",
+    )
+    .bind(did)
+    .bind(name)
+    .bind(source)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn search(
     pool: &PgPool,
     query: &str,

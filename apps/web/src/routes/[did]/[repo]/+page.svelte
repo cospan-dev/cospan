@@ -74,7 +74,7 @@
 						href="{basePath}/import"
 						class="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
 					>
-						Import to Cospan
+						Fork to Cospan
 					</a>
 				{/if}
 				<ForkButton repoDid={data.repo.did} repoName={data.repo.name} />

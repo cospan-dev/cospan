@@ -116,6 +116,8 @@ async fn dispatch_special_upsert(
                 serde_json::from_value(transform_record(state, collection, rec))?;
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
+            let source = if collection.starts_with("sh.tangled.") { "tangled" } else { "cospan" };
+            db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, source).await?;
             db::ref_update::upsert(&state.db, &row).await?;
 
             let _ = state.event_tx.send(IndexEvent::RefUpdate {
@@ -135,6 +137,8 @@ async fn dispatch_special_upsert(
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
+            let source = if collection.starts_with("sh.tangled.") { "tangled" } else { "cospan" };
+            db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, source).await?;
             db::issue::upsert(&state.db, &row).await?;
 
             let _ = state.event_tx.send(IndexEvent::IssueCreated {
@@ -232,6 +236,8 @@ async fn dispatch_special_upsert(
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
+            let source = if collection.starts_with("sh.tangled.") { "tangled" } else { "cospan" };
+            db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, source).await?;
             db::pull::upsert(&state.db, &row).await?;
 
             let _ = state.event_tx.send(IndexEvent::PullCreated {
@@ -343,6 +349,8 @@ async fn dispatch_special_upsert(
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
+            let source = if collection.starts_with("sh.tangled.") { "tangled" } else { "cospan" };
+            db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, source).await?;
             db::pipeline::upsert(&state.db, &row).await?;
         }
 
@@ -385,6 +393,7 @@ async fn dispatch_special_upsert(
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
+            db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, "tangled").await?;
             db::label::upsert(&state.db, &row).await?;
         }
 

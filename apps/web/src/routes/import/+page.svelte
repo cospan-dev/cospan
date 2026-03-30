@@ -55,14 +55,14 @@
 </script>
 
 <svelte:head>
-	<title>Import from Tangled · Cospan</title>
+	<title>Fork from Tangled · Cospan</title>
 </svelte:head>
 
 <section>
 	<div class="mb-5 flex items-end justify-between">
 		<div>
-			<h1 class="mb-1 text-lg font-semibold text-ink">Import from Tangled</h1>
-			<p class="text-[13px] text-caption">Bring repositories into Cospan for schema-aware version control.</p>
+			<h1 class="mb-1 text-lg font-semibold text-ink">Fork from Tangled</h1>
+			<p class="text-[13px] text-caption">Fork Tangled repositories into Cospan for schematic version control.</p>
 		</div>
 		{#if !auth.authenticated}
 			<span class="text-[12px] text-ghost">Sign in to import your repos</span>

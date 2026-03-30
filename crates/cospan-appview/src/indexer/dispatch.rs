@@ -59,6 +59,18 @@ pub async fn dispatch_simple_upsert(
             db::$mod::upsert(&state.db, &row).await?;
             return Ok(true);
         }};
+        // Has repo FK: ensure parent repo exists before upserting
+        ($mod:ident, $Row:ident, repo_fk) => {{
+            let mut row: db::$mod::$Row =
+                serde_json::from_value(transform_record(state, collection, record))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+            let source = if collection.starts_with("sh.tangled.") { "tangled" } else { "cospan" };
+            db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, source).await?;
+            db::$mod::upsert(&state.db, &row).await?;
+            return Ok(true);
+        }};
     }
 
     match collection {
@@ -67,18 +79,28 @@ pub async fn dispatch_simple_upsert(
         "dev.cospan.actor.profile" => simple_upsert!(actor_profile, ActorProfileRow, no_rkey),
         "dev.cospan.graph.follow" => simple_upsert!(follow, FollowRow),
         "dev.cospan.feed.reaction" => simple_upsert!(reaction, ReactionRow),
-        "dev.cospan.label.definition" => simple_upsert!(label, LabelRow),
+        "dev.cospan.label.definition" => simple_upsert!(label, LabelRow, repo_fk),
         "dev.cospan.org" => simple_upsert!(org, OrgRow),
         "dev.cospan.org.member" => simple_upsert!(org_member, OrgMemberRow),
-        "dev.cospan.repo.collaborator" => simple_upsert!(collaborator, CollaboratorRow),
-        "dev.cospan.repo.dependency" => simple_upsert!(dependency, DependencyRow),
+        "dev.cospan.repo.collaborator" => simple_upsert!(collaborator, CollaboratorRow, repo_fk),
+        "dev.cospan.repo.dependency" => {
+            let mut row: db::dependency::DependencyRow =
+                serde_json::from_value(transform_record(state, collection, record))?;
+            row.did = did.to_string();
+            row.rkey = rkey.to_string();
+            row.indexed_at = Utc::now();
+            db::repo::ensure_exists(&state.db, &row.source_repo_did, &row.source_repo_name, "cospan").await?;
+            db::repo::ensure_exists(&state.db, &row.target_repo_did, &row.target_repo_name, "cospan").await?;
+            db::dependency::upsert(&state.db, &row).await?;
+            return Ok(true);
+        }
 
         // ─── sh.tangled simple records (same DB tables) ─────────────
         "sh.tangled.knot" => simple_upsert!(node, NodeRow),
         "sh.tangled.actor.profile" => simple_upsert!(actor_profile, ActorProfileRow, no_rkey),
         "sh.tangled.graph.follow" => simple_upsert!(follow, FollowRow),
         "sh.tangled.feed.reaction" => simple_upsert!(reaction, ReactionRow),
-        "sh.tangled.repo.collaborator" => simple_upsert!(collaborator, CollaboratorRow),
+        "sh.tangled.repo.collaborator" => simple_upsert!(collaborator, CollaboratorRow, repo_fk),
         "sh.tangled.knot.member" => simple_upsert!(org_member, OrgMemberRow),
         // NOTE: sh.tangled.repo, pipeline, refUpdate, issue, pull have side effects
         // (node URL lookup, breaking change count, SSE events) and are handled
