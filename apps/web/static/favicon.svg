@@ -1,14 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <!-- Cospan mark: the cospan diagram as a geometric icon -->
-  <!-- Three vertices of a cospan: A→C←B, apex at top -->
-  <rect width="32" height="32" rx="7" fill="#131320"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
 
-  <!-- Edges (morphism arrows) -->
-  <path d="M8 23 L16 10" stroke="#6B8AE8" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
-  <path d="M24 23 L16 10" stroke="#6B8AE8" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
-
-  <!-- Vertices -->
-  <circle cx="8" cy="23" r="3.5" fill="#4A6BD4" opacity="0.5"/>
-  <circle cx="24" cy="23" r="3.5" fill="#4A6BD4" opacity="0.5"/>
-  <circle cx="16" cy="10" r="4.5" fill="#6B8AE8"/>
+<svg
+   width="2000mm"
+   height="2000mm"
+   viewBox="0 0 2000 2000"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4 (e7c3feb1, 2024-10-09)"
+   sodipodi:docname="cospan-logo.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#111111"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.047215208"
+     inkscape:cx="3642.8941"
+     inkscape:cy="2785.1196"
+     inkscape:window-width="1728"
+     inkscape:window-height="974"
+     inkscape:window-x="0"
+     inkscape:window-y="38"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g4" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g4"
+       transform="matrix(1.1084835,-0.31723246,0.31723246,1.1084835,-416.30129,231.47258)">
+      <circle
+         style="fill:#d64933;fill-opacity:1;stroke:#000000;stroke-width:71.0137;stroke-linecap:square;stroke-linejoin:round;stroke-dasharray:none;paint-order:fill markers stroke"
+         id="path1"
+         cx="998.42218"
+         cy="973.23822"
+         r="328.30444" />
+      <path
+         style="fill:#ff79f7;fill-opacity:0;stroke:#000000;stroke-width:99.9997;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;paint-order:normal"
+         d="M 1325.0443,801.7513 1509.9688,695.27961 1672.4782,840.9777 1851.799,728.90225"
+         id="path2" />
+      <path
+         style="fill:#ff79f7;fill-opacity:0;stroke:#000000;stroke-width:100;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;paint-order:fill markers stroke"
+         d="m 149.52748,1230.1195 184.9245,-106.4717 162.5094,145.6981 179.3208,-112.0754"
+         id="path2-7" />
+    </g>
+  </g>
 </svg>

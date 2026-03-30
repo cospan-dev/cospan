@@ -21,16 +21,9 @@
 <header class="sticky top-0 z-50 border-b border-line/60 bg-void/80 backdrop-blur-xl">
 	<nav class="mx-auto flex h-14 max-w-[1200px] items-center justify-between px-6">
 		<!-- Wordmark -->
-		<a href="/" class="group flex items-center gap-2 font-mono text-[15px] font-medium tracking-tight text-ink">
-			<!-- Cospan mark: three vertices, the apex brighter -->
-			<svg class="h-[18px] w-[18px]" viewBox="0 0 18 18" fill="none">
-				<circle cx="3" cy="14" r="1.8" fill="currentColor" opacity="0.3"/>
-				<circle cx="9" cy="3" r="2" fill="currentColor" opacity="0.7"/>
-				<circle cx="15" cy="14" r="1.8" fill="currentColor" opacity="0.3"/>
-				<line x1="3" y1="14" x2="9" y2="3" stroke="currentColor" stroke-width="0.8" opacity="0.2"/>
-				<line x1="15" y1="14" x2="9" y2="3" stroke="currentColor" stroke-width="0.8" opacity="0.2"/>
-			</svg>
-			cospan
+		<a href="/" class="group flex items-center gap-2 text-[15px] font-semibold tracking-tight text-ink">
+			<img src="/logo-dark.svg" alt="" class="h-6 w-6" />
+			<span>Cospan</span>
 		</a>
 
 		<!-- Nav -->
