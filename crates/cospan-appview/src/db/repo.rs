@@ -157,8 +157,8 @@ pub async fn ensure_exists(
     source: &str,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "INSERT INTO repos (did, rkey, name, source, created_at) \
-         VALUES ($1, '', $2, $3, NOW()) \
+        "INSERT INTO repos (did, rkey, name, protocol, node_did, node_url, source, created_at) \
+         VALUES ($1, '', $2, 'git', '', '', $3, NOW()) \
          ON CONFLICT (did, name) DO NOTHING",
     )
     .bind(did)
