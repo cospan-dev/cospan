@@ -162,6 +162,7 @@
 			openIssueCount={data.repo.openIssueCount}
 			openMrCount={data.repo.openMrCount}
 			{isOwner}
+			{isTangled}
 		/>
 
 		{#if isTangled}
