@@ -35,6 +35,8 @@
 
 	// Owner handle: extract from DID for display (placeholder until handle resolution)
 	let ownerHandle = $derived(repo.did.startsWith('did:plc:') ? repo.did.slice(8, 20) + '...' : repo.did);
+
+	let isTangled = $derived(repo.source === 'tangled');
 </script>
 
 <a
@@ -88,10 +90,25 @@
 			</span>
 		{/if}
 
+		{#if repo.forkCount > 0}
+			<span class="text-text-muted" title="Forks">
+				<svg class="mr-0.5 inline-block h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+				</svg>
+				{repo.forkCount}
+			</span>
+		{/if}
+
 		{#if repo.openIssueCount > 0}
 			<span class="text-text-muted" title="Open issues">
 				{repo.openIssueCount} issues
 			</span>
+		{/if}
+
+		{#if isTangled}
+			<span class="ml-auto rounded-full bg-info/15 px-2 py-0.5 text-xs font-medium text-info">tangled</span>
+		{:else if repo.source && repo.source !== 'cospan'}
+			<span class="ml-auto rounded-full bg-surface-2 px-2 py-0.5 text-xs text-text-muted">{repo.source}</span>
 		{/if}
 	</div>
 </a>
