@@ -1,9 +1,16 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { Repo } from '$lib/api/repo.js';
+	import { resolveHandle } from '$lib/api/handle.js';
 
 	let { repo }: { repo: Repo } = $props();
 
 	let displayName = $derived(repo.name || 'Untitled');
+	let handle = $state('');
+
+	onMount(async () => {
+		handle = await resolveHandle(repo.did);
+	});
 
 	const hueMap: Record<string, number> = {
 		typescript: 230, javascript: 50, rust: 25, python: 100,
@@ -19,7 +26,7 @@
 
 	let hue = $derived(hueMap[repo.protocol] ?? hashHue(repo.protocol));
 	let ownerHandle = $derived(
-		repo.did.startsWith('did:plc:') ? repo.did.slice(8, 18) + '…' : repo.did
+		handle || (repo.did.startsWith('did:plc:') ? repo.did.slice(8, 18) + '…' : repo.did)
 	);
 	let isTangled = $derived(repo.source === 'tangled');
 </script>
