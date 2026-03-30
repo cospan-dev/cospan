@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.5.3
+
+- All Row struct fields now have `#[serde(default)]` so panproto transforms that don't produce every field don't crash deserialization
+- Added `BACKFILL_HOURS` env var: set to replay Jetstream history (up to ~72h) to backfill Tangled and Cospan records
+- Restored original logo and favicon
+
 ## v0.5.0
 
 ### Reskin + Tangled interop

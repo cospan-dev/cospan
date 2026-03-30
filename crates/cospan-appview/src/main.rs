@@ -36,6 +36,22 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("./migrations").run(&pool).await?;
     tracing::info!("database migrations applied");
 
+    // Backfill: if BACKFILL_HOURS is set, reset the cursor to N hours ago
+    // so the indexer replays Jetstream history (up to ~72h retained)
+    if let Some(h) = std::env::var("BACKFILL_HOURS")
+        .ok()
+        .and_then(|s| s.parse::<i64>().ok())
+    {
+        let now_us = chrono::Utc::now().timestamp_micros();
+        let backfill_us = now_us - (h * 3600 * 1_000_000);
+        cospan_appview::db::cursor::save_cursor(&pool, backfill_us).await?;
+        tracing::info!(
+            hours = h,
+            cursor_us = backfill_us,
+            "backfill: cursor reset to {h} hours ago"
+        );
+    }
+
     // Initialize auth infrastructure
     let dpop_key = DpopKey::generate();
     tracing::info!(kid = %dpop_key.kid, "DPoP signing key generated");
