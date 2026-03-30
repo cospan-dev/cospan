@@ -32,14 +32,16 @@
 </svelte:head>
 
 <section>
-	<div class="mb-8">
+	<div class="mb-6">
+		<h1 class="mb-1 text-lg font-semibold text-ink">Search</h1>
+		<p class="mb-4 text-[13px] text-caption">Find repositories across Cospan.</p>
 		<input
 			type="text"
 			value={inputValue}
 			oninput={handleInput}
 			onkeydown={handleKeydown}
-			placeholder="Search repositories..."
-			class="w-full border-0 border-b-2 border-border bg-transparent pb-3 text-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+			placeholder="Search repositories…"
+			class="w-full rounded-md border border-line bg-surface px-3 py-2 text-[14px] text-ink placeholder:text-ghost focus:border-focus/50 focus:outline-none transition-colors"
 		/>
 	</div>
 

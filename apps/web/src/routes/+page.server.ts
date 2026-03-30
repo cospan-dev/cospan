@@ -3,7 +3,8 @@ import { listRepos } from '$lib/api/repo.js';
 
 export const load: PageServerLoad = async ({ url }) => {
 	const protocol = url.searchParams.get('protocol') ?? undefined;
-	const source = url.searchParams.get('source') ?? undefined;
+	// Landing page shows only Cospan-native repos. Tangled repos are on /import.
+	const source = 'cospan';
 
 	try {
 		const [trending, recent] = await Promise.all([
