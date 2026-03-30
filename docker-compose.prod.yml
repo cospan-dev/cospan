@@ -39,6 +39,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - pg-data:/var/lib/postgresql/data
+      - ./scripts/init-tap-db.sh:/docker-entrypoint-initdb.d/init-tap-db.sh:ro
     ports:
       - "127.0.0.1:5432:5432"
     networks:
@@ -92,6 +93,39 @@ services:
         limits:
           memory: 512M
 
+  # Tap: ATProto sync with full backfill
+  # Discovers all repos with Tangled/Cospan records, downloads full history
+  # from each PDS, then streams live events. The appview connects via WebSocket.
+  tap:
+    image: ghcr.io/bluesky-social/indigo/tap:latest
+    container_name: cospan-tap
+    restart: unless-stopped
+    environment:
+      TAP_DATABASE_URL: postgres://cospan:${POSTGRES_PASSWORD}@db:5432/tap
+      TAP_BIND: ":2480"
+      TAP_SIGNAL_COLLECTION: sh.tangled.actor.profile
+      TAP_COLLECTION_FILTERS: "sh.tangled.*,dev.cospan.*"
+      TAP_RELAY_URL: https://relay1.us-east.bsky.network
+      TAP_DISABLE_ACKS: "true"
+      TAP_LOG_LEVEL: info
+      TAP_RESYNC_PARALLELISM: "10"
+      TAP_FIREHOSE_PARALLELISM: "10"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - cospan
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:2480/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   # ATProto AppView
   appview:
     image: ghcr.io/cospan-dev/cospan-appview:${COSPAN_VERSION:-latest}
@@ -100,12 +134,15 @@ services:
     environment:
       DATABASE_URL: postgres://cospan:${POSTGRES_PASSWORD}@db:5432/cospan
       JETSTREAM_URL: wss://jetstream2.us-east.bsky.network/subscribe
+      TAP_URL: ws://tap:2480/channel
       APPVIEW_LISTEN: "0.0.0.0:3000"
       PUBLIC_URL: https://${DOMAIN:?DOMAIN is required}
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      tap:
         condition: service_healthy
     networks:
       - cospan

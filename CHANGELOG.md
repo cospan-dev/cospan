@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.6.0
+
+### Full network backfill via Tap
+
+- Integrated [Tap](https://github.com/bluesky-social/indigo/cmd/tap) for complete historical backfill of all Tangled and Cospan records
+- Tap discovers all repos with `sh.tangled.*` or `dev.cospan.*` records via `com.atproto.sync.listReposByCollection`
+- Downloads full repo history from each PDS, delivers historical events before switching to live firehose
+- Runs as a sidecar in docker-compose alongside the appview
+- Appview consumes from both Tap (backfill + live) and Jetstream (live with cursor) simultaneously
+- All Row struct fields have `#[serde(default)]` for resilient deserialization
+
 ## v0.5.3
 
 - All Row struct fields now have `#[serde(default)]` so panproto transforms that don't produce every field don't crash deserialization
