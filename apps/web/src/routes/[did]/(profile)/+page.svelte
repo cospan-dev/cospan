@@ -1,6 +1,5 @@
 <script lang="ts">
 	import RepoCard from '$lib/components/repo/RepoCard.svelte';
-	import ProfileHeader from '$lib/components/shared/ProfileHeader.svelte';
 	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 
 	let { data } = $props();
@@ -9,9 +8,6 @@
 <svelte:head>
 	<title>{data.profile?.displayName ?? data.profile?.handle ?? data.did} · Cospan</title>
 </svelte:head>
-
-<section>
-	<ProfileHeader profile={data.profile} did={data.did} showFollow={true} />
 
 	<!-- Repositories tab content (default) -->
 	{#if data.repos.items.length === 0}

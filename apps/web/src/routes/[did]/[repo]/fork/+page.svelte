@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { getContext } from 'svelte';
 	import { getAuth } from '$lib/stores/auth.svelte';
-	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
 	import BackLink from '$lib/components/shared/BackLink.svelte';
 
 	let { data } = $props();
@@ -11,11 +11,11 @@
 	let submitting = $state(false);
 	let error = $state('');
 
-	let crumbs = $derived([
-		{ label: data.did, href: `/${data.did}` },
-		{ label: data.repoName, href: `/${data.did}/${data.repoName}` },
-		{ label: 'Fork' }
-	]);
+	const repoLayout = getContext<any>('repoLayout');
+	$effect(() => {
+		repoLayout?.setExtraCrumbs([{ label: 'Fork' }]);
+		return () => repoLayout?.setExtraCrumbs([]);
+	});
 
 	async function handleFork() {
 		if (!auth.authenticated || !forkName.trim() || submitting) return;
@@ -55,9 +55,7 @@
 	<title>Fork {data.repoName} · Cospan</title>
 </svelte:head>
 
-<section class="mx-auto max-w-xl">
-	<Breadcrumb {crumbs} />
-
+<div class="mx-auto max-w-xl">
 	<h1 class="mt-4 text-xl font-semibold text-text-primary">Fork repository</h1>
 	<p class="mt-1 text-sm text-text-secondary">
 		Create a copy of <span class="font-mono text-text-primary">{data.did}/{data.repoName}</span> under your account.
@@ -120,4 +118,4 @@
 	</div>
 
 	<BackLink href="/{data.did}/{data.repoName}" />
-</section>
+</div>

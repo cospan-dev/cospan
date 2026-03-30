@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { getContext } from 'svelte';
 	import { getAuth } from '$lib/stores/auth.svelte';
-	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
 	import BackLink from '$lib/components/shared/BackLink.svelte';
 
 	let auth = $derived(getAuth());
@@ -15,12 +15,14 @@
 	let creating = $state(false);
 	let error = $state('');
 
-	let crumbs = $derived([
-		{ label: did, href: `/${did}` },
-		{ label: repo, href: basePath },
-		{ label: 'Issues', href: `${basePath}/issues` },
-		{ label: 'New' },
-	]);
+	const repoLayout = getContext<any>('repoLayout');
+	$effect(() => {
+		repoLayout?.setExtraCrumbs([
+			{ label: 'Issues', href: `${basePath}/issues` },
+			{ label: 'New' }
+		]);
+		return () => repoLayout?.setExtraCrumbs([]);
+	});
 
 	async function handleSubmit(event: Event) {
 		event.preventDefault();
@@ -58,9 +60,7 @@
 	<title>New Issue · {repo} · Cospan</title>
 </svelte:head>
 
-<section class="mx-auto max-w-3xl">
-	<Breadcrumb {crumbs} />
-
+<div class="mx-auto max-w-3xl">
 	<h1 class="mt-4 mb-6 text-xl font-semibold text-text-primary">New Issue</h1>
 
 	{#if !auth.authenticated}
@@ -111,4 +111,4 @@
 	{/if}
 
 	<BackLink href="{basePath}/issues" label="Back to issues" />
-</section>
+</div>

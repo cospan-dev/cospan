@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
+	import { getContext } from 'svelte';
 	import { getAuth } from '$lib/stores/auth.svelte';
 	import { createWebhook, WEBHOOK_EVENTS, type WebhookEvent } from '$lib/api/webhook.js';
 
@@ -16,13 +16,15 @@
 	let submitting = $state(false);
 	let error = $state('');
 
-	let crumbs = $derived([
-		{ label: did, href: `/${did}` },
-		{ label: repo, href: basePath },
-		{ label: 'Settings', href: `${basePath}/settings` },
-		{ label: 'Webhooks', href: `${basePath}/settings/webhooks` },
-		{ label: 'New' },
-	]);
+	const repoLayout = getContext<any>('repoLayout');
+	$effect(() => {
+		repoLayout?.setExtraCrumbs([
+			{ label: 'Settings', href: `${basePath}/settings` },
+			{ label: 'Webhooks', href: `${basePath}/settings/webhooks` },
+			{ label: 'New' }
+		]);
+		return () => repoLayout?.setExtraCrumbs([]);
+	});
 
 	function toggleEvent(event: WebhookEvent) {
 		const idx = selectedEvents.indexOf(event);
@@ -59,9 +61,8 @@
 	<title>New Webhook · {repo} Settings · Cospan</title>
 </svelte:head>
 
-<section class="mx-auto max-w-2xl">
+<div class="mx-auto max-w-2xl">
 	<div class="mb-6">
-		<Breadcrumb {crumbs} />
 		<h1 class="mt-3 text-xl font-semibold text-text-primary">Add webhook</h1>
 		<p class="mt-1 text-sm text-text-secondary">
 			Configure a URL to receive POST requests when events occur in this repository.
@@ -147,4 +148,4 @@
 			</div>
 		</form>
 	{/if}
-</section>
+</div>

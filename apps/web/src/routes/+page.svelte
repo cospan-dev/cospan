@@ -10,7 +10,7 @@
 	let showDropdown = $state(false);
 
 	// Multi-select protocols from URL
-	let activeProtocols = $derived<string[]>(() => {
+	let activeProtocols = $derived.by(() => {
 		const p = $page.url.searchParams.get('protocol');
 		return p ? p.split(',').filter(Boolean) : [];
 	});
@@ -25,7 +25,7 @@
 	);
 
 	function toggleProtocol(value: string) {
-		const current = activeProtocols();
+		const current = activeProtocols;
 		const next = current.includes(value)
 			? current.filter((p) => p !== value)
 			: [...current, value];
@@ -143,7 +143,7 @@
 
 		<!-- Language filter (multiselect) -->
 		<div class="flex items-center gap-2">
-			{#if activeProtocols().length > 1}
+			{#if activeProtocols.length > 1}
 				<button
 					type="button"
 					onclick={clearProtocols}
@@ -152,7 +152,7 @@
 					Clear all
 				</button>
 			{/if}
-			{#each activeProtocols() as proto}
+			{#each activeProtocols as proto}
 				<button
 					type="button"
 					onclick={() => toggleProtocol(proto)}
@@ -190,9 +190,9 @@
 									type="button"
 									onmousedown={() => toggleProtocol(lang.value)}
 									class="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors hover:bg-elevated
-										{activeProtocols().includes(lang.value) ? 'text-focus-bright' : 'text-caption'}"
+										{activeProtocols.includes(lang.value) ? 'text-focus-bright' : 'text-caption'}"
 								>
-									{#if activeProtocols().includes(lang.value)}
+									{#if activeProtocols.includes(lang.value)}
 										<svg class="h-3 w-3 text-focus" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
 											<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
 										</svg>
@@ -220,7 +220,7 @@
 				</svg>
 			</div>
 			<p class="text-sm text-caption">
-				{activeProtocols().length > 0 ? `No repositories found for selected languages.` : 'No repositories yet.'}
+				{activeProtocols.length > 0 ? `No repositories found for selected languages.` : 'No repositories yet.'}
 			</p>
 			<p class="mt-1 text-xs text-ghost">Repositories from Cospan and Tangled will appear here.</p>
 		</div>

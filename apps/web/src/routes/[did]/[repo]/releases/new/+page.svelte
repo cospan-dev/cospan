@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import Breadcrumb from '$lib/components/shared/Breadcrumb.svelte';
+	import { getContext } from 'svelte';
 	import { getAuth } from '$lib/stores/auth.svelte';
 	import { createRelease } from '$lib/api/release.js';
 
@@ -18,12 +18,14 @@
 	let submitting = $state(false);
 	let error = $state('');
 
-	let crumbs = $derived([
-		{ label: did, href: `/${did}` },
-		{ label: repo, href: basePath },
-		{ label: 'Releases', href: `${basePath}/releases` },
-		{ label: 'New' },
-	]);
+	const repoLayout = getContext<any>('repoLayout');
+	$effect(() => {
+		repoLayout?.setExtraCrumbs([
+			{ label: 'Releases', href: `${basePath}/releases` },
+			{ label: 'New' }
+		]);
+		return () => repoLayout?.setExtraCrumbs([]);
+	});
 
 	async function handleSubmit() {
 		if (!tag.trim() || !title.trim() || submitting) return;
@@ -53,9 +55,8 @@
 	<title>New Release · {repo} · Cospan</title>
 </svelte:head>
 
-<section class="mx-auto max-w-2xl">
+<div class="mx-auto max-w-2xl">
 	<div class="mb-6">
-		<Breadcrumb {crumbs} />
 		<h1 class="mt-3 text-xl font-semibold text-text-primary">Create a new release</h1>
 		<p class="mt-1 text-sm text-text-secondary">
 			Releases bundle a tagged snapshot with release notes and downloadable artifacts.
@@ -157,4 +158,4 @@
 			</div>
 		</form>
 	{/if}
-</section>
+</div>

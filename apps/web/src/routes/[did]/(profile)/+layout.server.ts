@@ -1,4 +1,4 @@
-import type { PageServerLoad } from './$types';
+import type { LayoutServerLoad } from './$types';
 import { getProfile } from '$lib/api/actor.js';
 import { listRepos } from '$lib/api/repo.js';
 import { xrpcQuery } from '$lib/api/client.js';
@@ -21,17 +21,19 @@ async function fetchBlueskyIdentity(did: string) {
 	return null;
 }
 
-async function fetchCospanFollowCounts(did: string) {
+async function fetchFollowCounts(did: string) {
 	try {
-		const [followers, following] = await Promise.all([
-			xrpcQuery<{ follows: any[] }>('dev.cospan.graph.follow.list', { did, direction: 'followers', limit: 1 }),
-			xrpcQuery<{ follows: any[] }>('dev.cospan.graph.follow.list', { did, direction: 'following', limit: 1 }),
-		]);
-		// The API doesn't return total counts, just paginated lists.
-		// For now, fetch a larger batch and count. TODO: add count endpoint.
 		const [followersFull, followingFull] = await Promise.all([
-			xrpcQuery<{ follows: any[] }>('dev.cospan.graph.follow.list', { did, direction: 'followers', limit: 1000 }),
-			xrpcQuery<{ follows: any[] }>('dev.cospan.graph.follow.list', { did, direction: 'following', limit: 1000 }),
+			xrpcQuery<{ follows: any[] }>('dev.cospan.graph.follow.list', {
+				did,
+				direction: 'followers',
+				limit: 1000,
+			}),
+			xrpcQuery<{ follows: any[] }>('dev.cospan.graph.follow.list', {
+				did,
+				direction: 'following',
+				limit: 1000,
+			}),
 		]);
 		return {
 			followerCount: followersFull.follows?.length ?? 0,
@@ -42,22 +44,20 @@ async function fetchCospanFollowCounts(did: string) {
 	}
 }
 
-export const load: PageServerLoad = async ({ params }) => {
-	// Fetch identity from Bluesky (avatar, handle, description only)
+export const load: LayoutServerLoad = async ({ params }) => {
 	const bskyIdentity = await fetchBlueskyIdentity(params.did);
 
-	// Fetch Cospan-specific profile
 	let cospanProfile = null;
 	try {
 		cospanProfile = await getProfile({ did: params.did });
 	} catch {}
 
-	// Fetch follow counts from Cospan database (includes Tangled follows)
-	const followCounts = await fetchCospanFollowCounts(params.did);
+	const followCounts = await fetchFollowCounts(params.did);
 
-	let repos = { items: [] as any[], cursor: null as string | null };
+	let repoCount = 0;
 	try {
-		repos = await listRepos({ did: params.did, limit: 30 });
+		const repos = await listRepos({ did: params.did, limit: 100 });
+		repoCount = repos.items.length;
 	} catch {}
 
 	const profile = {
@@ -68,8 +68,8 @@ export const load: PageServerLoad = async ({ params }) => {
 		avatarUrl: bskyIdentity?.avatarUrl ?? null,
 		followerCount: followCounts.followerCount,
 		followingCount: followCounts.followingCount,
-		repoCount: repos.items.length,
+		repoCount,
 	};
 
-	return { profile, repos, did: params.did };
+	return { profile, did: params.did };
 };
