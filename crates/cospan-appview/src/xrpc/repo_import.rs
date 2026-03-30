@@ -24,17 +24,13 @@ pub async fn handler(
     Json(input): Json<Input>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Parse the source AT-URI to find the Tangled repo
-    let parsed = at_uri::validate(&input.source_uri)
-        .map_err(|e| AppError::InvalidRequest(e))?;
+    let parsed = at_uri::validate(&input.source_uri).map_err(AppError::InvalidRequest)?;
 
     // Look up the source repo in the DB
     let source_repo = db::repo::get(&state.db, &parsed.did, &parsed.rkey)
         .await?
         .ok_or_else(|| {
-            AppError::InvalidRequest(format!(
-                "source repo not found: {}",
-                input.source_uri
-            ))
+            AppError::InvalidRequest(format!("source repo not found: {}", input.source_uri))
         })?;
 
     let repo_name = input.name.unwrap_or_else(|| source_repo.name.clone());
