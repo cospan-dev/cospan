@@ -115,10 +115,6 @@ services:
         condition: service_healthy
     networks:
       - cospan
-    deploy:
-      resources:
-        limits:
-          memory: 1536M
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:2480/health || exit 1"]
       interval: 30s
