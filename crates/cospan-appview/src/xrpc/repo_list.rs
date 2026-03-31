@@ -13,6 +13,7 @@ pub struct Params {
     pub did: Option<String>,
     pub source: Option<String>,
     pub sort: Option<String>,
+    pub query: Option<String>,
     pub limit: Option<i64>,
     pub cursor: Option<String>,
 }
@@ -24,7 +25,13 @@ pub async fn handler(
     let limit = params.limit.unwrap_or(25).min(100);
     let sort_popular = params.sort.as_deref() == Some("popular");
 
-    let repos = if let Some(did) = &params.did {
+    let repos = if let Some(query) = &params.query {
+        if !query.trim().is_empty() {
+            db::repo::search(&state.db, query, limit + 1, params.cursor.as_deref()).await?
+        } else {
+            db::repo::list_recent(&state.db, limit + 1, params.cursor.as_deref()).await?
+        }
+    } else if let Some(did) = &params.did {
         db::repo::list_by_did(&state.db, did, limit + 1, params.cursor.as_deref()).await?
     } else if let Some(source) = &params.source {
         if sort_popular {

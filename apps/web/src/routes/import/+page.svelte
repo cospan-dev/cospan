@@ -61,6 +61,9 @@
 		handles = resolved;
 	}
 
+	let searching = $state(false);
+	let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
 	async function loadMore() {
 		if (!cursor || loadingMore) return;
 		loadingMore = true;
@@ -74,19 +77,39 @@
 		}
 	}
 
+	async function doSearch(query: string) {
+		if (!query.trim()) {
+			// Reset to default popular list
+			searching = true;
+			try {
+				const result = await listRepos({ source: 'tangled', sort: 'popular', limit: 30 });
+				allRepos = result.items;
+				cursor = result.cursor;
+				resolveAllHandles(result.items);
+			} finally {
+				searching = false;
+			}
+			return;
+		}
+		searching = true;
+		try {
+			const result = await listRepos({ query, limit: 30 });
+			allRepos = result.items;
+			cursor = result.cursor;
+			resolveAllHandles(result.items);
+		} finally {
+			searching = false;
+		}
+	}
+
+	function onSearchInput() {
+		if (searchTimer) clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => doSearch(searchQuery), 300);
+	}
+
 	function getHandle(did: string): string {
 		return handles[did] || (did.startsWith('did:plc:') ? did.slice(8, 18) + '\u2026' : did);
 	}
-
-	let filteredAll = $derived(() => {
-		if (!searchQuery.trim()) return allRepos;
-		const q = searchQuery.toLowerCase();
-		return allRepos.filter((r: Repo) =>
-			r.name.toLowerCase().includes(q) ||
-			(r.description ?? '').toLowerCase().includes(q) ||
-			getHandle(r.did).toLowerCase().includes(q)
-		);
-	});
 
 	let filteredMine = $derived(() => {
 		if (!mySearchQuery.trim()) return myRepos;
@@ -203,14 +226,15 @@
 				<input
 					type="text"
 					bind:value={searchQuery}
-					placeholder="Search repos…"
+					oninput={onSearchInput}
+					placeholder="Search all repos…"
 					class="w-full rounded-md border border-line bg-surface py-1.5 pl-9 pr-3 text-[13px] text-ink placeholder:text-ghost focus:border-focus/50 focus:outline-none transition-colors"
 				/>
 			</div>
-			<span class="text-[11px] text-ghost whitespace-nowrap">{filteredAll().length} repos</span>
+			<span class="text-[11px] text-ghost whitespace-nowrap">{searching ? 'Searching…' : `${allRepos.length} repos`}</span>
 		</div>
 
-		{#if filteredAll().length === 0}
+		{#if allRepos.length === 0}
 			<div class="py-16 text-center">
 				{#if searchQuery.trim()}
 					<p class="text-[13px] text-caption">No repos matching "{searchQuery}"</p>
@@ -221,7 +245,7 @@
 			</div>
 		{:else}
 			<div class="divide-y divide-line/30">
-				{#each filteredAll() as repo (repo.did + '/' + repo.name)}
+				{#each allRepos as repo (repo.did + '/' + repo.name)}
 					<div class="flex items-center justify-between gap-4 py-2.5">
 						<div class="min-w-0 flex-1">
 							<div class="flex items-center gap-2">
