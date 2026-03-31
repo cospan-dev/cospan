@@ -55,6 +55,6 @@
 	</div>
 {/if}
 
-<Timeline events={data.timeline.events} />
+<Timeline events={data.timelineEvents} />
 
 <BackLink href="{basePath}/issues" label="Back to issues" />

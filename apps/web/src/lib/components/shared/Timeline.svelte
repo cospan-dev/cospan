@@ -3,11 +3,11 @@
 	import { timeAgo } from '$lib/utils/time.js';
 
 	interface TimelineEvent {
-		type: 'comment' | 'stateChange';
-		data: Record<string, any>;
+		kind: 'comment' | 'stateChange';
+		[key: string]: unknown;
 	}
 
-	let { events }: { events: TimelineEvent[] } = $props();
+	let { events = [] }: { events: TimelineEvent[] } = $props();
 </script>
 
 {#if events.length === 0}
@@ -15,40 +15,31 @@
 {:else}
 	<div class="space-y-4">
 		{#each events as event}
-			{#if event.type === 'comment'}
+			{#if event.kind === 'comment'}
 				<div class="rounded-lg border border-border bg-surface-1">
 					<div class="flex items-center gap-2 border-b border-border px-4 py-2">
-						<span class="text-sm font-medium text-text-primary">
-							{event.data.creatorHandle ?? event.data.creatorDid}
-						</span>
 						<span class="text-xs text-text-secondary">
-							commented {timeAgo(event.data.createdAt)}
+							commented {timeAgo(String(event.createdAt ?? ''))}
 						</span>
 					</div>
 					<div class="px-4 py-3 text-sm text-text-primary whitespace-pre-wrap">
-						{event.data.body}
+						{event.body}
 					</div>
 				</div>
-			{:else if event.type === 'stateChange'}
+			{:else if event.kind === 'stateChange'}
 				<div class="flex items-center gap-2 py-2 text-sm">
 					<div class="h-px flex-1 bg-border"></div>
 					<span class="flex items-center gap-2 text-text-secondary">
-						<span class="font-medium text-text-primary">
-							{event.data.actorHandle ?? event.data.actorDid}
-						</span>
-						{#if event.data.state === 'closed'}
+						{#if event.state === 'closed'}
 							closed this
 						{:else}
 							reopened this
 						{/if}
-						<StateBadge state={event.data.state} />
-						<span class="text-xs">{timeAgo(event.data.createdAt)}</span>
+						<StateBadge state={String(event.state ?? 'open')} />
+						<span class="text-xs">{timeAgo(String(event.createdAt ?? ''))}</span>
 					</span>
 					<div class="h-px flex-1 bg-border"></div>
 				</div>
-				{#if event.data.reason}
-					<p class="ml-8 text-xs text-text-secondary">{event.data.reason}</p>
-				{/if}
 			{/if}
 		{/each}
 	</div>

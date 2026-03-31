@@ -6,16 +6,17 @@ export const load: PageServerLoad = async ({ params }) => {
 	try {
 		const issue = await getIssue({ did: params.did, repo: params.repo, rkey: params.rkey });
 
-		let timeline = { events: [] as any[], cursor: null as string | null };
+		let timelineEvents: Record<string, unknown>[] = [];
 		try {
-			timeline = await getIssueTimeline({ did: params.did, repo: params.repo, rkey: params.rkey, limit: 50 });
+			const tl = await getIssueTimeline({ did: params.did, repo: params.repo, rkey: params.rkey, limit: 50 });
+			timelineEvents = tl.timeline ?? [];
 		} catch {}
 
 		return {
 			did: params.did,
 			repo: params.repo,
 			issue,
-			timeline
+			timelineEvents
 		};
 	} catch (err) {
 		console.error(
