@@ -459,7 +459,7 @@ pub fn tangled_transforms(
 }
 
 /// Get the record body vertex ID for a given NSID.
-/// ATProto Lexicon schemas have the body under `{nsid}.record`.
+/// panproto's ATProto Lexicon parser names the body vertex `{nsid}:body`.
 fn record_body_vertex(nsid: &str) -> String {
-    format!("{nsid}.record")
+    format!("{nsid}:body")
 }
