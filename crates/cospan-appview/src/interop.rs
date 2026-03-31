@@ -147,7 +147,18 @@ impl RecordTransformer {
         record: &serde_json::Value,
     ) -> Option<Result<serde_json::Value>> {
         let morphism = self.tangled_morphisms.get(tangled_nsid)?;
-        Some(apply_morphism(morphism, record))
+        let result = apply_morphism(morphism, record);
+        if tangled_nsid == "sh.tangled.repo.issue" {
+            if let Ok(ref json) = result {
+                tracing::info!(
+                    has_repo_did = json.get("repoDid").is_some(),
+                    has_repo = json.get("repo").is_some(),
+                    keys = ?json.as_object().map(|o| o.keys().collect::<Vec<_>>()),
+                    "ISSUE transform output"
+                );
+            }
+        }
+        Some(result)
     }
 }
 
