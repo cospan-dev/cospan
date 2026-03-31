@@ -148,17 +148,47 @@ impl RecordTransformer {
     ) -> Option<Result<serde_json::Value>> {
         let morphism = self.tangled_morphisms.get(tangled_nsid)?;
         let result = apply_morphism(morphism, record);
-        if let Ok(ref json) = result {
-            tracing::debug!(
-                tangled = tangled_nsid,
-                cospan = %morphism.cospan_nsid,
-                has_repo_did = json.get("repoDid").is_some(),
-                has_repo = json.get("repo").is_some(),
-                keys = ?json.as_object().map(|o| o.keys().collect::<Vec<_>>()),
-                "tangled transform output"
-            );
+        // The compiled morphism includes DB projection field transforms
+        // (AT-URI decomposition, renames, etc.) but lift_wtype_sigma may not
+        // apply them due to vertex key mismatches in cross-schema morphisms.
+        // Post-process to ensure AT-URI fields are decomposed.
+        match result {
+            Ok(mut json) => {
+                post_process_uris(&mut json);
+                Some(Ok(json))
+            }
+            Err(e) => Some(Err(e)),
         }
-        Some(result)
+    }
+}
+
+/// Decompose AT-URI fields that the DB projection should have handled.
+/// For records with a `repo` field containing an AT-URI, extract `repoDid` and `repoName`.
+fn post_process_uris(json: &mut serde_json::Value) {
+    let obj = match json.as_object_mut() {
+        Some(o) => o,
+        None => return,
+    };
+
+    // repo AT-URI → repoDid + repoName
+    if let Some(repo_uri) = obj.get("repo").and_then(|v| v.as_str()).map(String::from) {
+        if let Some(parsed) = crate::at_uri::parse(&repo_uri) {
+            obj.insert("repoDid".to_string(), serde_json::Value::String(parsed.did));
+            obj.insert("repoName".to_string(), serde_json::Value::String(parsed.rkey));
+        }
+        obj.remove("repo");
+    }
+
+    // issue AT-URI → issueUri
+    if let Some(issue_uri) = obj.get("issue").and_then(|v| v.as_str()).map(String::from) {
+        obj.insert("issueUri".to_string(), serde_json::Value::String(issue_uri));
+        obj.remove("issue");
+    }
+
+    // pull AT-URI → pullUri
+    if let Some(pull_uri) = obj.get("pull").and_then(|v| v.as_str()).map(String::from) {
+        obj.insert("pullUri".to_string(), serde_json::Value::String(pull_uri));
+        obj.remove("pull");
     }
 }
 
