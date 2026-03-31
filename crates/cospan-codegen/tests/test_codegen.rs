@@ -104,3 +104,55 @@ fn all_lexicon_files_found() {
         files.len()
     );
 }
+
+#[test]
+fn tangled_issue_transform_decomposes_repo_uri() {
+    let root = workspace_root();
+    let lexicons_dir = root.join("packages/lexicons");
+    let morphisms = cospan_codegen::tangled_interop::compile_all_morphisms(&lexicons_dir).unwrap();
+
+    let issue_morphism = morphisms
+        .iter()
+        .find(|m| m.tangled_nsid == "sh.tangled.repo.issue")
+        .expect("should have sh.tangled.repo.issue morphism");
+
+    // Simulate a Tangled issue record
+    let record = serde_json::json!({
+        "$type": "sh.tangled.repo.issue",
+        "repo": "at://did:plc:abc123/sh.tangled.repo/myrepo",
+        "title": "Test issue",
+        "body": "Test body",
+        "createdAt": "2026-01-01T00:00:00Z"
+    });
+
+    // Parse against the Tangled schema (body vertex, not record vertex)
+    let body_vertex = format!("{}:body", issue_morphism.tangled_nsid);
+    let instance = panproto_inst::parse::parse_json(
+        &issue_morphism.tangled_schema,
+        &body_vertex,
+        &record,
+    )
+    .expect("should parse Tangled issue");
+
+    // Apply morphism (includes field transforms)
+    let lifted = panproto_mig::lift_wtype_sigma(
+        &issue_morphism.compiled,
+        &issue_morphism.cospan_schema,
+        &instance,
+    )
+    .expect("should lift");
+
+    // Emit JSON
+    let output = panproto_inst::parse::to_json(&issue_morphism.cospan_schema, &lifted);
+
+    eprintln!("Transform output: {}", serde_json::to_string_pretty(&output).unwrap());
+
+    // The repo AT-URI should be decomposed into repoDid + repoName
+    assert!(
+        output.get("repoDid").is_some(),
+        "should have repoDid field, got keys: {:?}",
+        output.as_object().map(|o| o.keys().collect::<Vec<_>>())
+    );
+    assert_eq!(output["repoDid"], "did:plc:abc123");
+    assert_eq!(output["repoName"], "myrepo");
+}

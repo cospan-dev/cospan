@@ -147,18 +147,7 @@ impl RecordTransformer {
         record: &serde_json::Value,
     ) -> Option<Result<serde_json::Value>> {
         let morphism = self.tangled_morphisms.get(tangled_nsid)?;
-        let result = apply_morphism(morphism, record);
-        if tangled_nsid == "sh.tangled.repo.issue" {
-            if let Ok(ref json) = result {
-                tracing::info!(
-                    has_repo_did = json.get("repoDid").is_some(),
-                    has_repo = json.get("repo").is_some(),
-                    keys = ?json.as_object().map(|o| o.keys().collect::<Vec<_>>()),
-                    "ISSUE transform output"
-                );
-            }
-        }
-        Some(result)
+        Some(apply_morphism(morphism, record))
     }
 }
 
@@ -169,7 +158,9 @@ fn apply_projection(
     nsid: &str,
     record: &serde_json::Value,
 ) -> Result<serde_json::Value> {
-    let instance = panproto_inst::parse::parse_json(schema, nsid, record)
+    // Jetstream delivers the record body, so parse from the body vertex.
+    let body_vertex = format!("{nsid}:body");
+    let instance = panproto_inst::parse::parse_json(schema, &body_vertex, record)
         .map_err(|e| anyhow::anyhow!("parse {nsid}: {e:?}"))?;
 
     let lifted = lift_wtype_sigma(compiled, schema, &instance)
@@ -183,8 +174,11 @@ fn apply_morphism(
     mapping: &CompiledInterop,
     record: &serde_json::Value,
 ) -> Result<serde_json::Value> {
+    // Jetstream delivers the record body (not the full ATProto record wrapper),
+    // so parse from the body vertex, not the record vertex.
+    let body_vertex = format!("{}:body", mapping.tangled_nsid);
     let instance =
-        panproto_inst::parse::parse_json(&mapping.tangled_schema, &mapping.tangled_nsid, record)
+        panproto_inst::parse::parse_json(&mapping.tangled_schema, &body_vertex, record)
             .map_err(|e| anyhow::anyhow!("parse {}: {e:?}", mapping.tangled_nsid))?;
 
     let lifted =
