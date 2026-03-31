@@ -64,6 +64,17 @@
 	let searching = $state(false);
 	let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
+	// React to search query changes with debounce
+	let lastSearchQuery = $state('');
+	$effect(() => {
+		const q = searchQuery;
+		if (q === lastSearchQuery) return;
+		lastSearchQuery = q;
+		if (searchTimer) clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => doSearch(q), 300);
+		return () => { if (searchTimer) clearTimeout(searchTimer); };
+	});
+
 	async function loadMore() {
 		if (!cursor || loadingMore) return;
 		loadingMore = true;
@@ -100,11 +111,6 @@
 		} finally {
 			searching = false;
 		}
-	}
-
-	function onSearchInput() {
-		if (searchTimer) clearTimeout(searchTimer);
-		searchTimer = setTimeout(() => doSearch(searchQuery), 300);
 	}
 
 	function getHandle(did: string): string {
@@ -226,7 +232,6 @@
 				<input
 					type="text"
 					bind:value={searchQuery}
-					oninput={onSearchInput}
 					placeholder="Search all repos…"
 					class="w-full rounded-md border border-line bg-surface py-1.5 pl-9 pr-3 text-[13px] text-ink placeholder:text-ghost focus:border-focus/50 focus:outline-none transition-colors"
 				/>
