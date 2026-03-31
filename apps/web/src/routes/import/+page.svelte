@@ -93,7 +93,7 @@
 		}
 		searching = true;
 		try {
-			const result = await listRepos({ query, limit: 30 });
+			const result = await listRepos({ query, source: 'tangled', limit: 30 });
 			allRepos = result.items;
 			cursor = result.cursor;
 			resolveAllHandles(result.items);

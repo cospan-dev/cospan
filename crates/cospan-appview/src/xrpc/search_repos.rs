@@ -21,7 +21,7 @@ pub async fn handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let limit = params.limit.unwrap_or(25).min(100);
 
-    let repos = db::repo::search(&state.db, &params.q, limit + 1, params.cursor.as_deref()).await?;
+    let repos = db::repo::search(&state.db, &params.q, None, limit + 1, params.cursor.as_deref()).await?;
 
     let has_more = repos.len() as i64 > limit;
     let repos: Vec<_> = repos.into_iter().take(limit as usize).collect();

@@ -27,7 +27,7 @@ pub async fn handler(
 
     let repos = if let Some(query) = &params.query {
         if !query.trim().is_empty() {
-            db::repo::search(&state.db, query, limit + 1, params.cursor.as_deref()).await?
+            db::repo::search(&state.db, query, params.source.as_deref(), limit + 1, params.cursor.as_deref()).await?
         } else {
             db::repo::list_recent(&state.db, limit + 1, params.cursor.as_deref()).await?
         }
