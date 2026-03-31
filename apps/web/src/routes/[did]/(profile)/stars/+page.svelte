@@ -1,5 +1,4 @@
 <script lang="ts">
-	import ProfileHeader from '$lib/components/shared/ProfileHeader.svelte';
 	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import { timeAgo } from '$lib/utils/time.js';
 
@@ -11,7 +10,6 @@
 </svelte:head>
 
 <section>
-	<ProfileHeader profile={data.profile} did={data.did} />
 
 	<!-- Starred repos -->
 	{#if data.stars.items.length === 0}

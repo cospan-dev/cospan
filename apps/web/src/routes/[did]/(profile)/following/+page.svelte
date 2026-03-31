@@ -1,5 +1,4 @@
 <script lang="ts">
-	import ProfileHeader from '$lib/components/shared/ProfileHeader.svelte';
 	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 
 	let { data } = $props();
@@ -10,7 +9,6 @@
 </svelte:head>
 
 <section>
-	<ProfileHeader profile={data.profile} did={data.did} />
 
 	<!-- Following list -->
 	{#if data.following.items.length === 0}
