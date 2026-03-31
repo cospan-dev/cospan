@@ -4,10 +4,12 @@ import { getIssue, getIssueTimeline } from '$lib/api/issue.js';
 
 export const load: PageServerLoad = async ({ params }) => {
 	try {
-		const [issue, timeline] = await Promise.all([
-			getIssue({ did: params.did, repo: params.repo, rkey: params.rkey }),
-			getIssueTimeline({ did: params.did, repo: params.repo, rkey: params.rkey, limit: 50 })
-		]);
+		const issue = await getIssue({ did: params.did, repo: params.repo, rkey: params.rkey });
+
+		let timeline = { events: [] as any[], cursor: null as string | null };
+		try {
+			timeline = await getIssueTimeline({ did: params.did, repo: params.repo, rkey: params.rkey, limit: 50 });
+		} catch {}
 
 		return {
 			did: params.did,

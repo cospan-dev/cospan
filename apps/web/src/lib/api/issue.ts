@@ -77,5 +77,10 @@ export function getIssueTimeline(params: {
 	limit?: number;
 	cursor?: string;
 }): Promise<IssueTimelineResponse> {
-	return xrpcQuery<IssueTimelineResponse>('dev.cospan.repo.issue.getTimeline', params);
+	const issueUri = `at://${params.did}/dev.cospan.repo.issue/${params.rkey}`;
+	return xrpcQuery<IssueTimelineResponse>('dev.cospan.repo.issue.getTimeline', {
+		issue: issueUri,
+		limit: params.limit,
+		cursor: params.cursor,
+	});
 }
