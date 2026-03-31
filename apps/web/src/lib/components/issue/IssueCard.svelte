@@ -18,7 +18,7 @@
 		<div class="min-w-0 flex-1">
 			<h3 class="font-semibold text-text-primary">{issue.title}</h3>
 			<div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
-				<span>#{issue.rkey}</span>
+				<span>#{issue.rkey.slice(0, 7)}</span>
 				{#if issue.creatorHandle}
 					<span>opened by {issue.creatorHandle}</span>
 				{/if}

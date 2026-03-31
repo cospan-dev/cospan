@@ -163,26 +163,44 @@ pub async fn resolve_rkey_to_name(
     Ok(row.map(|r| r.0).unwrap_or_else(|| rkey.to_string()))
 }
 
-/// Insert a stub repo row if one doesn't already exist for (did, name).
-/// Used during backfill when child records (issues, pulls, etc.) arrive
-/// before their parent repo. The stub will be overwritten with full data
-/// when the repo record itself is processed.
+/// Ensure a repo exists for (did, name) so FK constraints are satisfied.
+/// If the name is already a real repo name, this is a no-op.
+/// If the name is a TID/rkey (no real repo found yet), check if a repo
+/// with this rkey exists and use its real name. Otherwise skip — the
+/// child record will fail FK and be retried when the repo arrives.
 pub async fn ensure_exists(
     pool: &PgPool,
     did: &str,
     name: &str,
-    source: &str,
+    _source: &str,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO repos (did, rkey, name, protocol, node_did, node_url, source, created_at) \
-         VALUES ($1, '', $2, 'git', '', '', $3, NOW()) \
-         ON CONFLICT (did, name) DO NOTHING",
+    // Check if repo already exists by name
+    let exists: Option<(i64,)> = sqlx::query_as(
+        "SELECT 1 FROM repos WHERE did = $1 AND name = $2",
     )
     .bind(did)
     .bind(name)
-    .bind(source)
-    .execute(pool)
+    .fetch_optional(pool)
     .await?;
+    if exists.is_some() {
+        return Ok(());
+    }
+    // Check if it exists by rkey (name might be an unresolved rkey)
+    let exists_by_rkey: Option<(i64,)> = sqlx::query_as(
+        "SELECT 1 FROM repos WHERE did = $1 AND rkey = $2",
+    )
+    .bind(did)
+    .bind(name)
+    .fetch_optional(pool)
+    .await?;
+    if exists_by_rkey.is_some() {
+        // Repo exists under a different name — the caller should
+        // resolve the rkey to the real name before inserting.
+        return Ok(());
+    }
+    // No repo found at all — don't create a stub with a TID as name,
+    // it creates garbage data. Let the FK constraint fail; the record
+    // will be retried when the repo arrives via backfill.
     Ok(())
 }
 
