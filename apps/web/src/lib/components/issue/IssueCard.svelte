@@ -32,7 +32,7 @@
 				{/if}
 				<span>{timeAgo(issue.createdAt)}</span>
 			</div>
-			{#if issue.labels.length > 0}
+			{#if issue.labels?.length > 0}
 				<div class="mt-2 flex flex-wrap gap-1">
 					{#each issue.labels as label}
 						<LabelBadge name={label} color={labelColors[label] ?? '#6b7280'} />
