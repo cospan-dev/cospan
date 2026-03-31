@@ -65,14 +65,15 @@
 	let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// React to search query changes with debounce
-	let lastSearchQuery = $state('');
+	let mounted = false;
+	onMount(() => { mounted = true; });
 	$effect(() => {
 		const q = searchQuery;
-		if (q === lastSearchQuery) return;
-		lastSearchQuery = q;
+		if (!mounted) return;
 		if (searchTimer) clearTimeout(searchTimer);
-		searchTimer = setTimeout(() => doSearch(q), 300);
-		return () => { if (searchTimer) clearTimeout(searchTimer); };
+		searchTimer = setTimeout(() => {
+			doSearch(q);
+		}, 300);
 	});
 
 	async function loadMore() {

@@ -25,7 +25,7 @@ export async function xrpcQuery<T>(
 	params?: Record<string, string | number | undefined>
 ): Promise<T> {
 	const base = getAppviewUrl();
-	const url = new URL(`/xrpc/${nsid}`, base || 'http://localhost:3000');
+	const url = new URL(`/xrpc/${nsid}`, base || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'));
 
 	if (params) {
 		for (const [key, value] of Object.entries(params)) {
