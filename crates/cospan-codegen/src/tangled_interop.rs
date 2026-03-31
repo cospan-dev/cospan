@@ -536,23 +536,41 @@ fn compile_one(
     let mut compiled = panproto_mig::compile(&tangled_schema, &cospan_schema, &migration)
         .map_err(|e| anyhow::anyhow!("compile: {e:?}"))?;
 
+    // Field transforms must be keyed by SOURCE (Tangled) vertex names because
+    // lift_wtype_sigma looks them up by `child_node.anchor` before remapping.
+    // Both tangled_transforms and db_transforms return Cospan vertex keys,
+    // so we remap them to the corresponding Tangled source vertex.
+    let reverse_vertex_map: HashMap<Name, Name> = migration
+        .vertex_map
+        .iter()
+        .map(|(src, tgt)| (tgt.clone(), src.clone()))
+        .collect();
+
     // Inject Tangled-specific field transforms (type coercions, semantic mappings)
     let tangled_transforms =
         crate::db_projection::tangled_transforms(m.tangled_nsid, m.cospan_nsid);
-    for (vertex, transforms) in tangled_transforms {
+    for (cospan_vertex, transforms) in tangled_transforms {
+        let key = reverse_vertex_map
+            .get(&cospan_vertex)
+            .cloned()
+            .unwrap_or(cospan_vertex);
         compiled
             .field_transforms
-            .entry(vertex)
+            .entry(key)
             .or_default()
             .extend(transforms);
     }
 
     // Inject DB projection field transforms (AT-URI decomposition, renames, etc.)
     let db_transforms = crate::db_projection::db_transforms(m.cospan_nsid);
-    for (vertex, transforms) in db_transforms {
+    for (cospan_vertex, transforms) in db_transforms {
+        let key = reverse_vertex_map
+            .get(&cospan_vertex)
+            .cloned()
+            .unwrap_or(cospan_vertex);
         compiled
             .field_transforms
-            .entry(vertex)
+            .entry(key)
             .or_default()
             .extend(transforms);
     }
