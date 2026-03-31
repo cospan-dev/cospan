@@ -191,44 +191,22 @@ pub async fn search(
     query: &str,
     source: Option<&str>,
     limit: i64,
-    cursor: Option<&str>,
+    _cursor: Option<&str>,
 ) -> Result<Vec<RepoRow>, sqlx::Error> {
-    let source_clause = if source.is_some() { "AND source = $4" } else { "" };
-    if let Some(cursor_ts) = cursor {
-        let ts: DateTime<Utc> = cursor_ts
-            .parse()
-            .map_err(|_| sqlx::Error::Protocol("invalid cursor".into()))?;
-        let sql = format!(
-            "SELECT did, rkey, name, description, protocol, node_did, node_url, \
-                  default_branch, visibility, source_repo, star_count, fork_count, \
-                  open_issue_count, open_mr_count, source, source_uri, created_at, indexed_at \
-             FROM repos \
-             WHERE to_tsvector('english', coalesce(name, '') || ' ' || coalesce(description, '')) \
-                   @@ plainto_tsquery('english', $1) \
-                   AND created_at < $2 {source_clause} \
-             ORDER BY star_count DESC, created_at DESC LIMIT $3"
-        );
-        let mut q = sqlx::query_as::<_, RepoRow>(&sql)
-            .bind(query)
-            .bind(ts)
-            .bind(limit);
-        if let Some(s) = source { q = q.bind(s); }
-        q.fetch_all(pool).await
-    } else {
-        let source_clause = if source.is_some() { "AND source = $3" } else { "" };
-        let sql = format!(
-            "SELECT did, rkey, name, description, protocol, node_did, node_url, \
-                  default_branch, visibility, source_repo, star_count, fork_count, \
-                  open_issue_count, open_mr_count, source, source_uri, created_at, indexed_at \
-             FROM repos \
-             WHERE to_tsvector('english', coalesce(name, '') || ' ' || coalesce(description, '')) \
-                   @@ plainto_tsquery('english', $1) {source_clause} \
-             ORDER BY star_count DESC, created_at DESC LIMIT $2"
-        );
-        let mut q = sqlx::query_as::<_, RepoRow>(&sql)
-            .bind(query)
-            .bind(limit);
-        if let Some(s) = source { q = q.bind(s); }
-        q.fetch_all(pool).await
-    }
+    let pattern = format!("%{query}%");
+    let source_clause = if source.is_some() { "AND source = $3" } else { "" };
+    let sql = format!(
+        "SELECT did, rkey, name, description, protocol, node_did, node_url, \
+              default_branch, visibility, source_repo, star_count, fork_count, \
+              open_issue_count, open_mr_count, source, source_uri, created_at, indexed_at \
+         FROM repos \
+         WHERE (name ILIKE $1 OR coalesce(description, '') ILIKE $1) \
+         {source_clause} \
+         ORDER BY star_count DESC, created_at DESC LIMIT $2"
+    );
+    let mut q = sqlx::query_as::<_, RepoRow>(&sql)
+        .bind(&pattern)
+        .bind(limit);
+    if let Some(s) = source { q = q.bind(s); }
+    q.fetch_all(pool).await
 }
