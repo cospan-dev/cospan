@@ -1,10 +1,9 @@
 <script lang="ts">
-	import type { Issue } from '$lib/api/issue.js';
+	import type { IssueView } from '$lib/generated/views.js';
 	import StateBadge from '$lib/components/shared/StateBadge.svelte';
-	import LabelBadge from '$lib/components/shared/LabelBadge.svelte';
 	import { timeAgo } from '$lib/utils/time.js';
 
-	let { issue, basePath, labelColors = {} }: { issue: Issue; basePath: string; labelColors?: Record<string, string> } = $props();
+	let { issue, basePath }: { issue: IssueView; basePath: string } = $props();
 </script>
 
 <a
@@ -19,9 +18,6 @@
 			<h3 class="font-semibold text-text-primary">{issue.title}</h3>
 			<div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
 				<span>#{issue.rkey.slice(0, 7)}</span>
-				{#if issue.creatorHandle}
-					<span>opened by {issue.creatorHandle}</span>
-				{/if}
 				{#if issue.commentCount > 0}
 					<span class="flex items-center gap-1">
 						<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -32,13 +28,6 @@
 				{/if}
 				<span>{timeAgo(issue.createdAt)}</span>
 			</div>
-			{#if issue.labels?.length > 0}
-				<div class="mt-2 flex flex-wrap gap-1">
-					{#each issue.labels as label}
-						<LabelBadge name={label} color={labelColors[label] ?? '#6b7280'} />
-					{/each}
-				</div>
-			{/if}
 		</div>
 	</div>
 </a>

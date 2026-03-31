@@ -69,7 +69,7 @@
 							<p class="mt-2 text-sm text-text-secondary line-clamp-2">{release.body}</p>
 						{/if}
 					</div>
-					{#if release.artifacts.length > 0}
+					{#if release.artifacts?.length > 0}
 						<div class="shrink-0 text-right text-xs text-text-secondary">
 							<span>{release.artifacts.length} artifact{release.artifacts.length !== 1 ? 's' : ''}</span>
 						</div>

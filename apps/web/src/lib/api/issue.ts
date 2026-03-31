@@ -1,50 +1,18 @@
 import { xrpcQuery } from './client.js';
+import type { IssueView, IssueCommentView, IssueStateView, IssueListResponse as RawIssueListResponse } from '$lib/generated/views.js';
 
-export interface Issue {
-	rkey: string;
-	repo: string;
-	did: string;
-	title: string;
-	body: string | null;
-	state: 'open' | 'closed';
-	labels: string[];
-	commentCount: number;
-	creatorDid: string;
-	creatorHandle: string | null;
-	createdAt: string;
-	updatedAt: string;
-}
+export type Issue = IssueView;
+export type IssueComment = IssueCommentView;
+export type IssueStateChange = IssueStateView;
 
 export interface IssueListResponse {
 	items: Issue[];
 	cursor: string | null;
 }
 
-export interface IssueComment {
-	rkey: string;
-	issue: string;
-	body: string;
-	creatorDid: string;
-	creatorHandle: string | null;
-	createdAt: string;
-}
-
-export interface IssueStateChange {
-	rkey: string;
-	issue: string;
-	state: 'open' | 'closed';
-	reason: string | null;
-	actorDid: string;
-	actorHandle: string | null;
-	createdAt: string;
-}
-
-export type TimelineEvent =
-	| { type: 'comment'; data: IssueComment }
-	| { type: 'stateChange'; data: IssueStateChange };
-
+// Timeline is a composite type — not directly generated from a single Row
 export interface IssueTimelineResponse {
-	events: TimelineEvent[];
+	timeline: Record<string, unknown>[];
 	cursor: string | null;
 }
 
@@ -55,7 +23,7 @@ export async function listIssues(params: {
 	limit?: number;
 	cursor?: string;
 }): Promise<IssueListResponse> {
-	const raw = await xrpcQuery<{ issues: Issue[]; cursor: string | null }>(
+	const raw = await xrpcQuery<RawIssueListResponse>(
 		'dev.cospan.repo.issue.list',
 		params
 	);

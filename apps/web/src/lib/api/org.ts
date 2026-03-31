@@ -1,14 +1,16 @@
 import { xrpcQuery } from './client.js';
+import type {
+	OrgView,
+	OrgMemberView,
+	OrgListResponse as RawOrgListResponse,
+	OrgMemberListResponse as RawOrgMemberListResponse,
+} from '$lib/generated/views.js';
 
-export interface OrgSummary {
-	did: string;
-	rkey: string;
-	name: string;
-	description: string | null;
+// The list endpoint returns enriched orgs with counts and avatarUrl.
+export interface OrgSummary extends OrgView {
 	avatarUrl: string | null;
 	memberCount: number;
 	repoCount: number;
-	createdAt: string;
 }
 
 export interface OrgListResponse {
@@ -16,11 +18,10 @@ export interface OrgListResponse {
 	cursor: string | null;
 }
 
-export interface OrgMember {
-	did: string;
+// The list endpoint returns enriched members with handle and displayName.
+export interface OrgMember extends OrgMemberView {
 	handle: string | null;
 	displayName: string | null;
-	role: 'admin' | 'member';
 	joinedAt: string;
 }
 
@@ -33,7 +34,7 @@ export async function listOrgs(params?: {
 	limit?: number;
 	cursor?: string;
 }): Promise<OrgListResponse> {
-	const raw = await xrpcQuery<{ orgs: OrgSummary[]; cursor: string | null }>('dev.cospan.org.list', params);
+	const raw = await xrpcQuery<RawOrgListResponse & { orgs: OrgSummary[] }>('dev.cospan.org.list', params);
 	return { items: raw.orgs ?? [], cursor: raw.cursor ?? null };
 }
 
@@ -47,6 +48,6 @@ export async function listOrgMembers(params: {
 	limit?: number;
 	cursor?: string;
 }): Promise<OrgMemberListResponse> {
-	const raw = await xrpcQuery<{ members: OrgMember[]; cursor: string | null }>('dev.cospan.org.member.list', params);
+	const raw = await xrpcQuery<RawOrgMemberListResponse & { members: OrgMember[] }>('dev.cospan.org.member.list', params);
 	return { items: raw.members ?? [], cursor: raw.cursor ?? null };
 }

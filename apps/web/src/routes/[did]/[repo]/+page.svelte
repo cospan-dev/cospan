@@ -5,7 +5,7 @@
 	import ForkButton from '$lib/components/shared/ForkButton.svelte';
 	import { getAuth } from '$lib/stores/auth.svelte';
 	import { resolveHandle } from '$lib/api/handle.js';
-	import type { RefUpdate } from '$lib/api/ref-update.js';
+	import type { RefUpdateView } from '$lib/generated/views.js';
 
 	let { data } = $props();
 
@@ -23,17 +23,7 @@
 
 	let isTangled = $derived(data.repo?.source === 'tangled');
 
-	let refItems = $derived((data.refUpdates?.items ?? []) as RefUpdate[]);
-
-	// Check if any refUpdates have algebraic check data
-	let hasAlgebraicChecks = $derived(
-		refItems.some((r) => r.algebraicChecks)
-	);
-
-	let latestChecks = $derived.by(() => {
-		const withChecks = refItems.find((r) => r.algebraicChecks);
-		return withChecks?.algebraicChecks ?? null;
-	});
+	let refItems = $derived((data.refUpdates?.items ?? []) as RefUpdateView[]);
 
 	let breakingChangeCount = $derived(
 		refItems.reduce((sum, r) => sum + (r.breakingChangeCount ?? 0), 0)
@@ -104,24 +94,10 @@
 	</div>
 
 	<!-- Schema Health card -->
-	{#if hasAlgebraicChecks || breakingChangeCount > 0 || lensQuality !== null}
+	{#if breakingChangeCount > 0 || lensQuality !== null}
 		<div class="mb-6 rounded-lg border border-border bg-surface-0 p-4">
 			<h3 class="mb-2 text-xs font-medium uppercase tracking-wider text-text-muted">Schema Health</h3>
 			<div class="flex flex-wrap items-center gap-4 text-sm">
-				{#if latestChecks}
-					<span class="{latestChecks.gatTypeCheck === 'pass' ? 'text-success' : 'text-danger'}">
-						GAT {latestChecks.gatTypeCheck === 'pass' ? '&#10003;' : '&#10007;'}
-					</span>
-					<span class="{latestChecks.equationVerification === 'pass' ? 'text-success' : 'text-danger'}">
-						Equations {latestChecks.equationVerification === 'pass' ? '&#10003;' : '&#10007;'}
-					</span>
-					<span class="{latestChecks.lensLawCheck === 'pass' ? 'text-success' : 'text-danger'}">
-						Lens Laws {latestChecks.lensLawCheck === 'pass' ? '&#10003;' : '&#10007;'}
-					</span>
-					<span class="{latestChecks.breakingChangeCheck === 'pass' ? 'text-success' : 'text-danger'}">
-						Breaking {latestChecks.breakingChangeCheck === 'pass' ? '&#10003;' : '&#10007;'}
-					</span>
-				{/if}
 				{#if lensQuality !== null}
 					<span class="text-text-secondary">
 						Lens quality: <span class="font-mono font-medium text-text-primary">{(lensQuality * 100).toFixed(0)}%</span>

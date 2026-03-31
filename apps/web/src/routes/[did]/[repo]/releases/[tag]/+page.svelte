@@ -54,7 +54,7 @@
 		</div>
 	{/if}
 
-	{#if data.release.artifacts.length > 0}
+	{#if data.release.artifacts?.length > 0}
 		<div class="mt-6">
 			<h2 class="mb-3 text-sm font-medium text-text-primary">Assets</h2>
 			<div class="divide-y divide-border rounded-lg border border-border bg-surface-1">

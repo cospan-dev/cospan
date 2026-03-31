@@ -12,6 +12,7 @@
 mod db_projection;
 mod emit_rows;
 mod emit_sql;
+mod emit_typescript_views;
 mod emit_xrpc;
 mod morphism;
 mod record_config;
@@ -257,6 +258,32 @@ fn main() -> Result<()> {
         generated_dir.join("interop/db_projections.msgpack"),
         rmp_serde::to_vec(&db_projections)?,
     )?;
+
+    // --- Generate TypeScript view types (API response shapes) ---
+    {
+        let configs = record_config::all_record_configs();
+        let mut schema_pairs: Vec<(panproto_schema::Schema, String)> = Vec::new();
+        for config in &configs {
+            for lexicon_path in &lexicon_files {
+                let json_str = fs::read_to_string(lexicon_path)?;
+                let json: serde_json::Value = serde_json::from_str(&json_str)?;
+                let nsid = json.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
+                if nsid == config.nsid {
+                    let schema = atproto::parse_lexicon(&json)?;
+                    schema_pairs.push((schema, nsid.to_string()));
+                    break;
+                }
+            }
+        }
+        let views_ts = emit_typescript_views::emit_all_views(&schema_pairs, &configs);
+        fs::write(generated_dir.join("typescript/views.ts"), &views_ts)?;
+
+        // Copy to web app for direct import
+        let web_gen_dir = workspace_root.join("apps/web/src/lib/generated");
+        fs::create_dir_all(&web_gen_dir)?;
+        fs::write(web_gen_dir.join("views.ts"), &views_ts)?;
+        println!("  generated/typescript/views.ts                   (TypeScript view types)");
+    }
 
     // Write generated files (reference copies in generated/)
     fs::write(generated_dir.join("rust/types.rs"), &all_rust)?;

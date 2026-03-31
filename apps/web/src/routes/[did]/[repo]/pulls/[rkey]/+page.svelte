@@ -34,7 +34,7 @@
 
 	<div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
 		<span>
-			{data.pull.creatorHandle ?? data.pull.creatorDid} wants to merge
+			{data.pull.did} wants to merge
 		</span>
 		<span class="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-accent">
 			{sourceLabel}
@@ -48,39 +48,11 @@
 	</div>
 </div>
 
-{#if data.pull.mergePreview}
-	<div class="mb-6 rounded-lg border border-border bg-surface-1 p-4">
-		<h2 class="mb-3 text-sm font-medium text-text-primary">Merge Preview</h2>
-		<div class="flex flex-wrap items-center gap-4 text-sm">
-			{#if data.pull.mergePreview.autoMergeEligible}
-				<span class="rounded-full bg-compatible/15 px-2 py-0.5 text-xs font-medium text-compatible">
-					Auto-merge eligible
-				</span>
-			{:else}
-				<span class="rounded-full bg-breaking/15 px-2 py-0.5 text-xs font-medium text-breaking">
-					Manual merge required
-				</span>
-			{/if}
-			{#if data.pull.mergePreview.lensQuality !== null}
-				<span class="text-text-secondary">
-					Lens quality: {(data.pull.mergePreview.lensQuality * 100).toFixed(0)}%
-				</span>
-			{/if}
-			<span class="text-text-secondary">
-				Breaking changes: {data.pull.mergePreview.breakingChangeCount}
-			</span>
-			<span class="text-text-secondary">
-				Conflicts: {data.pull.mergePreview.conflictCount}
-			</span>
-		</div>
-	</div>
-{/if}
-
 {#if data.pull.body}
 	<div class="mb-6 rounded-lg border border-border bg-surface-1">
 		<div class="flex items-center gap-2 border-b border-border px-4 py-2">
 			<span class="text-sm font-medium text-text-primary">
-				{data.pull.creatorHandle ?? data.pull.creatorDid}
+				{data.pull.did}
 			</span>
 			<span class="text-xs text-text-secondary">
 				opened {timeAgo(data.pull.createdAt)}
@@ -105,7 +77,7 @@
 				<div class="rounded-lg border border-border bg-surface-1">
 					<div class="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
 						<span class="text-sm font-medium text-text-primary">
-							{comment.creatorHandle ?? comment.creatorDid}
+							{comment.did}
 						</span>
 						{#if comment.reviewDecision}
 							{#if comment.reviewDecision === 'approve'}

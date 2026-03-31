@@ -16,22 +16,22 @@ repository = "https://github.com/cospan-dev/cospan"
 # panproto — all from git because panproto-grammars needs vendored C sources
 # (too large for crates.io). All crates must come from the same source to avoid
 # type mismatches between git and crates.io versions of panproto-schema etc.
-panproto-core = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-vcs = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-schema = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-check = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-lens = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-protocols = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-io = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-inst = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-gat = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-mig = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-expr = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-expr-parser = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-xrpc = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-parse = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0", features = ["group-all"] }
-panproto-git = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
-panproto-project = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.0" }
+panproto-core = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-vcs = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-schema = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-check = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-lens = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-protocols = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-io = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-inst = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-gat = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-mig = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-expr = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-expr-parser = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-xrpc = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-parse = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1", features = ["group-all"] }
+panproto-git = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
+panproto-project = { git = "https://github.com/panproto/panproto.git", tag = "v0.22.1" }
 git2 = "0.20"
 
 # Web framework

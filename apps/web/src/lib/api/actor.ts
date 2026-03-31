@@ -1,10 +1,10 @@
 import { xrpcQuery } from './client.js';
+import type { ActorProfileView } from '$lib/generated/views.js';
 
-export interface ActorProfile {
-	did: string;
+// The getProfile endpoint returns an enriched view with counts and a resolved handle.
+// These fields are not on the base ActorProfileView Row.
+export interface ActorProfile extends ActorProfileView {
 	handle: string;
-	displayName: string | null;
-	description: string | null;
 	avatarUrl: string | null;
 	followerCount: number;
 	followingCount: number;

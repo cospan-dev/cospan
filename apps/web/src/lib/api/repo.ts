@@ -1,31 +1,10 @@
 import { xrpcQuery } from './client.js';
+import type { RepoView, RepoListResponse as RawRepoListResponse } from '$lib/generated/views.js';
 
-export interface Repo {
-	did: string;
-	name: string;
-	description: string | null;
-	protocol: string;
-	starCount: number;
-	forkCount: number;
-	openIssueCount: number;
-	openMrCount: number;
-	source: string;
-	sourceUri: string | null;
-	sourceRepo: string | null;
-	nodeDid: string;
-	nodeUrl: string;
-	defaultBranch: string;
-	visibility: string;
-	createdAt: string;
-}
+export type Repo = RepoView;
 
 export interface RepoListResponse {
 	items: Repo[];
-	cursor: string | null;
-}
-
-interface RawRepoListResponse {
-	repos: Repo[];
 	cursor: string | null;
 }
 

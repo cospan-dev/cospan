@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { RefUpdate } from '$lib/api/ref-update.js';
+	import type { RefUpdateView } from '$lib/generated/views.js';
 
-	let { refUpdates }: { refUpdates: RefUpdate[] } = $props();
+	let { refUpdates }: { refUpdates: RefUpdateView[] } = $props();
 
 	function truncateHash(hash: string): string {
 		return hash.slice(0, 8);
@@ -32,9 +32,9 @@
 							{truncateHash(update.newTarget)}
 						</code>
 					</div>
-					{#if update.committerHandle}
+					{#if update.committerDid}
 						<p class="mt-0.5 text-sm text-text-secondary">
-							{update.committerHandle}
+							{update.committerDid}
 						</p>
 					{/if}
 				</div>

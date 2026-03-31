@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import StateBadge from '$lib/components/shared/StateBadge.svelte';
-	import LabelBadge from '$lib/components/shared/LabelBadge.svelte';
 	import Timeline from '$lib/components/shared/Timeline.svelte';
 	import BackLink from '$lib/components/shared/BackLink.svelte';
 	import { timeAgo } from '$lib/utils/time.js';
@@ -34,25 +33,17 @@
 
 	<div class="mt-2 flex flex-wrap items-center gap-3 text-sm text-text-secondary">
 		<span>
-			{data.issue.creatorHandle ?? data.issue.creatorDid} opened this {timeAgo(data.issue.createdAt)}
+			{data.issue.did} opened this {timeAgo(data.issue.createdAt)}
 		</span>
 		<span>{data.issue.commentCount} comments</span>
 	</div>
-
-	{#if data.issue.labels.length > 0}
-		<div class="mt-3 flex flex-wrap gap-1">
-			{#each data.issue.labels as label}
-				<LabelBadge name={label} />
-			{/each}
-		</div>
-	{/if}
 </div>
 
 {#if data.issue.body}
 	<div class="mb-6 rounded-lg border border-border bg-surface-1">
 		<div class="flex items-center gap-2 border-b border-border px-4 py-2">
 			<span class="text-sm font-medium text-text-primary">
-				{data.issue.creatorHandle ?? data.issue.creatorDid}
+				{data.issue.did}
 			</span>
 			<span class="text-xs text-text-secondary">
 				opened {timeAgo(data.issue.createdAt)}

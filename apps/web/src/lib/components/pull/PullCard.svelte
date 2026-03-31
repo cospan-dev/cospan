@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { Pull } from '$lib/api/pull.js';
+	import type { PullView } from '$lib/generated/views.js';
 	import StateBadge from '$lib/components/shared/StateBadge.svelte';
 	import { timeAgo } from '$lib/utils/time.js';
 
-	let { pull, basePath }: { pull: Pull; basePath: string } = $props();
+	let { pull, basePath }: { pull: PullView; basePath: string } = $props();
 
 	let sourceLabel = $derived(pull.sourceRef.replace('refs/heads/', ''));
 	let targetLabel = $derived(pull.targetRef.replace('refs/heads/', ''));
@@ -34,9 +34,7 @@
 
 			<div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
 				<span>#{pull.rkey}</span>
-				{#if pull.creatorHandle}
-					<span>opened by {pull.creatorHandle}</span>
-				{/if}
+				<span>opened by {pull.did}</span>
 				{#if pull.commentCount > 0}
 					<span class="flex items-center gap-1">
 						<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -48,28 +46,6 @@
 				<span>{timeAgo(pull.createdAt)}</span>
 			</div>
 
-			{#if pull.mergePreview}
-				<div class="mt-2 flex items-center gap-3 text-xs">
-					{#if pull.mergePreview.breakingChangeCount > 0}
-						<span class="text-danger font-medium">
-							{pull.mergePreview.breakingChangeCount} breaking
-						</span>
-					{/if}
-					{#if pull.mergePreview.conflictCount > 0}
-						<span class="text-warning font-medium">
-							{pull.mergePreview.conflictCount} conflicts
-						</span>
-					{/if}
-					{#if pull.mergePreview.lensQuality !== null}
-						<span class="text-text-muted">
-							lens {(pull.mergePreview.lensQuality * 100).toFixed(0)}%
-						</span>
-					{/if}
-					{#if pull.mergePreview.autoMergeEligible}
-						<span class="text-success">auto-merge eligible</span>
-					{/if}
-				</div>
-			{/if}
 		</div>
 	</div>
 </a>

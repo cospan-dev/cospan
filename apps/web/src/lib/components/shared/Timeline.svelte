@@ -1,7 +1,11 @@
 <script lang="ts">
-	import type { TimelineEvent } from '$lib/api/issue.js';
 	import StateBadge from '$lib/components/shared/StateBadge.svelte';
 	import { timeAgo } from '$lib/utils/time.js';
+
+	interface TimelineEvent {
+		type: 'comment' | 'stateChange';
+		data: Record<string, any>;
+	}
 
 	let { events }: { events: TimelineEvent[] } = $props();
 </script>

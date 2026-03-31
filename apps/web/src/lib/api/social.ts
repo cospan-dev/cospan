@@ -1,24 +1,18 @@
 import { xrpcQuery } from './client.js';
+import type {
+	StarView,
+	FollowView,
+	StarListResponse as RawStarListResponse,
+	FollowListResponse as RawFollowListResponse,
+} from '$lib/generated/views.js';
 
-export interface Star {
-	rkey: string;
-	subject: string;
-	actorDid: string;
-	actorHandle: string | null;
-	createdAt: string;
-}
+export type Star = StarView;
+export type Follow = FollowView;
 
 export interface StarListResponse {
 	items: Star[];
 	cursor: string | null;
 	totalCount: number;
-}
-
-export interface Follow {
-	did: string;
-	handle: string | null;
-	displayName: string | null;
-	avatarUrl: string | null;
 }
 
 export interface FollowListResponse {
@@ -33,11 +27,11 @@ export async function listStars(params?: {
 	limit?: number;
 	cursor?: string;
 }): Promise<StarListResponse> {
-	const raw = await xrpcQuery<{ stars: Star[]; cursor: string | null; totalCount: number }>(
+	const raw = await xrpcQuery<RawStarListResponse & { totalCount?: number }>(
 		'dev.cospan.feed.star.list',
 		params
 	);
-	return { items: raw.stars ?? [], cursor: raw.cursor ?? null, totalCount: raw.totalCount ?? 0 };
+	return { items: raw.stars ?? [], cursor: raw.cursor ?? null, totalCount: (raw as any).totalCount ?? 0 };
 }
 
 export async function listFollows(params: {
@@ -46,13 +40,13 @@ export async function listFollows(params: {
 	limit?: number;
 	cursor?: string;
 }): Promise<FollowListResponse> {
-	const raw = await xrpcQuery<{ follows: Follow[]; cursor: string | null; totalCount: number }>(
+	const raw = await xrpcQuery<RawFollowListResponse & { totalCount?: number }>(
 		'dev.cospan.graph.follow.list',
 		params
 	);
 	return {
 		items: raw.follows ?? (raw as any).items ?? [],
 		cursor: raw.cursor ?? null,
-		totalCount: raw.totalCount ?? 0
+		totalCount: (raw as any).totalCount ?? 0
 	};
 }
