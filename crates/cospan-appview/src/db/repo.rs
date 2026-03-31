@@ -146,6 +146,23 @@ pub async fn list_by_source_popular(
     }
 }
 
+/// Resolve a repo rkey to its human-readable name.
+/// Returns the rkey unchanged if no repo is found.
+pub async fn resolve_rkey_to_name(
+    pool: &PgPool,
+    did: &str,
+    rkey: &str,
+) -> Result<String, sqlx::Error> {
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT name FROM repos WHERE did = $1 AND rkey = $2",
+    )
+    .bind(did)
+    .bind(rkey)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| r.0).unwrap_or_else(|| rkey.to_string()))
+}
+
 /// Insert a stub repo row if one doesn't already exist for (did, name).
 /// Used during backfill when child records (issues, pulls, etc.) arrive
 /// before their parent repo. The stub will be overwritten with full data
