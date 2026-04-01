@@ -122,6 +122,34 @@ services:
       retries: 10
       start_period: 300s
 
+  # Tap for knot DIDs: discovers git servers via sh.tangled.knot
+  # Syncs refUpdates (commits), pipelines, and other knot-authored records
+  tap-knots:
+    image: ghcr.io/bluesky-social/indigo/tap:latest
+    container_name: cospan-tap-knots
+    restart: unless-stopped
+    environment:
+      TAP_DATABASE_URL: postgres://cospan:${POSTGRES_PASSWORD}@db:5432/tap_knots
+      TAP_BIND: ":2480"
+      TAP_SIGNAL_COLLECTION: sh.tangled.knot
+      TAP_COLLECTION_FILTERS: "sh.tangled.*,dev.cospan.*"
+      TAP_RELAY_URL: https://relay1.us-east.bsky.network
+      TAP_DISABLE_ACKS: "true"
+      TAP_LOG_LEVEL: info
+      TAP_RESYNC_PARALLELISM: "3"
+      TAP_FIREHOSE_PARALLELISM: "10"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - cospan
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:2480/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
   # ATProto AppView
   appview:
     image: ghcr.io/cospan-dev/cospan-appview:${COSPAN_VERSION:-latest}
@@ -131,7 +159,7 @@ services:
       DATABASE_URL: postgres://cospan:${POSTGRES_PASSWORD}@db:5432/cospan
       REDIS_URL: redis://redis:6379
       JETSTREAM_URL: wss://jetstream2.us-east.bsky.network/subscribe
-      TAP_URL: ws://tap:2480/channel
+      TAP_URL: ws://tap:2480/channel,ws://tap-knots:2480/channel
       APPVIEW_LISTEN: "0.0.0.0:3000"
       PUBLIC_URL: https://${DOMAIN:?DOMAIN is required}
     depends_on:
@@ -140,6 +168,8 @@ services:
       redis:
         condition: service_healthy
       tap:
+        condition: service_started
+      tap-knots:
         condition: service_started
     networks:
       - cospan

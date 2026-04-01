@@ -9,22 +9,27 @@ use crate::state::AppState;
 
 /// Run the indexer. Spawns both Jetstream (live) and Tap (backfill + live) consumers.
 pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
-    // Spawn Tap consumer if TAP_URL is configured
-    let tap_state = state.clone();
-    tokio::spawn(async move {
-        loop {
-            match tap::subscribe(&tap_state).await {
-                Ok(()) => {
-                    tracing::info!("tap connection closed, reconnecting in 5s");
+    // Spawn Tap consumers for each URL in TAP_URL (comma-separated)
+    if let Ok(tap_urls) = std::env::var("TAP_URL") {
+        for url in tap_urls.split(',').map(|s| s.trim().to_string()) {
+            if url.is_empty() { continue; }
+            let tap_state = state.clone();
+            tokio::spawn(async move {
+                loop {
+                    match tap::subscribe_to(&tap_state, &url).await {
+                        Ok(()) => {
+                            tracing::info!(url = %url, "tap connection closed, reconnecting in 5s");
+                        }
+                        Err(e) => {
+                            tracing::error!(url = %url, error = %e, "tap connection error, reconnecting in 10s");
+                            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                        }
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
-                Err(e) => {
-                    tracing::error!(error = %e, "tap connection error, reconnecting in 10s");
-                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                }
-            }
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            });
         }
-    });
+    }
 
     // Run Jetstream consumer (primary live stream with cursor persistence)
     loop {

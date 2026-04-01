@@ -13,19 +13,11 @@ use tokio_tungstenite::tungstenite::Message;
 use super::consumer;
 use crate::state::AppState;
 
-/// Subscribe to a Tap instance and process events.
-pub async fn subscribe(state: &Arc<AppState>) -> anyhow::Result<()> {
-    let tap_url = match std::env::var("TAP_URL") {
-        Ok(url) => url,
-        Err(_) => {
-            tracing::info!("TAP_URL not set, skipping Tap consumer");
-            return Ok(());
-        }
-    };
-
+/// Subscribe to a Tap instance at the given URL.
+pub async fn subscribe_to(state: &Arc<AppState>, tap_url: &str) -> anyhow::Result<()> {
     tracing::info!(url = %tap_url, "connecting to Tap");
 
-    let (ws, _) = connect_async(&tap_url).await?;
+    let (ws, _) = connect_async(tap_url).await?;
     let (_, mut read) = ws.split();
 
     let mut event_count: u64 = 0;
