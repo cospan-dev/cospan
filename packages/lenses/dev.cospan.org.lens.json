@@ -4,19 +4,24 @@
   "source": "dev.cospan.org",
   "target": "dev.cospan.org.view",
   "steps": [
-    { "remove_field": "avatar" },
+    {
+      "remove_field": "avatar"
+    },
     {
       "add_field": {
         "name": "avatarCid",
         "kind": "string",
         "default": null,
-        "expr": "path_extract(avatar, ['ref', '$link'])"
+        "expr": "field (field avatar \"ref\") \"$link\""
       }
     }
   ],
   "table": {
     "name": "orgs",
     "row_struct": "OrgRow",
-    "conflict_keys": ["did", "rkey"]
+    "conflict_keys": [
+      "did",
+      "rkey"
+    ]
   }
 }

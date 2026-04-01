@@ -4,13 +4,15 @@
   "source": "dev.cospan.repo.collaborator",
   "target": "dev.cospan.repo.collaborator.view",
   "steps": [
-    { "remove_field": "repo" },
+    {
+      "remove_field": "repo"
+    },
     {
       "add_field": {
         "name": "repoDid",
         "kind": "string",
         "default": "",
-        "expr": "head(split(replace(repo, 'at://', ''), '/'))"
+        "expr": "head (split (replace repo \"at://\" \"\") \"/\")"
       }
     },
     {
@@ -18,14 +20,22 @@
         "name": "repoName",
         "kind": "string",
         "default": "",
-        "expr": "index(split(replace(repo, 'at://', ''), '/'), 2)"
+        "expr": "head (tail (tail (split (replace repo \"at://\" \"\") \"/\")))"
       }
     },
-    { "rename_field": { "old": "member", "new": "memberDid" } }
+    {
+      "rename_field": {
+        "old": "member",
+        "new": "memberDid"
+      }
+    }
   ],
   "table": {
     "name": "collaborators",
     "row_struct": "CollaboratorRow",
-    "conflict_keys": ["did", "rkey"]
+    "conflict_keys": [
+      "did",
+      "rkey"
+    ]
   }
 }

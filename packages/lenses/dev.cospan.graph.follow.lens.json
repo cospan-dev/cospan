@@ -1,0 +1,12 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.graph.follow.db-projection",
+  "source": "dev.cospan.graph.follow",
+  "target": "dev.cospan.graph.follow.view",
+  "steps": [],
+  "table": {
+    "name": "follows",
+    "row_struct": "FollowRow",
+    "conflict_keys": ["did", "rkey"]
+  }
+}

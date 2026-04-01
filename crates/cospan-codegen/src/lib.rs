@@ -1,4 +1,3 @@
-pub mod db_projection;
 pub mod emit_rows;
 pub mod emit_sql;
 pub mod emit_typescript_views;

@@ -471,12 +471,16 @@ fn build_nsid_index(lexicons_dir: &Path) -> HashMap<String, std::path::PathBuf> 
 
 /// Compile all interop morphisms and serialize them.
 pub fn compile_all_morphisms(lexicons_dir: &Path) -> Result<Vec<CompiledInterop>> {
+    // Load lens files for field transforms
+    let lenses_dir = lexicons_dir.parent().unwrap_or(lexicons_dir).join("lenses");
+    let lenses = crate::lens_config::load_all_lenses(&lenses_dir).unwrap_or_default();
+
     let nsid_index = build_nsid_index(lexicons_dir);
     let morphisms = all_interop_morphisms();
     let mut results = Vec::new();
 
     for m in &morphisms {
-        match compile_one(lexicons_dir, m, &nsid_index) {
+        match compile_one(lexicons_dir, m, &nsid_index, &lenses) {
             Ok(compiled) => {
                 println!("  Compiled interop: {} → {}", m.tangled_nsid, m.cospan_nsid);
                 results.push(compiled);
@@ -497,6 +501,7 @@ fn compile_one(
     lexicons_dir: &Path,
     m: &InteropMorphism,
     nsid_index: &HashMap<String, std::path::PathBuf>,
+    lenses: &[crate::lens_config::LensFile],
 ) -> Result<CompiledInterop> {
     let tangled_path = nsid_index
         .get(m.tangled_nsid)
@@ -546,33 +551,41 @@ fn compile_one(
         .map(|(src, tgt)| (tgt.clone(), src.clone()))
         .collect();
 
-    // Inject Tangled-specific field transforms (type coercions, semantic mappings)
-    let tangled_transforms =
-        crate::db_projection::tangled_transforms(m.tangled_nsid, m.cospan_nsid);
-    for (cospan_vertex, transforms) in tangled_transforms {
-        let key = reverse_vertex_map
-            .get(&cospan_vertex)
-            .cloned()
-            .unwrap_or(cospan_vertex);
-        compiled
-            .field_transforms
-            .entry(key)
-            .or_default()
-            .extend(transforms);
+    // Inject field transforms from lens files (replaces db_projection.rs)
+    let cospan_body = format!("{}:body", m.cospan_nsid);
+
+    // Tangled interop lens (type coercions, semantic mappings)
+    if let Some(interop_lens) = crate::lens_config::find_by_source(lenses, m.tangled_nsid) {
+        let tangled_transforms =
+            crate::lens_config::steps_to_value_transforms(&interop_lens.steps, &cospan_body);
+        for (cospan_vertex, transforms) in tangled_transforms {
+            let key = reverse_vertex_map
+                .get(&cospan_vertex)
+                .cloned()
+                .unwrap_or(cospan_vertex);
+            compiled
+                .field_transforms
+                .entry(key)
+                .or_default()
+                .extend(transforms);
+        }
     }
 
-    // Inject DB projection field transforms (AT-URI decomposition, renames, etc.)
-    let db_transforms = crate::db_projection::db_transforms(m.cospan_nsid);
-    for (cospan_vertex, transforms) in db_transforms {
-        let key = reverse_vertex_map
-            .get(&cospan_vertex)
-            .cloned()
-            .unwrap_or(cospan_vertex);
-        compiled
-            .field_transforms
-            .entry(key)
-            .or_default()
-            .extend(transforms);
+    // DB projection lens (AT-URI decomposition, renames, defaults)
+    if let Some(db_lens) = crate::lens_config::find_by_source(lenses, m.cospan_nsid) {
+        let db_transforms =
+            crate::lens_config::steps_to_value_transforms(&db_lens.steps, &cospan_body);
+        for (cospan_vertex, transforms) in db_transforms {
+            let key = reverse_vertex_map
+                .get(&cospan_vertex)
+                .cloned()
+                .unwrap_or(cospan_vertex);
+            compiled
+                .field_transforms
+                .entry(key)
+                .or_default()
+                .extend(transforms);
+        }
     }
 
     Ok(CompiledInterop {
@@ -595,35 +608,19 @@ pub struct CompiledDbProjection {
 }
 
 /// Compile DB projections for all Cospan record types.
+/// NSIDs are discovered from lens files (db-projection lenses).
 pub fn compile_db_projections(lexicons_dir: &Path) -> Result<Vec<CompiledDbProjection>> {
+    let lenses_dir = lexicons_dir.parent().unwrap_or(lexicons_dir).join("lenses");
+    let lenses = crate::lens_config::load_all_lenses(&lenses_dir).unwrap_or_default();
+    let db_lenses = crate::lens_config::db_projection_lenses(&lenses);
+
     let nsid_index = build_nsid_index(lexicons_dir);
     let mut results = Vec::new();
 
-    let cospan_nsids = [
-        "dev.cospan.node",
-        "dev.cospan.actor.profile",
-        "dev.cospan.repo",
-        "dev.cospan.vcs.refUpdate",
-        "dev.cospan.repo.issue",
-        "dev.cospan.repo.issue.comment",
-        "dev.cospan.repo.issue.state",
-        "dev.cospan.repo.pull",
-        "dev.cospan.repo.pull.comment",
-        "dev.cospan.repo.pull.state",
-        "dev.cospan.feed.star",
-        "dev.cospan.feed.reaction",
-        "dev.cospan.graph.follow",
-        "dev.cospan.label.definition",
-        "dev.cospan.org",
-        "dev.cospan.org.member",
-        "dev.cospan.repo.collaborator",
-        "dev.cospan.repo.dependency",
-        "dev.cospan.pipeline",
-    ];
-
-    for nsid in &cospan_nsids {
+    for lens in &db_lenses {
+        let nsid = &lens.source;
         let path = nsid_index
-            .get(*nsid)
+            .get(nsid.as_str())
             .cloned()
             .unwrap_or_else(|| nsid_to_path(lexicons_dir, nsid));
 
@@ -637,14 +634,15 @@ pub fn compile_db_projections(lexicons_dir: &Path) -> Result<Vec<CompiledDbProje
         let mut compiled = panproto_mig::compile(&schema, &schema, &migration)
             .map_err(|e| anyhow::anyhow!("compile db projection for {nsid}: {e:?}"))?;
 
-        // Inject DB projection field transforms (AT-URI decomp, renames, defaults)
-        let db_transforms = crate::db_projection::db_transforms(nsid);
-        for (vertex, transforms) in db_transforms {
+        // Inject field transforms from lens file (replaces db_projection.rs)
+        let body_vertex = format!("{nsid}:body");
+        let transforms = crate::lens_config::steps_to_value_transforms(&lens.steps, &body_vertex);
+        for (vertex, field_transforms) in transforms {
             compiled
                 .field_transforms
                 .entry(vertex)
                 .or_default()
-                .extend(transforms);
+                .extend(field_transforms);
         }
 
         println!("  Compiled DB projection: {nsid}");

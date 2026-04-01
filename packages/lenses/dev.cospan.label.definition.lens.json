@@ -4,13 +4,15 @@
   "source": "dev.cospan.label.definition",
   "target": "dev.cospan.label.definition.view",
   "steps": [
-    { "remove_field": "repo" },
+    {
+      "remove_field": "repo"
+    },
     {
       "add_field": {
         "name": "repoDid",
         "kind": "string",
         "default": "",
-        "expr": "head(split(replace(repo, 'at://', ''), '/'))"
+        "expr": "head (split (replace repo \"at://\" \"\") \"/\")"
       }
     },
     {
@@ -18,13 +20,16 @@
         "name": "repoName",
         "kind": "string",
         "default": "",
-        "expr": "index(split(replace(repo, 'at://', ''), '/'), 2)"
+        "expr": "head (tail (tail (split (replace repo \"at://\" \"\") \"/\")))"
       }
     }
   ],
   "table": {
     "name": "labels",
     "row_struct": "LabelRow",
-    "conflict_keys": ["did", "rkey"]
+    "conflict_keys": [
+      "did",
+      "rkey"
+    ]
   }
 }

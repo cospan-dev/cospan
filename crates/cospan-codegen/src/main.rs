@@ -9,7 +9,6 @@
 //! Usage: cargo run -p cospan-codegen
 //!        cargo run -p cospan-codegen -- --check   # breaking change detection
 
-mod db_projection;
 mod emit_rows;
 mod emit_sql;
 mod emit_typescript_views;
@@ -280,13 +279,7 @@ fn main() -> Result<()> {
             }
         }
 
-        // Try lens-file path first, fall back to RecordConfig
-        let views_ts = if lenses.iter().any(|l| l.table.is_some()) {
-            emit_typescript_views::emit_all_views_from_lenses(&schema_pairs, &lenses)
-        } else {
-            let configs = record_config::all_record_configs();
-            emit_typescript_views::emit_all_views(&schema_pairs, &configs)
-        };
+        let views_ts = emit_typescript_views::emit_all_views_from_lenses(&schema_pairs, &lenses);
         fs::write(generated_dir.join("typescript/views.ts"), &views_ts)?;
 
         let web_gen_dir = workspace_root.join("apps/web/src/lib/generated");

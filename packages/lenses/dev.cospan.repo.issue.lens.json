@@ -1,21 +1,31 @@
 {
   "$type": "panproto.protolens",
   "id": "dev.cospan.repo.issue.db-projection",
-  "description": "Lexicon → appview DB projection for issues",
+  "description": "Lexicon \u2192 appview DB projection for issues",
   "source": "dev.cospan.repo.issue",
   "target": "dev.cospan.repo.issue.view",
   "steps": [
-    { "remove_field": "repo" },
-    { "remove_field": "schemaRefs" },
-    { "remove_field": "labels" },
-    { "remove_field": "mentions" },
-    { "remove_field": "references" },
+    {
+      "remove_field": "repo"
+    },
+    {
+      "remove_field": "schemaRefs"
+    },
+    {
+      "remove_field": "labels"
+    },
+    {
+      "remove_field": "mentions"
+    },
+    {
+      "remove_field": "references"
+    },
     {
       "add_field": {
         "name": "repoDid",
         "kind": "string",
         "default": "",
-        "expr": "head(split(replace(repo, 'at://', ''), '/'))"
+        "expr": "head (split (replace repo \"at://\" \"\") \"/\")"
       }
     },
     {
@@ -23,7 +33,7 @@
         "name": "repoName",
         "kind": "string",
         "default": "",
-        "expr": "index(split(replace(repo, 'at://', ''), '/'), 2)"
+        "expr": "head (tail (tail (split (replace repo \"at://\" \"\") \"/\")))"
       }
     },
     {
@@ -44,13 +54,18 @@
   "table": {
     "name": "issues",
     "row_struct": "IssueRow",
-    "conflict_keys": ["did", "rkey"],
+    "conflict_keys": [
+      "did",
+      "rkey"
+    ],
     "include_did": true,
     "include_rkey": true,
     "column_defaults": {
       "state": "'open'",
       "commentCount": "0"
     },
-    "counter_fields": ["commentCount"]
+    "counter_fields": [
+      "commentCount"
+    ]
   }
 }

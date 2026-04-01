@@ -1,18 +1,22 @@
 {
   "$type": "panproto.protolens",
   "id": "dev.cospan.vcs.refUpdate.db-projection",
-  "description": "Lexicon → appview DB projection for ref updates",
+  "description": "Lexicon \u2192 appview DB projection for ref updates",
   "source": "dev.cospan.vcs.refUpdate",
   "target": "dev.cospan.vcs.refUpdate.view",
   "steps": [
-    { "remove_field": "repo" },
-    { "remove_field": "breakingChanges" },
+    {
+      "remove_field": "repo"
+    },
+    {
+      "remove_field": "breakingChanges"
+    },
     {
       "add_field": {
         "name": "repoDid",
         "kind": "string",
         "default": "",
-        "expr": "head(split(replace(repo, 'at://', ''), '/'))"
+        "expr": "head (split (replace repo \"at://\" \"\") \"/\")"
       }
     },
     {
@@ -20,7 +24,7 @@
         "name": "repoName",
         "kind": "string",
         "default": "",
-        "expr": "index(split(replace(repo, 'at://', ''), '/'), 2)"
+        "expr": "head (tail (tail (split (replace repo \"at://\" \"\") \"/\")))"
       }
     },
     {
@@ -28,7 +32,7 @@
         "name": "breakingChangeCount",
         "kind": "integer",
         "default": 0,
-        "expr": "len(breakingChanges)"
+        "expr": "len breakingChanges"
       }
     },
     {
@@ -42,13 +46,18 @@
   "table": {
     "name": "ref_updates",
     "row_struct": "RefUpdateRow",
-    "conflict_keys": ["committer_did", "rkey"],
+    "conflict_keys": [
+      "committer_did",
+      "rkey"
+    ],
     "has_serial_id": true,
     "include_did": false,
     "column_defaults": {
       "breakingChangeCount": "0",
       "commitCount": "0"
     },
-    "counter_fields": ["breakingChangeCount"]
+    "counter_fields": [
+      "breakingChangeCount"
+    ]
   }
 }

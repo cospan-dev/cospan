@@ -4,14 +4,18 @@
   "source": "dev.cospan.pipeline",
   "target": "dev.cospan.pipeline.view",
   "steps": [
-    { "remove_field": "repo" },
-    { "remove_field": "algebraicChecks" },
+    {
+      "remove_field": "repo"
+    },
+    {
+      "remove_field": "algebraicChecks"
+    },
     {
       "add_field": {
         "name": "repoDid",
         "kind": "string",
         "default": "",
-        "expr": "head(split(replace(repo, 'at://', ''), '/'))"
+        "expr": "head (split (replace repo \"at://\" \"\") \"/\")"
       }
     },
     {
@@ -19,7 +23,7 @@
         "name": "repoName",
         "kind": "string",
         "default": "",
-        "expr": "index(split(replace(repo, 'at://', ''), '/'), 2)"
+        "expr": "head (tail (tail (split (replace repo \"at://\" \"\") \"/\")))"
       }
     },
     {
@@ -34,7 +38,7 @@
         "name": "gatTypeCheck",
         "kind": "string",
         "default": null,
-        "expr": "path_extract(algebraicChecks, ['gatTypeCheck'])"
+        "expr": "field algebraicChecks \"gatTypeCheck\""
       }
     },
     {
@@ -42,7 +46,7 @@
         "name": "equationVerification",
         "kind": "string",
         "default": null,
-        "expr": "path_extract(algebraicChecks, ['equationVerification'])"
+        "expr": "field algebraicChecks \"equationVerification\""
       }
     },
     {
@@ -50,7 +54,7 @@
         "name": "lensLawCheck",
         "kind": "string",
         "default": null,
-        "expr": "path_extract(algebraicChecks, ['lensLawCheck'])"
+        "expr": "field algebraicChecks \"lensLawCheck\""
       }
     },
     {
@@ -58,14 +62,17 @@
         "name": "breakingChangeCheck",
         "kind": "string",
         "default": null,
-        "expr": "path_extract(algebraicChecks, ['breakingChangeCheck'])"
+        "expr": "field algebraicChecks \"breakingChangeCheck\""
       }
     }
   ],
   "table": {
     "name": "pipelines",
     "row_struct": "PipelineRow",
-    "conflict_keys": ["did", "rkey"],
+    "conflict_keys": [
+      "did",
+      "rkey"
+    ],
     "column_defaults": {
       "status": "'pending'"
     }

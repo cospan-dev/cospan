@@ -37,6 +37,23 @@ export function normalizePullView(raw: Partial<PullView>): PullView {
   };
 }
 
+// dev.cospan.node (via lens file)
+export interface NodeView {
+  did: string;
+  createdAt: string;
+  publicEndpoint: string | null;
+  indexedAt: string;
+}
+
+export function normalizeNodeView(raw: Partial<NodeView>): NodeView {
+  return {
+    did: raw.did ?? '',
+    createdAt: raw.createdAt ?? '',
+    publicEndpoint: raw.publicEndpoint ?? null,
+    indexedAt: raw.indexedAt ?? '',
+  };
+}
+
 // dev.cospan.repo.issue.state (via lens file)
 export interface IssueStateView {
   did: string;
@@ -110,6 +127,27 @@ export function normalizeIssueCommentView(raw: Partial<IssueCommentView>): Issue
   };
 }
 
+// dev.cospan.feed.reaction (via lens file)
+export interface ReactionView {
+  did: string;
+  rkey: string;
+  createdAt: string;
+  emoji: string;
+  subject: string;
+  indexedAt: string;
+}
+
+export function normalizeReactionView(raw: Partial<ReactionView>): ReactionView {
+  return {
+    did: raw.did ?? '',
+    rkey: raw.rkey ?? '',
+    createdAt: raw.createdAt ?? '',
+    emoji: raw.emoji ?? '',
+    subject: raw.subject ?? '',
+    indexedAt: raw.indexedAt ?? '',
+  };
+}
+
 // dev.cospan.org (via lens file)
 export interface OrgView {
   did: string;
@@ -129,6 +167,44 @@ export function normalizeOrgView(raw: Partial<OrgView>): OrgView {
     description: raw.description ?? null,
     name: raw.name ?? '',
     avatarCid: raw.avatarCid ?? '',
+    indexedAt: raw.indexedAt ?? '',
+  };
+}
+
+// dev.cospan.graph.follow (via lens file)
+export interface FollowView {
+  did: string;
+  rkey: string;
+  createdAt: string;
+  subject: string;
+  indexedAt: string;
+}
+
+export function normalizeFollowView(raw: Partial<FollowView>): FollowView {
+  return {
+    did: raw.did ?? '',
+    rkey: raw.rkey ?? '',
+    createdAt: raw.createdAt ?? '',
+    subject: raw.subject ?? '',
+    indexedAt: raw.indexedAt ?? '',
+  };
+}
+
+// dev.cospan.feed.star (via lens file)
+export interface StarView {
+  did: string;
+  rkey: string;
+  createdAt: string;
+  subject: string;
+  indexedAt: string;
+}
+
+export function normalizeStarView(raw: Partial<StarView>): StarView {
+  return {
+    did: raw.did ?? '',
+    rkey: raw.rkey ?? '',
+    createdAt: raw.createdAt ?? '',
+    subject: raw.subject ?? '',
     indexedAt: raw.indexedAt ?? '',
   };
 }

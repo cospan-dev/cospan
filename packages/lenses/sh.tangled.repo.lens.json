@@ -1,26 +1,26 @@
 {
   "$type": "panproto.protolens",
   "id": "sh.tangled.repo.interop",
-  "description": "Tangled repo → Cospan repo interop with hostname → AT-URI transforms",
+  "description": "Tangled repo \u2192 Cospan repo interop with hostname \u2192 AT-URI transforms",
   "source": "sh.tangled.repo",
   "target": "dev.cospan.repo",
   "steps": [
     {
       "apply_expr": {
         "field": "bluesky",
-        "expr": "match(bluesky, { true => '', false => '' })"
+        "expr": "case bluesky of\n  True -> \"\"\n  False -> \"\""
       }
     },
     {
       "compute_field": {
         "target": "nodeDid",
-        "expr": "concat('did:web:', knot)"
+        "expr": "concat \"did:web:\" knot"
       }
     },
     {
       "compute_field": {
         "target": "nodeUrl",
-        "expr": "concat('https://', knot)"
+        "expr": "concat \"https://\" knot"
       }
     }
   ]

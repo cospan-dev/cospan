@@ -1,17 +1,19 @@
 {
   "$type": "panproto.protolens",
   "id": "dev.cospan.repo.db-projection",
-  "description": "Lexicon → appview DB projection for repos",
+  "description": "Lexicon \u2192 appview DB projection for repos",
   "source": "dev.cospan.repo",
   "target": "dev.cospan.repo.view",
   "steps": [
-    { "remove_field": "node" },
+    {
+      "remove_field": "node"
+    },
     {
       "add_field": {
         "name": "nodeDid",
         "kind": "string",
         "default": "",
-        "expr": "head(split(replace(node, 'at://', ''), '/'))"
+        "expr": "head (split (replace node \"at://\" \"\") \"/\")"
       }
     },
     {
@@ -67,7 +69,10 @@
   "table": {
     "name": "repos",
     "row_struct": "RepoRow",
-    "conflict_keys": ["did", "name"],
+    "conflict_keys": [
+      "did",
+      "name"
+    ],
     "column_defaults": {
       "defaultBranch": "'main'",
       "visibility": "'public'",
@@ -77,6 +82,11 @@
       "openMrCount": "0",
       "source": "'cospan'"
     },
-    "counter_fields": ["starCount", "forkCount", "openIssueCount", "openMrCount"]
+    "counter_fields": [
+      "starCount",
+      "forkCount",
+      "openIssueCount",
+      "openMrCount"
+    ]
   }
 }

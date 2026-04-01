@@ -1,14 +1,14 @@
 {
   "$type": "panproto.protolens",
   "id": "sh.tangled.actor.profile.interop",
-  "description": "Tangled actor.profile → Cospan actor.profile interop with type coercions",
+  "description": "Tangled actor.profile \u2192 Cospan actor.profile interop with type coercions",
   "source": "sh.tangled.actor.profile",
   "target": "dev.cospan.actor.profile",
   "steps": [
     {
       "apply_expr": {
         "field": "bluesky",
-        "expr": "match(bluesky, { true => '', false => '' })"
+        "expr": "case bluesky of\n  True -> \"\"\n  False -> \"\""
       }
     }
   ]

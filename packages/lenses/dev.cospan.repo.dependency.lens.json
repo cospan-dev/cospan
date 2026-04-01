@@ -4,14 +4,18 @@
   "source": "dev.cospan.repo.dependency",
   "target": "dev.cospan.repo.dependency.view",
   "steps": [
-    { "remove_field": "sourceRepo" },
-    { "remove_field": "targetRepo" },
+    {
+      "remove_field": "sourceRepo"
+    },
+    {
+      "remove_field": "targetRepo"
+    },
     {
       "add_field": {
         "name": "sourceRepoDid",
         "kind": "string",
         "default": "",
-        "expr": "head(split(replace(sourceRepo, 'at://', ''), '/'))"
+        "expr": "head (split (replace sourceRepo \"at://\" \"\") \"/\")"
       }
     },
     {
@@ -19,7 +23,7 @@
         "name": "sourceRepoName",
         "kind": "string",
         "default": "",
-        "expr": "index(split(replace(sourceRepo, 'at://', ''), '/'), 2)"
+        "expr": "head (tail (tail (split (replace sourceRepo \"at://\" \"\") \"/\")))"
       }
     },
     {
@@ -27,7 +31,7 @@
         "name": "targetRepoDid",
         "kind": "string",
         "default": "",
-        "expr": "head(split(replace(targetRepo, 'at://', ''), '/'))"
+        "expr": "head (split (replace targetRepo \"at://\" \"\") \"/\")"
       }
     },
     {
@@ -35,13 +39,16 @@
         "name": "targetRepoName",
         "kind": "string",
         "default": "",
-        "expr": "index(split(replace(targetRepo, 'at://', ''), '/'), 2)"
+        "expr": "head (tail (tail (split (replace targetRepo \"at://\" \"\") \"/\")))"
       }
     }
   ],
   "table": {
     "name": "dependencies",
     "row_struct": "DependencyRow",
-    "conflict_keys": ["did", "rkey"]
+    "conflict_keys": [
+      "did",
+      "rkey"
+    ]
   }
 }

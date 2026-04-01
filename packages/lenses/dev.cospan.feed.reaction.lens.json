@@ -1,0 +1,12 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.feed.reaction.db-projection",
+  "source": "dev.cospan.feed.reaction",
+  "target": "dev.cospan.feed.reaction.view",
+  "steps": [],
+  "table": {
+    "name": "reactions",
+    "row_struct": "ReactionRow",
+    "conflict_keys": ["did", "rkey"]
+  }
+}

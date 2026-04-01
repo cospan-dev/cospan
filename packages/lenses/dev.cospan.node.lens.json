@@ -1,0 +1,13 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.node.db-projection",
+  "source": "dev.cospan.node",
+  "target": "dev.cospan.node.view",
+  "steps": [],
+  "table": {
+    "name": "nodes",
+    "row_struct": "NodeRow",
+    "conflict_keys": ["did"],
+    "include_rkey": false
+  }
+}
