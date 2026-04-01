@@ -26,7 +26,7 @@
 				<div class="min-w-0 flex-1">
 					<div class="flex items-center gap-2">
 						<span class="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-accent">
-							{update.ref.replace('refs/heads/', '')}
+							{(update.ref ?? '').replace('refs/heads/', '') || 'unknown'}
 						</span>
 						<code class="font-mono text-xs text-text-secondary">
 							{truncateHash(update.newTarget)}
@@ -44,7 +44,7 @@
 							{update.breakingChangeCount} breaking
 						</span>
 					{/if}
-					{#if update.lensQuality !== null}
+					{#if update.lensQuality != null && typeof update.lensQuality === 'number'}
 						<span title="Lens quality">
 							lens {(update.lensQuality * 100).toFixed(0)}%
 						</span>
