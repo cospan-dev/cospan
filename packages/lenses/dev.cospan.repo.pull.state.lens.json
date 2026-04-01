@@ -6,5 +6,10 @@
   "target": "dev.cospan.repo.pull.state.view",
   "steps": [
     { "rename_field": { "old": "pull", "new": "pullUri" } }
-  ]
+  ],
+  "table": {
+    "name": "pull_states",
+    "row_struct": "PullStateRow",
+    "conflict_keys": ["did", "rkey"]
+  }
 }

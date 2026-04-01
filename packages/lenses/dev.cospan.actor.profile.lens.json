@@ -15,5 +15,11 @@
         "expr": "path_extract(avatar, ['ref', '$link'])"
       }
     }
-  ]
+  ],
+  "table": {
+    "name": "actor_profiles",
+    "row_struct": "ActorProfileRow",
+    "conflict_keys": ["did"],
+    "include_rkey": false
+  }
 }

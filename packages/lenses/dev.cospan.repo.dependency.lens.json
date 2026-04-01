@@ -38,5 +38,10 @@
         "expr": "index(split(replace(targetRepo, 'at://', ''), '/'), 2)"
       }
     }
-  ]
+  ],
+  "table": {
+    "name": "dependencies",
+    "row_struct": "DependencyRow",
+    "conflict_keys": ["did", "rkey"]
+  }
 }

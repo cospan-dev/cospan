@@ -6,5 +6,10 @@
   "target": "dev.cospan.repo.issue.state.view",
   "steps": [
     { "rename_field": { "old": "issue", "new": "issueUri" } }
-  ]
+  ],
+  "table": {
+    "name": "issue_states",
+    "row_struct": "IssueStateRow",
+    "conflict_keys": ["did", "rkey"]
+  }
 }

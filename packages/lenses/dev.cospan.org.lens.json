@@ -13,5 +13,10 @@
         "expr": "path_extract(avatar, ['ref', '$link'])"
       }
     }
-  ]
+  ],
+  "table": {
+    "name": "orgs",
+    "row_struct": "OrgRow",
+    "conflict_keys": ["did", "rkey"]
+  }
 }

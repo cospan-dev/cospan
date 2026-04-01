@@ -22,5 +22,10 @@
       }
     },
     { "rename_field": { "old": "member", "new": "memberDid" } }
-  ]
+  ],
+  "table": {
+    "name": "collaborators",
+    "row_struct": "CollaboratorRow",
+    "conflict_keys": ["did", "rkey"]
+  }
 }

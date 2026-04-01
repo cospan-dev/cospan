@@ -260,26 +260,35 @@ fn main() -> Result<()> {
         rmp_serde::to_vec(&db_projections)?,
     )?;
 
-    // --- Generate TypeScript view types (API response shapes) ---
+    // --- Generate TypeScript view types from lens files ---
     {
-        let configs = record_config::all_record_configs();
+        let lenses_dir = workspace_root.join("packages/lenses");
+        let lenses = lens_config::load_all_lenses(&lenses_dir)?;
+
+        // Collect schemas for all lens source NSIDs
         let mut schema_pairs: Vec<(panproto_schema::Schema, String)> = Vec::new();
-        for config in &configs {
+        for lens in &lenses {
             for lexicon_path in &lexicon_files {
                 let json_str = fs::read_to_string(lexicon_path)?;
                 let json: serde_json::Value = serde_json::from_str(&json_str)?;
                 let nsid = json.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
-                if nsid == config.nsid {
+                if nsid == lens.source && !schema_pairs.iter().any(|(_, n)| n == nsid) {
                     let schema = atproto::parse_lexicon(&json)?;
                     schema_pairs.push((schema, nsid.to_string()));
                     break;
                 }
             }
         }
-        let views_ts = emit_typescript_views::emit_all_views(&schema_pairs, &configs);
+
+        // Try lens-file path first, fall back to RecordConfig
+        let views_ts = if lenses.iter().any(|l| l.table.is_some()) {
+            emit_typescript_views::emit_all_views_from_lenses(&schema_pairs, &lenses)
+        } else {
+            let configs = record_config::all_record_configs();
+            emit_typescript_views::emit_all_views(&schema_pairs, &configs)
+        };
         fs::write(generated_dir.join("typescript/views.ts"), &views_ts)?;
 
-        // Copy to web app for direct import
         let web_gen_dir = workspace_root.join("apps/web/src/lib/generated");
         fs::create_dir_all(&web_gen_dir)?;
         fs::write(web_gen_dir.join("views.ts"), &views_ts)?;

@@ -21,5 +21,10 @@
         "expr": "index(split(replace(repo, 'at://', ''), '/'), 2)"
       }
     }
-  ]
+  ],
+  "table": {
+    "name": "labels",
+    "row_struct": "LabelRow",
+    "conflict_keys": ["did", "rkey"]
+  }
 }

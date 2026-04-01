@@ -6,5 +6,10 @@
   "steps": [
     { "rename_field": { "old": "org", "new": "orgUri" } },
     { "rename_field": { "old": "member", "new": "memberDid" } }
-  ]
+  ],
+  "table": {
+    "name": "org_members",
+    "row_struct": "OrgMemberRow",
+    "conflict_keys": ["did", "rkey"]
+  }
 }

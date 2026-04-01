@@ -63,5 +63,20 @@
         "default": ""
       }
     }
-  ]
+  ],
+  "table": {
+    "name": "repos",
+    "row_struct": "RepoRow",
+    "conflict_keys": ["did", "name"],
+    "column_defaults": {
+      "defaultBranch": "'main'",
+      "visibility": "'public'",
+      "starCount": "0",
+      "forkCount": "0",
+      "openIssueCount": "0",
+      "openMrCount": "0",
+      "source": "'cospan'"
+    },
+    "counter_fields": ["starCount", "forkCount", "openIssueCount", "openMrCount"]
+  }
 }

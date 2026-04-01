@@ -38,5 +38,17 @@
         "default": 0
       }
     }
-  ]
+  ],
+  "table": {
+    "name": "ref_updates",
+    "row_struct": "RefUpdateRow",
+    "conflict_keys": ["committer_did", "rkey"],
+    "has_serial_id": true,
+    "include_did": false,
+    "column_defaults": {
+      "breakingChangeCount": "0",
+      "commitCount": "0"
+    },
+    "counter_fields": ["breakingChangeCount"]
+  }
 }

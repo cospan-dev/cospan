@@ -61,5 +61,13 @@
         "expr": "path_extract(algebraicChecks, ['breakingChangeCheck'])"
       }
     }
-  ]
+  ],
+  "table": {
+    "name": "pipelines",
+    "row_struct": "PipelineRow",
+    "conflict_keys": ["did", "rkey"],
+    "column_defaults": {
+      "status": "'pending'"
+    }
+  }
 }

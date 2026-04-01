@@ -8,5 +8,10 @@
     { "remove_field": "schemaRefs" },
     { "remove_field": "mentions" },
     { "rename_field": { "old": "pull", "new": "pullUri" } }
-  ]
+  ],
+  "table": {
+    "name": "pull_comments",
+    "row_struct": "PullCommentRow",
+    "conflict_keys": ["did", "rkey"]
+  }
 }

@@ -8,5 +8,10 @@
     { "remove_field": "schemaRefs" },
     { "remove_field": "mentions" },
     { "rename_field": { "old": "issue", "new": "issueUri" } }
-  ]
+  ],
+  "table": {
+    "name": "issue_comments",
+    "row_struct": "IssueCommentRow",
+    "conflict_keys": ["did", "rkey"]
+  }
 }
