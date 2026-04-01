@@ -34,14 +34,16 @@ pub async fn run(state: Arc<AppState>) {
 }
 
 async fn discover_and_consume(state: &Arc<AppState>) -> anyhow::Result<()> {
-    let nodes = db::node::list(&state.db, 1000, None).await?;
-    let knot_urls: Vec<String> = nodes
+    // Discover knot URLs from repos.node_url (more reliable than nodes.public_endpoint)
+    let repos = db::repo::list_recent(&state.db, 5000, None).await?;
+    let mut seen = std::collections::HashSet::new();
+    let knot_urls: Vec<String> = repos
         .iter()
-        .filter_map(|n| n.public_endpoint.as_ref())
-        .filter(|url| !url.is_empty() && !url.contains("localhost") && !url.contains("192.168."))
-        .map(|url| {
-            // Convert https://knot.example.com to wss://knot.example.com/events
-            let ws_url = url.replace("https://", "wss://").replace("http://", "ws://");
+        .filter(|r| !r.node_url.is_empty())
+        .filter(|r| !r.node_url.contains("localhost") && !r.node_url.contains("192.168."))
+        .filter(|r| seen.insert(r.node_url.clone()))
+        .map(|r| {
+            let ws_url = r.node_url.replace("https://", "wss://").replace("http://", "ws://");
             format!("{ws_url}/events")
         })
         .collect();
