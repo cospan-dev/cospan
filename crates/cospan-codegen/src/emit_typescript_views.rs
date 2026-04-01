@@ -1,72 +1,89 @@
-//! Emit TypeScript view types by applying panproto Protolens transforms to Lexicon schemas.
+//! Emit TypeScript view types by applying panproto protolens combinators to Lexicon schemas.
 //!
-//! The DB projection lens is expressed as elementary Protolens transforms:
-//!   - drop_sort("{body}.{field}") for skip_fields
-//!   - add_sort("{body}.repoDid") + add_op for uri_decompositions
-//!   - rename_sort("{body}.{old}", "{body}.{new}") for field_renames
-//!   - add_sort("{body}.{col}") for extra_columns
+//! The DB projection lens is built from high-level combinators (v0.23.0):
+//!   - combinators::remove_field for skip_fields
+//!   - combinators::add_field for uri_decompositions and extra_columns
+//!   - combinators::rename_field for uri_storages and field_renames (uses rename_edge_name dependent optic)
+//!   - combinators::pipeline to compose all steps
 //!
-//! These are composed via vertical_compose, applied to the source Lexicon schema
-//! via target_schema(), and the target schema is walked to emit TypeScript.
+//! The pipeline is instantiated against the source Lexicon schema to produce
+//! the target (view) schema, which is walked to emit TypeScript interfaces.
 
 use panproto_gat::Name;
 use panproto_inst::value::Value;
-use panproto_lens::{
-    elementary, protolens_vertical as vertical_compose, Protolens, ProtolensChain,
-};
+use panproto_lens::{combinators, ProtolensChain};
 use panproto_protocols::emit::children_by_edge;
 use panproto_schema::{Protocol, Schema};
 
 use crate::record_config::RecordConfig;
 
-/// Build a ProtolensChain from RecordConfig lens operations, scoped to a specific body vertex.
+/// Build a ProtolensChain from RecordConfig using panproto combinators.
+///
+/// Each RecordConfig operation maps to a combinator:
+///   - skip_fields → combinators::remove_field(vertex)
+///   - uri_decompositions → remove_field(source) + add_field(did) + add_field(name)
+///   - uri_storages → combinators::rename_field(parent, field, old, new)
+///   - field_renames → combinators::rename_field(parent, field, old, new)
+///   - type_overrides → remove_field + add_field (with correct kind)
+///   - extra_columns → combinators::add_field(parent, name, kind, default)
 fn build_lens_chain(body_id: &str, config: &RecordConfig) -> ProtolensChain {
-    let mut steps: Vec<Protolens> = Vec::new();
+    let mut chains: Vec<ProtolensChain> = Vec::new();
 
-    // 1. Drop skipped fields: remove vertex "{body}.{field}" and its edges
+    // 1. Remove skipped fields
     for field in config.skip_fields {
         let vertex_id = format!("{body_id}.{field}");
-        steps.push(elementary::drop_sort(vertex_id));
+        chains.push(combinators::remove_field(vertex_id));
     }
 
-    // 2. URI decompositions: drop source field, add decomposed fields (camelCase)
+    // 2. URI decompositions: remove source, add decomposed fields
     for decomp in config.uri_decompositions {
         let source_vertex = format!("{body_id}.{}", decomp.source_field);
-        steps.push(elementary::drop_sort(source_vertex));
+        chains.push(combinators::remove_field(source_vertex));
 
         let did_camel = snake_to_camel(decomp.did_column);
         let did_vertex = format!("{body_id}.{did_camel}");
-        steps.push(elementary::add_sort(
+        chains.push(combinators::add_field(
+            body_id,
             did_vertex,
             "string",
             Value::Str(String::new()),
         ));
+
         let name_camel = snake_to_camel(decomp.name_column);
         let name_vertex = format!("{body_id}.{name_camel}");
-        steps.push(elementary::add_sort(
+        chains.push(combinators::add_field(
+            body_id,
             name_vertex,
             "string",
             Value::Str(String::new()),
         ));
     }
 
-    // 3. URI storages: rename source field to camelCase column name
+    // 3. URI storages: rename field via dependent optic (rename_edge_name)
     for storage in config.uri_storages {
-        let old_vertex = format!("{body_id}.{}", storage.source_field);
+        let field_vertex = format!("{body_id}.{}", storage.source_field);
         let new_camel = snake_to_camel(storage.column_name);
-        let new_vertex = format!("{body_id}.{new_camel}");
-        steps.push(elementary::rename_sort(old_vertex, new_vertex));
+        chains.push(combinators::rename_field(
+            body_id,
+            field_vertex,
+            storage.source_field,
+            &*new_camel,
+        ));
     }
 
-    // 4. Field renames (to camelCase)
+    // 4. Field renames via dependent optic
     for rename in config.field_renames {
-        let old_vertex = format!("{body_id}.{}", rename.source_field);
+        let field_vertex = format!("{body_id}.{}", rename.source_field);
         let new_camel = snake_to_camel(rename.column_name);
-        let new_vertex = format!("{body_id}.{new_camel}");
-        steps.push(elementary::rename_sort(old_vertex, new_vertex));
+        chains.push(combinators::rename_field(
+            body_id,
+            field_vertex,
+            rename.source_field,
+            &*new_camel,
+        ));
     }
 
-    // 5. Type overrides: drop vertex with wrong kind, re-add with correct kind
+    // 5. Type overrides: remove + add with correct kind
     for ovr in config.type_overrides {
         let vertex_id = format!("{body_id}.{}", ovr.source_field);
         let kind = match ovr.rust_type {
@@ -75,10 +92,7 @@ fn build_lens_chain(body_id: &str, config: &RecordConfig) -> ProtolensChain {
             t if t.contains("bool") => "boolean",
             _ => "string",
         };
-        let is_optional = ovr.rust_type.starts_with("Option<");
-        // Drop the original vertex and re-add with correct kind
-        steps.push(elementary::drop_sort(vertex_id.clone()));
-        let default = if is_optional {
+        let default = if ovr.rust_type.starts_with("Option<") {
             Value::Null
         } else {
             match kind {
@@ -88,11 +102,11 @@ fn build_lens_chain(body_id: &str, config: &RecordConfig) -> ProtolensChain {
                 _ => Value::Str(String::new()),
             }
         };
-        steps.push(elementary::add_sort(vertex_id, kind, default));
+        chains.push(combinators::remove_field(vertex_id.clone()));
+        chains.push(combinators::add_field(body_id, vertex_id, kind, default));
     }
 
-    // 6. Extra columns (state, comment_count, etc.)
-    // Use camelCase for vertex IDs to match serde(rename_all = "camelCase")
+    // 6. Extra columns via add_field combinator
     for extra in config.extra_columns {
         let camel = snake_to_camel(extra.name);
         let vertex_id = format!("{body_id}.{camel}");
@@ -102,10 +116,10 @@ fn build_lens_chain(body_id: &str, config: &RecordConfig) -> ProtolensChain {
             "bool" => ("boolean", Value::Bool(false)),
             _ => ("string", Value::Str(String::new())),
         };
-        steps.push(elementary::add_sort(vertex_id, kind, default));
+        chains.push(combinators::add_field(body_id, vertex_id, kind, default));
     }
 
-    ProtolensChain::new(steps)
+    combinators::pipeline(chains)
 }
 
 /// Apply the lens chain to a source schema, producing the target (view) schema.
@@ -115,10 +129,7 @@ fn apply_lens(source: &Schema, nsid: &str, config: &RecordConfig) -> Schema {
     let protocol = Protocol::default();
 
     match chain.instantiate(source, &protocol) {
-        Ok(lens) => {
-            // The lens contains the target schema
-            lens.tgt_schema
-        }
+        Ok(lens) => lens.tgt_schema,
         Err(e) => {
             eprintln!("  warn: lens instantiation for {nsid}: {e:?}, using source");
             source.clone()
@@ -138,7 +149,7 @@ fn emit_view_from_target(target: &Schema, nsid: &str, config: &RecordConfig) -> 
     let body_id = find_record_body(target, nsid);
 
     let mut out = String::new();
-    out.push_str(&format!("// {nsid} (via Protolens)\n"));
+    out.push_str(&format!("// {nsid} (via panproto combinators)\n"));
     out.push_str(&format!("export interface {view_name} {{\n"));
 
     // Standard ATProto columns
@@ -166,13 +177,11 @@ fn emit_view_from_target(target: &Schema, nsid: &str, config: &RecordConfig) -> 
         }
     }
 
-    // Extra columns added by the lens (they appear as new vertices, not as prop edges)
-    // Walk vertices that start with body_id but aren't in the prop edges
-    let prop_targets: std::collections::HashSet<String> = props
-        .iter()
-        .map(|(_, v)| v.id.to_string())
-        .collect();
+    // Fields added by add_field combinator (they have prop edges now!)
+    // Walk vertices that are children of body but not in the original prop list
     let body_prefix = format!("{body_id}.");
+    let prop_targets: std::collections::HashSet<String> =
+        props.iter().map(|(_, v)| v.id.to_string()).collect();
     let mut extra_vertices: Vec<_> = target
         .vertices
         .iter()
@@ -189,7 +198,6 @@ fn emit_view_from_target(target: &Schema, nsid: &str, config: &RecordConfig) -> 
     for (id, v) in &extra_vertices {
         let field_name = id.as_str().strip_prefix(&body_prefix).unwrap_or(id.as_str());
         let ts_type = vertex_kind_to_ts(&v.kind);
-        // Extra columns from add_sort are always present (have defaults)
         out.push_str(&format!("  {field_name}: {ts_type};\n"));
     }
 
@@ -239,7 +247,7 @@ fn emit_list_response(type_name: &str, wrapper_key: &str) -> String {
 /// Emit the full generated TypeScript views file.
 pub fn emit_all_views(schemas: &[(Schema, String)], configs: &[RecordConfig]) -> String {
     let mut out = String::new();
-    out.push_str("// Auto-generated by cospan-codegen via panproto Protolens.\n");
+    out.push_str("// Auto-generated by cospan-codegen via panproto protolens combinators.\n");
     out.push_str("// Source: Lexicon schemas transformed through DB projection lens.\n");
     out.push_str("// Do not edit manually.\n\n");
 
@@ -275,7 +283,7 @@ pub fn emit_all_views(schemas: &[(Schema, String)], configs: &[RecordConfig]) ->
 }
 
 // ---------------------------------------------------------------------------
-// Schema helpers — these use panproto's schema structure, not string munging
+// Schema helpers
 // ---------------------------------------------------------------------------
 
 fn find_record_body(schema: &Schema, nsid: &str) -> String {
@@ -301,26 +309,7 @@ fn is_field_required(schema: &Schema, body_id: &str, field_name: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn snake_to_camel(s: &str) -> String {
-    let mut result = String::new();
-    let mut capitalize_next = false;
-    for (i, c) in s.chars().enumerate() {
-        if c == '_' {
-            capitalize_next = true;
-        } else if capitalize_next {
-            result.push(c.to_ascii_uppercase());
-            capitalize_next = false;
-        } else if i == 0 {
-            result.push(c.to_ascii_lowercase());
-        } else {
-            result.push(c);
-        }
-    }
-    result
-}
-
 /// Map panproto vertex kind → TypeScript type.
-/// The vertex kind IS the panproto type — no Rust type string mapping.
 fn vertex_kind_to_ts(kind: &Name) -> &'static str {
     match kind.as_str() {
         "string" | "cid-link" | "ref" | "token" | "bytes" => "string",
@@ -329,7 +318,6 @@ fn vertex_kind_to_ts(kind: &Name) -> &'static str {
         "array" => "unknown[]",
         "object" | "union" => "Record<string, unknown>",
         _ => {
-            // Log unhandled kinds during codegen for debugging
             eprintln!("    warn: unhandled vertex kind '{}', mapping to unknown", kind);
             "unknown"
         }
@@ -351,9 +339,27 @@ fn default_for_kind(kind: &Name, field_name: &str, config: &RecordConfig) -> &'s
         }
     }
     match kind.as_str() {
-        "string" | "cid-link" | "ref" | "token" => "''",
-        "integer" | "number" => "0",
+        "string" | "cid-link" | "ref" | "token" | "bytes" => "''",
+        "integer" | "number" | "float" => "0",
         "boolean" => "false",
         _ => "''",
     }
+}
+
+fn snake_to_camel(s: &str) -> String {
+    let mut result = String::new();
+    let mut capitalize_next = false;
+    for (i, c) in s.chars().enumerate() {
+        if c == '_' {
+            capitalize_next = true;
+        } else if capitalize_next {
+            result.push(c.to_ascii_uppercase());
+            capitalize_next = false;
+        } else if i == 0 {
+            result.push(c.to_ascii_lowercase());
+        } else {
+            result.push(c);
+        }
+    }
+    result
 }
