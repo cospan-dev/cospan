@@ -20,10 +20,8 @@ pub fn emit_all_views_from_lenses(
 
     for lens in crate::lens_config::db_projection_lenses(lenses) {
         if let Some((schema, _)) = schemas.iter().find(|(_, nsid)| nsid == &lens.source) {
-            let body_id = find_record_body(schema, &lens.source);
-            let chain = crate::lens_config::steps_to_protolens_chain(&lens.steps, &body_id);
             let protocol = Protocol::default();
-            let target = match chain.instantiate(schema, &protocol) {
+            let target = match lens.chain.instantiate(schema, &protocol) {
                 Ok(l) => l.tgt_schema,
                 Err(e) => {
                     eprintln!("  warn: lens instantiation for {}: {e:?}", lens.source);
@@ -31,8 +29,8 @@ pub fn emit_all_views_from_lenses(
                 }
             };
 
-            let table = lens.table.as_ref();
-            let view_name = table
+            let table = crate::lens_config::table_config(lens);
+            let view_name = table.as_ref()
                 .map(|t| {
                     t.row_struct
                         .strip_suffix("Row")
@@ -41,10 +39,10 @@ pub fn emit_all_views_from_lenses(
                         + "View"
                 })
                 .unwrap_or_else(|| nsid_to_pascal(&lens.source) + "View");
-            let include_did = table.map(|t| t.include_did).unwrap_or(true);
-            let include_rkey = table.map(|t| t.include_rkey).unwrap_or(true);
+            let include_did = table.as_ref().map(|t| t.include_did).unwrap_or(true);
+            let include_rkey = table.as_ref().map(|t| t.include_rkey).unwrap_or(true);
             let empty_defaults = std::collections::HashMap::new();
-            let column_defaults = table
+            let column_defaults = table.as_ref()
                 .map(|t| &t.column_defaults)
                 .unwrap_or(&empty_defaults);
 

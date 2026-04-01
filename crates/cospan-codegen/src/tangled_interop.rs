@@ -551,40 +551,36 @@ fn compile_one(
         .map(|(src, tgt)| (tgt.clone(), src.clone()))
         .collect();
 
-    // Inject field transforms from lens files (replaces db_projection.rs)
-    let cospan_body = format!("{}:body", m.cospan_nsid);
+    // Inject field transforms from compiled lens files.
+    // CompiledLens already has field_transforms from panproto-lens-dsl compilation.
 
     // Tangled interop lens (type coercions, semantic mappings)
     if let Some(interop_lens) = crate::lens_config::find_by_source(lenses, m.tangled_nsid) {
-        let tangled_transforms =
-            crate::lens_config::steps_to_value_transforms(&interop_lens.steps, &cospan_body);
-        for (cospan_vertex, transforms) in tangled_transforms {
+        for (cospan_vertex, transforms) in &interop_lens.field_transforms {
             let key = reverse_vertex_map
-                .get(&cospan_vertex)
+                .get(cospan_vertex)
                 .cloned()
-                .unwrap_or(cospan_vertex);
+                .unwrap_or_else(|| cospan_vertex.clone());
             compiled
                 .field_transforms
                 .entry(key)
                 .or_default()
-                .extend(transforms);
+                .extend(transforms.clone());
         }
     }
 
     // DB projection lens (AT-URI decomposition, renames, defaults)
     if let Some(db_lens) = crate::lens_config::find_by_source(lenses, m.cospan_nsid) {
-        let db_transforms =
-            crate::lens_config::steps_to_value_transforms(&db_lens.steps, &cospan_body);
-        for (cospan_vertex, transforms) in db_transforms {
+        for (cospan_vertex, transforms) in &db_lens.field_transforms {
             let key = reverse_vertex_map
-                .get(&cospan_vertex)
+                .get(cospan_vertex)
                 .cloned()
-                .unwrap_or(cospan_vertex);
+                .unwrap_or_else(|| cospan_vertex.clone());
             compiled
                 .field_transforms
                 .entry(key)
                 .or_default()
-                .extend(transforms);
+                .extend(transforms.clone());
         }
     }
 
@@ -634,15 +630,13 @@ pub fn compile_db_projections(lexicons_dir: &Path) -> Result<Vec<CompiledDbProje
         let mut compiled = panproto_mig::compile(&schema, &schema, &migration)
             .map_err(|e| anyhow::anyhow!("compile db projection for {nsid}: {e:?}"))?;
 
-        // Inject field transforms from lens file (replaces db_projection.rs)
-        let body_vertex = format!("{nsid}:body");
-        let transforms = crate::lens_config::steps_to_value_transforms(&lens.steps, &body_vertex);
-        for (vertex, field_transforms) in transforms {
+        // Inject field transforms from compiled lens
+        for (vertex, transforms) in &lens.field_transforms {
             compiled
                 .field_transforms
-                .entry(vertex)
+                .entry(vertex.clone())
                 .or_default()
-                .extend(field_transforms);
+                .extend(transforms.clone());
         }
 
         println!("  Compiled DB projection: {nsid}");

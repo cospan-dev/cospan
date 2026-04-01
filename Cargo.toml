@@ -13,25 +13,25 @@ license = "AGPL-3.0-or-later"
 repository = "https://github.com/cospan-dev/cospan"
 
 [workspace.dependencies]
-# panproto — all from git because panproto-grammars needs vendored C sources
-# (too large for crates.io). All crates must come from the same source to avoid
-# type mismatches between git and crates.io versions of panproto-schema etc.
-panproto-core = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-vcs = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-schema = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-check = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-lens = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-protocols = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-io = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-inst = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-gat = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-mig = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-expr = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-expr-parser = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-xrpc = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-parse = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0", features = ["group-all"] }
-panproto-git = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
-panproto-project = { git = "https://github.com/panproto/panproto.git", tag = "v0.23.0" }
+# panproto — path dependencies to local phrom checkout for development.
+# Switch to git tags or crates.io versions for release builds.
+panproto-core = { path = "/Users/awhite48/Projects/phrom/crates/panproto-core" }
+panproto-vcs = { path = "/Users/awhite48/Projects/phrom/crates/panproto-vcs" }
+panproto-schema = { path = "/Users/awhite48/Projects/phrom/crates/panproto-schema" }
+panproto-check = { path = "/Users/awhite48/Projects/phrom/crates/panproto-check" }
+panproto-lens = { path = "/Users/awhite48/Projects/phrom/crates/panproto-lens" }
+panproto-lens-dsl = { path = "/Users/awhite48/Projects/phrom/crates/panproto-lens-dsl" }
+panproto-protocols = { path = "/Users/awhite48/Projects/phrom/crates/panproto-protocols" }
+panproto-io = { path = "/Users/awhite48/Projects/phrom/crates/panproto-io" }
+panproto-inst = { path = "/Users/awhite48/Projects/phrom/crates/panproto-inst" }
+panproto-gat = { path = "/Users/awhite48/Projects/phrom/crates/panproto-gat" }
+panproto-mig = { path = "/Users/awhite48/Projects/phrom/crates/panproto-mig" }
+panproto-expr = { path = "/Users/awhite48/Projects/phrom/crates/panproto-expr" }
+panproto-expr-parser = { path = "/Users/awhite48/Projects/phrom/crates/panproto-expr-parser" }
+panproto-xrpc = { path = "/Users/awhite48/Projects/phrom/crates/panproto-xrpc" }
+panproto-parse = { path = "/Users/awhite48/Projects/phrom/crates/panproto-parse", features = ["group-all"] }
+panproto-git = { path = "/Users/awhite48/Projects/phrom/crates/panproto-git" }
+panproto-project = { path = "/Users/awhite48/Projects/phrom/crates/panproto-project" }
 git2 = "0.20"
 
 # Web framework
