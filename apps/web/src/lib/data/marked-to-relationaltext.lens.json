@@ -1,0 +1,26 @@
+{
+  "$type": "org.relationaltext.lens",
+  "id": "cospan.marked.to.relationaltext.v1",
+  "description": "Map marked.js token types to relationaltext feature names",
+  "source": "cospan.marked.token",
+  "target": "org.relationaltext.facet",
+  "invertible": false,
+  "rules": [
+    { "match": { "name": "paragraph" }, "replace": { "name": "paragraph" } },
+    { "match": { "name": "heading" }, "replace": { "name": "heading" } },
+    { "match": { "name": "code" }, "replace": { "name": "code-block" } },
+    { "match": { "name": "blockquote" }, "replace": { "name": "blockquote" } },
+    { "match": { "name": "hr" }, "replace": { "name": "horizontal-rule" } },
+    { "match": { "name": "strong" }, "replace": { "name": "bold" } },
+    { "match": { "name": "em" }, "replace": { "name": "italic" } },
+    { "match": { "name": "codespan" }, "replace": { "name": "code" } },
+    { "match": { "name": "del" }, "replace": { "name": "strikethrough" } },
+    { "match": { "name": "link" }, "replace": { "name": "link" } },
+    { "match": { "name": "image" }, "replace": { "name": "image" } },
+    { "match": { "name": "br" }, "replace": { "name": "line-break" } },
+    { "match": { "name": "list" }, "replace": { "name": "list" } },
+    { "match": { "name": "text" }, "replace": { "name": "text" } },
+    { "match": { "name": "space" }, "replace": null },
+    { "match": { "name": "escape" }, "replace": { "name": "text" } }
+  ]
+}

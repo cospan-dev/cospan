@@ -1,45 +1,39 @@
 <script lang="ts" module>
-	// Load the relationaltext → HTML lens rules at module level.
-	// This is a panproto lens that maps feature names to HTML element names.
-	import lensRules from '$lib/data/relationaltext-to-html.lens.json';
+	// Two serialized lenses compose the rendering pipeline:
+	//   marked token → relationaltext feature → HTML element
+	import markedToRt from '$lib/data/marked-to-relationaltext.lens.json';
+	import rtToHtml from '$lib/data/relationaltext-to-html.lens.json';
 
-	type LensRule = { match: { name: string }; replace: { name: string | { template: string }; renameAttrs?: Record<string, string>; dropAttrs?: string[] } | null };
+	type LensRule = {
+		match: { name: string };
+		replace: { name: string | { template: string }; renameAttrs?: Record<string, string>; dropAttrs?: string[] } | null;
+	};
 
-	// Build a lookup: feature name → HTML element name + attr transforms
-	const featureToElement: Record<string, { tag: string; renameAttrs?: Record<string, string>; dropAttrs?: string[] }> = {};
-	for (const rule of (lensRules as { rules: LensRule[] }).rules) {
+	// Build composed lookup: marked token type → HTML element
+	// This is the composition of the two lenses: markedToRt ∘ rtToHtml
+	const rtToElement: Record<string, { tag: string; renameAttrs?: Record<string, string> }> = {};
+	for (const rule of (rtToHtml as { rules: LensRule[] }).rules) {
 		if (!rule.replace) continue;
 		const tag = typeof rule.replace.name === 'string'
 			? rule.replace.name
-			: rule.replace.name.template; // e.g., "h{level}"
-		featureToElement[rule.match.name] = {
-			tag,
-			renameAttrs: rule.replace.renameAttrs,
-			dropAttrs: rule.replace.dropAttrs,
-		};
+			: rule.replace.name.template;
+		rtToElement[rule.match.name] = { tag, renameAttrs: rule.replace.renameAttrs };
 	}
 
-	// Map marked.js token types to relationaltext feature names
-	const tokenToFeature: Record<string, string> = {
-		paragraph: 'paragraph',
-		heading: 'heading',
-		code: 'code-block',
-		blockquote: 'blockquote',
-		hr: 'horizontal-rule',
-		strong: 'bold',
-		em: 'italic',
-		codespan: 'code',
-		del: 'strikethrough',
-		link: 'link',
-		image: 'image',
-		br: 'line-break',
-	};
+	const tokenToRt: Record<string, string | null> = {};
+	for (const rule of (markedToRt as { rules: LensRule[] }).rules) {
+		tokenToRt[rule.match.name] = rule.replace
+			? (typeof rule.replace.name === 'string' ? rule.replace.name : rule.replace.name.template)
+			: null;
+	}
 
-	function resolveTag(featureName: string, attrs?: Record<string, unknown>): string {
-		const mapping = featureToElement[featureName];
+	// Composed lens: token type → HTML tag
+	function resolveTag(tokenType: string, attrs?: Record<string, unknown>): string | null {
+		const rtFeature = tokenToRt[tokenType];
+		if (rtFeature === null || rtFeature === undefined) return null;
+		const mapping = rtToElement[rtFeature];
 		if (!mapping) return 'span';
 		if (mapping.tag.includes('{')) {
-			// Template: "h{level}" → "h1", "h2", etc.
 			return mapping.tag.replace(/\{(\w+)\}/g, (_, key) => String(attrs?.[key] ?? ''));
 		}
 		return mapping.tag;
@@ -65,9 +59,10 @@
 {/if}
 
 {#snippet blockToken(token: marked.Token)}
-	{@const feature = tokenToFeature[token.type]}
-	{@const tag = feature ? resolveTag(feature, 'depth' in token ? { level: token.depth } : {}) : ''}
-	{#if token.type === 'paragraph'}
+	{@const tag = resolveTag(token.type, 'depth' in token ? { level: token.depth } : {})}
+	{#if tag === null}
+		<!-- Lens maps to null: skip -->
+	{:else if token.type === 'paragraph'}
 		<p>{@render inlineTokens(token.tokens ?? [])}</p>
 	{:else if token.type === 'heading'}
 		<svelte:element this={tag}>{@render inlineTokens(token.tokens ?? [])}</svelte:element>
@@ -95,8 +90,6 @@
 		</svelte:element>
 	{:else if token.type === 'hr'}
 		<hr />
-	{:else if token.type === 'space'}
-		<!-- skip -->
 	{:else if token.type === 'text'}
 		{#if 'tokens' in token && token.tokens}
 			<p>{@render inlineTokens(token.tokens)}</p>
@@ -113,9 +106,10 @@
 {/snippet}
 
 {#snippet inlineToken(token: marked.Token)}
-	{@const feature = tokenToFeature[token.type]}
-	{@const tag = feature ? resolveTag(feature) : ''}
-	{#if token.type === 'text'}
+	{@const tag = resolveTag(token.type)}
+	{#if tag === null}
+		<!-- skip -->
+	{:else if token.type === 'text'}
 		{token.text}
 	{:else if token.type === 'strong'}
 		<strong>{@render inlineTokens(token.tokens ?? [])}</strong>
