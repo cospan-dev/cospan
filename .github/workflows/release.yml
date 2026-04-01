@@ -8,8 +8,31 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  codegen:
+    name: Run codegen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run codegen
+        run: cargo run -p cospan-codegen
+
+      - name: Upload generated artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated
+          path: |
+            generated/
+            crates/cospan-appview/src/db/generated/
+            apps/web/src/lib/generated/
+
   build-and-push:
     name: Build and push Docker images
+    needs: codegen
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,6 +51,11 @@ jobs:
             image: ghcr.io/cospan-dev/cospan-web
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download generated artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: generated
 
       - uses: docker/login-action@v3
         with:
