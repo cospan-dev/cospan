@@ -1,14 +1,21 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { getContext } from 'svelte';
 	import StateBadge from '$lib/components/shared/StateBadge.svelte';
 	import RichText from '$lib/components/shared/RichText.svelte';
 	import Timeline from '$lib/components/shared/Timeline.svelte';
 	import BackLink from '$lib/components/shared/BackLink.svelte';
+	import { resolveHandle } from '$lib/api/handle.js';
 	import { timeAgo } from '$lib/utils/time.js';
 
 	let { data } = $props();
 
 	let basePath = $derived(`/${data.did}/${data.repo}`);
+	let authorHandle = $state('');
+
+	onMount(async () => {
+		authorHandle = await resolveHandle(data.issue.did);
+	});
 
 	const repoLayout = getContext<any>('repoLayout');
 	$effect(() => {
@@ -34,7 +41,7 @@
 
 	<div class="mt-2 flex flex-wrap items-center gap-3 text-sm text-text-secondary">
 		<span>
-			{data.issue.did} opened this {timeAgo(data.issue.createdAt)}
+			{authorHandle || data.issue.did} opened this {timeAgo(data.issue.createdAt)}
 		</span>
 		<span>{data.issue.commentCount} comments</span>
 	</div>
@@ -44,7 +51,7 @@
 	<div class="mb-6 rounded-lg border border-border bg-surface-1">
 		<div class="flex items-center gap-2 border-b border-border px-4 py-2">
 			<span class="text-sm font-medium text-text-primary">
-				{data.issue.did}
+				{authorHandle || data.issue.did}
 			</span>
 			<span class="text-xs text-text-secondary">
 				opened {timeAgo(data.issue.createdAt)}
