@@ -14,6 +14,7 @@ mod emit_rows;
 mod emit_sql;
 mod emit_typescript_views;
 mod emit_xrpc;
+mod lens_config;
 mod morphism;
 mod record_config;
 mod tangled_interop;
