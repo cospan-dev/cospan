@@ -80,9 +80,15 @@ async fn discover_and_consume(state: &Arc<AppState>) -> anyhow::Result<()> {
 
 /// Connect to a single knot's event stream and process events.
 async fn consume_knot(state: &Arc<AppState>, url: &str) -> anyhow::Result<()> {
+    // Pass cursor=0 to get ALL historical events from the knot
+    let url_with_cursor = if url.contains('?') {
+        format!("{url}&cursor=0")
+    } else {
+        format!("{url}?cursor=0")
+    };
     let (ws, _) = tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        connect_async(url),
+        connect_async(&url_with_cursor),
     )
     .await
     .map_err(|_| anyhow::anyhow!("connection timeout"))??;
@@ -90,9 +96,9 @@ async fn consume_knot(state: &Arc<AppState>, url: &str) -> anyhow::Result<()> {
     let (_, mut read) = ws.split();
     let mut count = 0u64;
 
-    // Read events with a timeout per message
+    // Read events with a timeout per message (2 min for historical replay)
     while let Ok(Some(msg)) = tokio::time::timeout(
-        std::time::Duration::from_secs(30),
+        std::time::Duration::from_secs(120),
         read.next(),
     )
     .await
