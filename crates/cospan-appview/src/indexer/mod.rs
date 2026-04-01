@@ -1,6 +1,7 @@
 pub(crate) mod consumer;
 mod dispatch;
 mod jetstream;
+mod knot_consumer;
 mod tap;
 
 use std::sync::Arc;
@@ -30,6 +31,12 @@ pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
             });
         }
     }
+
+    // Spawn knot event consumer (discovers knots, connects to each /events WebSocket)
+    let knot_state = state.clone();
+    tokio::spawn(async move {
+        knot_consumer::run(knot_state).await;
+    });
 
     // Run Jetstream consumer (primary live stream with cursor persistence)
     loop {
