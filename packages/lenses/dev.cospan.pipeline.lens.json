@@ -66,15 +66,17 @@
       }
     }
   ],
-  "table": {
-    "name": "pipelines",
-    "row_struct": "PipelineRow",
-    "conflict_keys": [
-      "did",
-      "rkey"
-    ],
-    "column_defaults": {
-      "status": "'pending'"
+  "extensions": {
+    "table": {
+      "name": "pipelines",
+      "row_struct": "PipelineRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ],
+      "column_defaults": {
+        "status": "'pending'"
+      }
     }
   }
 }

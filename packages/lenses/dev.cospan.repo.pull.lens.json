@@ -48,19 +48,21 @@
       }
     }
   ],
-  "table": {
-    "name": "pulls",
-    "row_struct": "PullRow",
-    "conflict_keys": [
-      "did",
-      "rkey"
-    ],
-    "column_defaults": {
-      "state": "'open'",
-      "commentCount": "0"
-    },
-    "counter_fields": [
-      "commentCount"
-    ]
+  "extensions": {
+    "table": {
+      "name": "pulls",
+      "row_struct": "PullRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ],
+      "column_defaults": {
+        "state": "'open'",
+        "commentCount": "0"
+      },
+      "counter_fields": [
+        "commentCount"
+      ]
+    }
   }
 }

@@ -4,10 +4,14 @@
   "source": "dev.cospan.node",
   "target": "dev.cospan.node.view",
   "steps": [],
-  "table": {
-    "name": "nodes",
-    "row_struct": "NodeRow",
-    "conflict_keys": ["did"],
-    "include_rkey": false
+  "extensions": {
+    "table": {
+      "name": "nodes",
+      "row_struct": "NodeRow",
+      "conflict_keys": [
+        "did"
+      ],
+      "include_rkey": false
+    }
   }
 }

@@ -1,17 +1,31 @@
 {
   "$type": "panproto.protolens",
   "id": "dev.cospan.repo.issue.comment.db-projection",
-  "description": "Lexicon → appview DB projection for issue comments",
+  "description": "Lexicon \u2192 appview DB projection for issue comments",
   "source": "dev.cospan.repo.issue.comment",
   "target": "dev.cospan.repo.issue.comment.view",
   "steps": [
-    { "remove_field": "schemaRefs" },
-    { "remove_field": "mentions" },
-    { "rename_field": { "old": "issue", "new": "issueUri" } }
+    {
+      "remove_field": "schemaRefs"
+    },
+    {
+      "remove_field": "mentions"
+    },
+    {
+      "rename_field": {
+        "old": "issue",
+        "new": "issueUri"
+      }
+    }
   ],
-  "table": {
-    "name": "issue_comments",
-    "row_struct": "IssueCommentRow",
-    "conflict_keys": ["did", "rkey"]
+  "extensions": {
+    "table": {
+      "name": "issue_comments",
+      "row_struct": "IssueCommentRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ]
+    }
   }
 }

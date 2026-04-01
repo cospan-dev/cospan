@@ -1,15 +1,25 @@
 {
   "$type": "panproto.protolens",
   "id": "dev.cospan.repo.pull.state.db-projection",
-  "description": "Lexicon → appview DB projection for pull state changes",
+  "description": "Lexicon \u2192 appview DB projection for pull state changes",
   "source": "dev.cospan.repo.pull.state",
   "target": "dev.cospan.repo.pull.state.view",
   "steps": [
-    { "rename_field": { "old": "pull", "new": "pullUri" } }
+    {
+      "rename_field": {
+        "old": "pull",
+        "new": "pullUri"
+      }
+    }
   ],
-  "table": {
-    "name": "pull_states",
-    "row_struct": "PullStateRow",
-    "conflict_keys": ["did", "rkey"]
+  "extensions": {
+    "table": {
+      "name": "pull_states",
+      "row_struct": "PullStateRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ]
+    }
   }
 }

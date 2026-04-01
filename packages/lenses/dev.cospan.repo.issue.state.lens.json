@@ -1,15 +1,25 @@
 {
   "$type": "panproto.protolens",
   "id": "dev.cospan.repo.issue.state.db-projection",
-  "description": "Lexicon → appview DB projection for issue state changes",
+  "description": "Lexicon \u2192 appview DB projection for issue state changes",
   "source": "dev.cospan.repo.issue.state",
   "target": "dev.cospan.repo.issue.state.view",
   "steps": [
-    { "rename_field": { "old": "issue", "new": "issueUri" } }
+    {
+      "rename_field": {
+        "old": "issue",
+        "new": "issueUri"
+      }
+    }
   ],
-  "table": {
-    "name": "issue_states",
-    "row_struct": "IssueStateRow",
-    "conflict_keys": ["did", "rkey"]
+  "extensions": {
+    "table": {
+      "name": "issue_states",
+      "row_struct": "IssueStateRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ]
+    }
   }
 }

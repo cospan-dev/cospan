@@ -4,9 +4,14 @@
   "source": "dev.cospan.graph.follow",
   "target": "dev.cospan.graph.follow.view",
   "steps": [],
-  "table": {
-    "name": "follows",
-    "row_struct": "FollowRow",
-    "conflict_keys": ["did", "rkey"]
+  "extensions": {
+    "table": {
+      "name": "follows",
+      "row_struct": "FollowRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ]
+    }
   }
 }

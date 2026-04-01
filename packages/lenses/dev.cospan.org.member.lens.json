@@ -4,12 +4,27 @@
   "source": "dev.cospan.org.member",
   "target": "dev.cospan.org.member.view",
   "steps": [
-    { "rename_field": { "old": "org", "new": "orgUri" } },
-    { "rename_field": { "old": "member", "new": "memberDid" } }
+    {
+      "rename_field": {
+        "old": "org",
+        "new": "orgUri"
+      }
+    },
+    {
+      "rename_field": {
+        "old": "member",
+        "new": "memberDid"
+      }
+    }
   ],
-  "table": {
-    "name": "org_members",
-    "row_struct": "OrgMemberRow",
-    "conflict_keys": ["did", "rkey"]
+  "extensions": {
+    "table": {
+      "name": "org_members",
+      "row_struct": "OrgMemberRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ]
+    }
   }
 }

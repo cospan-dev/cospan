@@ -43,12 +43,14 @@
       }
     }
   ],
-  "table": {
-    "name": "dependencies",
-    "row_struct": "DependencyRow",
-    "conflict_keys": [
-      "did",
-      "rkey"
-    ]
+  "extensions": {
+    "table": {
+      "name": "dependencies",
+      "row_struct": "DependencyRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ]
+    }
   }
 }

@@ -20,12 +20,14 @@
       }
     }
   ],
-  "table": {
-    "name": "actor_profiles",
-    "row_struct": "ActorProfileRow",
-    "conflict_keys": [
-      "did"
-    ],
-    "include_rkey": false
+  "extensions": {
+    "table": {
+      "name": "actor_profiles",
+      "row_struct": "ActorProfileRow",
+      "conflict_keys": [
+        "did"
+      ],
+      "include_rkey": false
+    }
   }
 }

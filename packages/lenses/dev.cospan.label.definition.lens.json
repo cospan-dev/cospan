@@ -24,12 +24,14 @@
       }
     }
   ],
-  "table": {
-    "name": "labels",
-    "row_struct": "LabelRow",
-    "conflict_keys": [
-      "did",
-      "rkey"
-    ]
+  "extensions": {
+    "table": {
+      "name": "labels",
+      "row_struct": "LabelRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ]
+    }
   }
 }

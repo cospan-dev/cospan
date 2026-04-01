@@ -25,17 +25,19 @@
     },
     {
       "rename_field": {
-        "old": "member",
+        "old": "did",
         "new": "memberDid"
       }
     }
   ],
-  "table": {
-    "name": "collaborators",
-    "row_struct": "CollaboratorRow",
-    "conflict_keys": [
-      "did",
-      "rkey"
-    ]
+  "extensions": {
+    "table": {
+      "name": "collaborators",
+      "row_struct": "CollaboratorRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ]
+    }
   }
 }

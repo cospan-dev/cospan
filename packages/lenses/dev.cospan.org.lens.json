@@ -16,12 +16,14 @@
       }
     }
   ],
-  "table": {
-    "name": "orgs",
-    "row_struct": "OrgRow",
-    "conflict_keys": [
-      "did",
-      "rkey"
-    ]
+  "extensions": {
+    "table": {
+      "name": "orgs",
+      "row_struct": "OrgRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ]
+    }
   }
 }

@@ -51,21 +51,23 @@
       }
     }
   ],
-  "table": {
-    "name": "issues",
-    "row_struct": "IssueRow",
-    "conflict_keys": [
-      "did",
-      "rkey"
-    ],
-    "include_did": true,
-    "include_rkey": true,
-    "column_defaults": {
-      "state": "'open'",
-      "commentCount": "0"
-    },
-    "counter_fields": [
-      "commentCount"
-    ]
+  "extensions": {
+    "table": {
+      "name": "issues",
+      "row_struct": "IssueRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ],
+      "include_did": true,
+      "include_rkey": true,
+      "column_defaults": {
+        "state": "'open'",
+        "commentCount": "0"
+      },
+      "counter_fields": [
+        "commentCount"
+      ]
+    }
   }
 }

@@ -330,7 +330,7 @@ export interface CollaboratorView {
   did: string;
   rkey: string;
   createdAt: string;
-  did: string;
+  memberDid: string | null;
   role: string;
   repoDid: string;
   repoName: string;
@@ -342,7 +342,7 @@ export function normalizeCollaboratorView(raw: Partial<CollaboratorView>): Colla
     did: raw.did ?? '',
     rkey: raw.rkey ?? '',
     createdAt: raw.createdAt ?? '',
-    did: raw.did ?? '',
+    memberDid: raw.memberDid ?? null,
     role: raw.role ?? '',
     repoDid: raw.repoDid ?? '',
     repoName: raw.repoName ?? '',

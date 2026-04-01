@@ -4,9 +4,14 @@
   "source": "dev.cospan.feed.star",
   "target": "dev.cospan.feed.star.view",
   "steps": [],
-  "table": {
-    "name": "stars",
-    "row_struct": "StarRow",
-    "conflict_keys": ["did", "rkey"]
+  "extensions": {
+    "table": {
+      "name": "stars",
+      "row_struct": "StarRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ]
+    }
   }
 }
