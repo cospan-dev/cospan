@@ -1,0 +1,11 @@
+{
+  "$type": "panproto.protolens",
+  "id": "sh.tangled.spindle.member.interop",
+  "description": "Tangled spindle.member → Cospan org.member with field renames",
+  "source": "sh.tangled.spindle.member",
+  "target": "dev.cospan.org.member",
+  "steps": [
+    { "rename_field": { "old": "spindle", "new": "orgUri" } },
+    { "rename_field": { "old": "subject", "new": "memberDid" } }
+  ]
+}

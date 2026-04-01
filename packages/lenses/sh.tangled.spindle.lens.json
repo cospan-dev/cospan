@@ -1,0 +1,24 @@
+{
+  "$type": "panproto.protolens",
+  "id": "sh.tangled.spindle.interop",
+  "description": "Tangled spindle → Cospan org with hostname transforms",
+  "source": "sh.tangled.spindle",
+  "target": "dev.cospan.org",
+  "steps": [
+    {
+      "compute_field": {
+        "target": "name",
+        "expr": "hostname"
+      }
+    },
+    { "remove_field": "avatar" },
+    {
+      "add_field": {
+        "name": "avatarCid",
+        "kind": "string",
+        "default": null,
+        "expr": "path_extract(avatar, ['ref', '$link'])"
+      }
+    }
+  ]
+}

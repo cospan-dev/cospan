@@ -1,0 +1,11 @@
+{
+  "$type": "panproto.protolens",
+  "id": "sh.tangled.knot.member.interop",
+  "description": "Tangled knot.member → Cospan org.member with field renames",
+  "source": "sh.tangled.knot.member",
+  "target": "dev.cospan.org.member",
+  "steps": [
+    { "rename_field": { "old": "knot", "new": "orgUri" } },
+    { "rename_field": { "old": "subject", "new": "memberDid" } }
+  ]
+}

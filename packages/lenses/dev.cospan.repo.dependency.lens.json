@@ -1,0 +1,42 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.repo.dependency.db-projection",
+  "source": "dev.cospan.repo.dependency",
+  "target": "dev.cospan.repo.dependency.view",
+  "steps": [
+    { "remove_field": "sourceRepo" },
+    { "remove_field": "targetRepo" },
+    {
+      "add_field": {
+        "name": "sourceRepoDid",
+        "kind": "string",
+        "default": "",
+        "expr": "head(split(replace(sourceRepo, 'at://', ''), '/'))"
+      }
+    },
+    {
+      "add_field": {
+        "name": "sourceRepoName",
+        "kind": "string",
+        "default": "",
+        "expr": "index(split(replace(sourceRepo, 'at://', ''), '/'), 2)"
+      }
+    },
+    {
+      "add_field": {
+        "name": "targetRepoDid",
+        "kind": "string",
+        "default": "",
+        "expr": "head(split(replace(targetRepo, 'at://', ''), '/'))"
+      }
+    },
+    {
+      "add_field": {
+        "name": "targetRepoName",
+        "kind": "string",
+        "default": "",
+        "expr": "index(split(replace(targetRepo, 'at://', ''), '/'), 2)"
+      }
+    }
+  ]
+}

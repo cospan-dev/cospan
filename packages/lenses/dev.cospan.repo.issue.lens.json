@@ -1,0 +1,44 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.repo.issue.db-projection",
+  "description": "Lexicon → appview DB projection for issues",
+  "source": "dev.cospan.repo.issue",
+  "target": "dev.cospan.repo.issue.view",
+  "steps": [
+    { "remove_field": "repo" },
+    { "remove_field": "schemaRefs" },
+    { "remove_field": "labels" },
+    { "remove_field": "mentions" },
+    { "remove_field": "references" },
+    {
+      "add_field": {
+        "name": "repoDid",
+        "kind": "string",
+        "default": "",
+        "expr": "head(split(replace(repo, 'at://', ''), '/'))"
+      }
+    },
+    {
+      "add_field": {
+        "name": "repoName",
+        "kind": "string",
+        "default": "",
+        "expr": "index(split(replace(repo, 'at://', ''), '/'), 2)"
+      }
+    },
+    {
+      "add_field": {
+        "name": "state",
+        "kind": "string",
+        "default": "open"
+      }
+    },
+    {
+      "add_field": {
+        "name": "commentCount",
+        "kind": "integer",
+        "default": 0
+      }
+    }
+  ]
+}

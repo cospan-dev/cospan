@@ -1,0 +1,12 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.repo.issue.comment.db-projection",
+  "description": "Lexicon → appview DB projection for issue comments",
+  "source": "dev.cospan.repo.issue.comment",
+  "target": "dev.cospan.repo.issue.comment.view",
+  "steps": [
+    { "remove_field": "schemaRefs" },
+    { "remove_field": "mentions" },
+    { "rename_field": { "old": "issue", "new": "issueUri" } }
+  ]
+}

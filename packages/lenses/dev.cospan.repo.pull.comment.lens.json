@@ -1,0 +1,12 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.repo.pull.comment.db-projection",
+  "description": "Lexicon → appview DB projection for pull comments",
+  "source": "dev.cospan.repo.pull.comment",
+  "target": "dev.cospan.repo.pull.comment.view",
+  "steps": [
+    { "remove_field": "schemaRefs" },
+    { "remove_field": "mentions" },
+    { "rename_field": { "old": "pull", "new": "pullUri" } }
+  ]
+}

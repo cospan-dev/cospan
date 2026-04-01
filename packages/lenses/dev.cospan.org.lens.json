@@ -1,0 +1,17 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.org.db-projection",
+  "source": "dev.cospan.org",
+  "target": "dev.cospan.org.view",
+  "steps": [
+    { "remove_field": "avatar" },
+    {
+      "add_field": {
+        "name": "avatarCid",
+        "kind": "string",
+        "default": null,
+        "expr": "path_extract(avatar, ['ref', '$link'])"
+      }
+    }
+  ]
+}

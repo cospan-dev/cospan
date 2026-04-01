@@ -1,0 +1,10 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.org.member.db-projection",
+  "source": "dev.cospan.org.member",
+  "target": "dev.cospan.org.member.view",
+  "steps": [
+    { "rename_field": { "old": "org", "new": "orgUri" } },
+    { "rename_field": { "old": "member", "new": "memberDid" } }
+  ]
+}

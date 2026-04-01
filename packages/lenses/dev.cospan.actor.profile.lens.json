@@ -1,0 +1,19 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.actor.profile.db-projection",
+  "description": "Lexicon → appview DB projection for actor profiles",
+  "source": "dev.cospan.actor.profile",
+  "target": "dev.cospan.actor.profile.view",
+  "steps": [
+    { "remove_field": "avatar" },
+    { "remove_field": "links" },
+    {
+      "add_field": {
+        "name": "avatarCid",
+        "kind": "string",
+        "default": null,
+        "expr": "path_extract(avatar, ['ref', '$link'])"
+      }
+    }
+  ]
+}

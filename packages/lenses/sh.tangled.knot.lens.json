@@ -1,0 +1,15 @@
+{
+  "$type": "panproto.protolens",
+  "id": "sh.tangled.knot.interop",
+  "description": "Tangled knot (hostname) → Cospan node (AT-URI) interop",
+  "source": "sh.tangled.knot",
+  "target": "dev.cospan.node",
+  "steps": [
+    {
+      "compute_field": {
+        "target": "publicEndpoint",
+        "expr": "concat('https://', hostname)"
+      }
+    }
+  ]
+}

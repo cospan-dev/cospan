@@ -1,0 +1,10 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.cospan.repo.issue.state.db-projection",
+  "description": "Lexicon → appview DB projection for issue state changes",
+  "source": "dev.cospan.repo.issue.state",
+  "target": "dev.cospan.repo.issue.state.view",
+  "steps": [
+    { "rename_field": { "old": "issue", "new": "issueUri" } }
+  ]
+}
