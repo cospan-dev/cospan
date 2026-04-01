@@ -132,14 +132,31 @@ async fn consume_knot(state: &Arc<AppState>, url: &str) -> anyhow::Result<()> {
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        // Build a Jetstream-compatible event for the consumer pipeline
+        // Knot events have repoDid/repoName directly, but the morphism expects
+        // a repo AT-URI field. Construct it and add field mappings.
+        let mut enriched_record = record.cloned().unwrap_or(serde_json::Value::Null);
+        if let Some(obj) = enriched_record.as_object_mut() {
+            // Construct repo AT-URI from repoDid + repoName for the morphism
+            let repo_did = obj.get("repoDid").and_then(|v| v.as_str()).unwrap_or("");
+            let repo_name = obj.get("repoName").and_then(|v| v.as_str()).unwrap_or("");
+            if !repo_did.is_empty() && !repo_name.is_empty() {
+                obj.insert("repo".to_string(),
+                    serde_json::Value::String(format!("at://{repo_did}/sh.tangled.repo/{repo_name}")));
+            }
+            // Map newSha → newTarget, oldSha → oldTarget for the Cospan schema
+            if let Some(v) = obj.remove("newSha") { obj.insert("newTarget".to_string(), v); }
+            if let Some(v) = obj.remove("oldSha") { obj.insert("oldTarget".to_string(), v); }
+            // Map ref field name
+            if let Some(v) = obj.remove("ref") { obj.insert("refName".to_string(), v); }
+        }
+
         let compat_event = serde_json::json!({
             "did": did,
             "commit": {
                 "collection": nsid,
                 "operation": "create",
                 "rkey": rkey,
-                "record": record,
+                "record": enriched_record,
             }
         });
 
