@@ -16,6 +16,7 @@
     "@atproto/oauth-client-browser": "^0.3.41",
     "@sveltejs/adapter-node": "^5.2.0",
     "@sveltejs/kit": "^2.16.0",
+    "marked": "^17.0.5",
     "shiki": "^3.2.0",
     "svelte": "^5.25.0"
   },

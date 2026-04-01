@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import StateBadge from '$lib/components/shared/StateBadge.svelte';
+	import RichText from '$lib/components/shared/RichText.svelte';
 	import Timeline from '$lib/components/shared/Timeline.svelte';
 	import BackLink from '$lib/components/shared/BackLink.svelte';
 	import { timeAgo } from '$lib/utils/time.js';
@@ -49,8 +50,8 @@
 				opened {timeAgo(data.issue.createdAt)}
 			</span>
 		</div>
-		<div class="px-4 py-3 text-sm text-text-primary whitespace-pre-wrap">
-			{data.issue.body}
+		<div class="px-4 py-3 text-sm text-text-primary">
+			<RichText text={data.issue.body} />
 		</div>
 	</div>
 {/if}

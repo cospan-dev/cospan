@@ -1,5 +1,6 @@
 <script lang="ts">
 	import StateBadge from '$lib/components/shared/StateBadge.svelte';
+	import RichText from '$lib/components/shared/RichText.svelte';
 	import { timeAgo } from '$lib/utils/time.js';
 
 	interface TimelineEvent {
@@ -22,8 +23,8 @@
 							commented {timeAgo(String(event.createdAt ?? ''))}
 						</span>
 					</div>
-					<div class="px-4 py-3 text-sm text-text-primary whitespace-pre-wrap">
-						{event.body}
+					<div class="px-4 py-3 text-sm text-text-primary">
+						<RichText text={String(event.body ?? '')} />
 					</div>
 				</div>
 			{:else if event.kind === 'stateChange'}
