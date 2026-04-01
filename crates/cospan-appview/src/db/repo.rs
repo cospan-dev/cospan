@@ -175,7 +175,7 @@ pub async fn ensure_exists(
     _source: &str,
 ) -> Result<(), sqlx::Error> {
     // Check if repo already exists by name
-    let exists: Option<(i64,)> = sqlx::query_as(
+    let exists: Option<(i32,)> = sqlx::query_as(
         "SELECT 1 FROM repos WHERE did = $1 AND name = $2",
     )
     .bind(did)
