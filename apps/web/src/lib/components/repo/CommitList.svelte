@@ -1,7 +1,24 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { RefUpdateView } from '$lib/generated/views.js';
+	import { resolveHandle } from '$lib/api/handle.js';
 
 	let { refUpdates }: { refUpdates: RefUpdateView[] } = $props();
+
+	let handles = $state<Record<string, string>>({});
+
+	onMount(async () => {
+		const dids = [...new Set(refUpdates.map(u => u.committerDid).filter(Boolean))];
+		const resolved: Record<string, string> = {};
+		await Promise.allSettled(
+			dids.map(async (did) => { resolved[did] = await resolveHandle(did); })
+		);
+		handles = resolved;
+	});
+
+	function displayName(did: string): string {
+		return handles[did] || (did.startsWith('did:plc:') ? did.slice(8, 18) + '\u2026' : did);
+	}
 
 	function truncateHash(hash: string): string {
 		return hash.slice(0, 8);
@@ -33,8 +50,8 @@
 						</code>
 					</div>
 					{#if update.committerDid}
-						<p class="mt-0.5 text-sm text-text-secondary">
-							{update.committerDid}
+						<p class="mt-0.5 text-xs text-text-secondary">
+							{displayName(update.committerDid)}
 						</p>
 					{/if}
 				</div>
