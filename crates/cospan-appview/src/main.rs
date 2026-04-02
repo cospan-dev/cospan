@@ -77,6 +77,23 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Periodic star recount (handles backfill ordering)
+    let recount_pool = state.db.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(300)).await;
+            match cospan_appview::db::star::recount_all_stars(&recount_pool).await {
+                Ok(updated) if updated > 0 => {
+                    tracing::info!(updated, "star recount complete");
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::warn!(error = %e, "star recount failed");
+                }
+            }
+        }
+    });
+
     // Build and start the HTTP server
     let app = cospan_appview::xrpc::router(state);
     let listener = tokio::net::TcpListener::bind(&config.listen).await?;

@@ -40,6 +40,27 @@ pub async fn decrement_repo_star_count(
     Ok(())
 }
 
+/// Recompute all star counts from the stars table.
+/// Handles backfill ordering where stars arrive before repos.
+pub async fn recount_all_stars(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE repos SET star_count = COALESCE(s.cnt, 0) \
+         FROM ( \
+             SELECT \
+                 split_part(replace(subject, 'at://', ''), '/', 1) AS repo_did, \
+                 split_part(replace(subject, 'at://', ''), '/', 3) AS repo_rkey, \
+                 COUNT(*) AS cnt \
+             FROM stars \
+             GROUP BY 1, 2 \
+         ) s \
+         WHERE repos.did = s.repo_did AND repos.rkey = s.repo_rkey \
+         AND repos.star_count <> s.cnt",
+    )
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 pub async fn list_by_user(
     pool: &PgPool,
     did: &str,
