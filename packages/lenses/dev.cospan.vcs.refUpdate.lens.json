@@ -6,6 +6,9 @@
   "target": "dev.cospan.vcs.refUpdate.view",
   "steps": [
     {
+      "rename_field": { "old": "ref", "new": "refName" }
+    },
+    {
       "remove_field": "repo"
     },
     {

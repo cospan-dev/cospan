@@ -26,7 +26,7 @@
 				<div class="min-w-0 flex-1">
 					<div class="flex items-center gap-2">
 						<span class="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-accent">
-							{(update.ref ?? '').replace('refs/heads/', '') || 'unknown'}
+							{(update.refName ?? '').replace('refs/heads/', '') || 'unknown'}
 						</span>
 						<code class="font-mono text-xs text-text-secondary">
 							{truncateHash(update.newTarget)}
