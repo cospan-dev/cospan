@@ -113,20 +113,25 @@
 	{/if}
 
 	{#if isTangled}
-		<!-- Tangled repos: hosted externally -->
-		<div class="mb-6 rounded-lg border border-border bg-surface-1 p-6 text-center">
-			<p class="text-sm text-text-secondary">
-				Code is hosted on
-				<a
-					href="https://tangled.sh/{ownerLabel}/{data.repo.name}"
-					class="font-medium text-accent transition-colors hover:text-accent-hover"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					Tangled
-				</a>
-			</p>
-		</div>
+		{@const tangledUrl = `https://tangled.sh/${ownerLabel}/${data.repo.name}`}
+		<!-- Tangled repos: browse files on Tangled -->
+		<a
+			href={tangledUrl}
+			class="mb-6 flex items-center gap-3 rounded-lg border border-border bg-surface-1 px-4 py-3 transition-colors hover:border-accent group"
+			target="_blank"
+			rel="noopener noreferrer"
+		>
+			<svg class="h-5 w-5 shrink-0 text-text-muted group-hover:text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+			</svg>
+			<div class="min-w-0 flex-1">
+				<p class="text-sm font-medium text-text-primary group-hover:text-accent">Browse files on Tangled</p>
+				<p class="text-xs text-text-muted truncate">{tangledUrl}</p>
+			</div>
+			<svg class="h-4 w-4 shrink-0 text-text-muted group-hover:text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+			</svg>
+		</a>
 	{:else}
 		<!-- Browse Code button -->
 		<div class="mb-6">
