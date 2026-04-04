@@ -96,38 +96,71 @@ pub async fn list_for_repo(
     limit: i64,
     cursor: Option<&str>,
 ) -> Result<Vec<IssueRow>, sqlx::Error> {
+    // Tangled issues have state='' (empty) since state is tracked via separate
+    // issueState records. Treat 'open' filter as matching '' or 'open'.
     match (state_filter, cursor) {
         (Some(state), Some(cursor_ts)) => {
             let ts: DateTime<Utc> = cursor_ts
                 .parse()
                 .map_err(|_| sqlx::Error::Protocol("invalid cursor".into()))?;
-            sqlx::query_as::<_, IssueRow>(
-                "SELECT did, rkey, repo_did, repo_name, title, body, state, comment_count, \
-                      created_at, indexed_at \
-                 FROM issues WHERE repo_did = $1 AND repo_name = $2 AND state = $3 AND created_at < $4 \
-                 ORDER BY created_at DESC LIMIT $5",
-            )
-            .bind(repo_did)
-            .bind(repo_name)
-            .bind(state)
-            .bind(ts)
-            .bind(limit)
-            .fetch_all(pool)
-            .await
+            if state == "open" {
+                sqlx::query_as::<_, IssueRow>(
+                    "SELECT did, rkey, repo_did, repo_name, title, body, state, comment_count, \
+                          created_at, indexed_at \
+                     FROM issues WHERE repo_did = $1 AND repo_name = $2 \
+                     AND (state = '' OR state = 'open' OR state IS NULL) AND created_at < $3 \
+                     ORDER BY created_at DESC LIMIT $4",
+                )
+                .bind(repo_did)
+                .bind(repo_name)
+                .bind(ts)
+                .bind(limit)
+                .fetch_all(pool)
+                .await
+            } else {
+                sqlx::query_as::<_, IssueRow>(
+                    "SELECT did, rkey, repo_did, repo_name, title, body, state, comment_count, \
+                          created_at, indexed_at \
+                     FROM issues WHERE repo_did = $1 AND repo_name = $2 AND state = $3 AND created_at < $4 \
+                     ORDER BY created_at DESC LIMIT $5",
+                )
+                .bind(repo_did)
+                .bind(repo_name)
+                .bind(state)
+                .bind(ts)
+                .bind(limit)
+                .fetch_all(pool)
+                .await
+            }
         }
         (Some(state), None) => {
-            sqlx::query_as::<_, IssueRow>(
-                "SELECT did, rkey, repo_did, repo_name, title, body, state, comment_count, \
-                      created_at, indexed_at \
-                 FROM issues WHERE repo_did = $1 AND repo_name = $2 AND state = $3 \
-                 ORDER BY created_at DESC LIMIT $4",
-            )
-            .bind(repo_did)
-            .bind(repo_name)
-            .bind(state)
-            .bind(limit)
-            .fetch_all(pool)
-            .await
+            if state == "open" {
+                sqlx::query_as::<_, IssueRow>(
+                    "SELECT did, rkey, repo_did, repo_name, title, body, state, comment_count, \
+                          created_at, indexed_at \
+                     FROM issues WHERE repo_did = $1 AND repo_name = $2 \
+                     AND (state = '' OR state = 'open' OR state IS NULL) \
+                     ORDER BY created_at DESC LIMIT $3",
+                )
+                .bind(repo_did)
+                .bind(repo_name)
+                .bind(limit)
+                .fetch_all(pool)
+                .await
+            } else {
+                sqlx::query_as::<_, IssueRow>(
+                    "SELECT did, rkey, repo_did, repo_name, title, body, state, comment_count, \
+                          created_at, indexed_at \
+                     FROM issues WHERE repo_did = $1 AND repo_name = $2 AND state = $3 \
+                     ORDER BY created_at DESC LIMIT $4",
+                )
+                .bind(repo_did)
+                .bind(repo_name)
+                .bind(state)
+                .bind(limit)
+                .fetch_all(pool)
+                .await
+            }
         }
         (None, Some(cursor_ts)) => {
             let ts: DateTime<Utc> = cursor_ts
