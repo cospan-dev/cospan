@@ -149,7 +149,12 @@
 
 	<div class="rounded-lg border border-border bg-surface-1 p-4">
 		<h2 class="mb-3 text-sm font-medium text-text-primary">Recent Activity</h2>
-		<CommitList refUpdates={data.refUpdates.items} />
+		<CommitList
+			refUpdates={data.refUpdates.items}
+			commitUrlBase={isTangled
+				? `https://tangled.sh/${ownerLabel}/${data.repo.name}/commit`
+				: `${basePath}/commit`}
+		/>
 	</div>
 {:else}
 	<div class="mb-6">
