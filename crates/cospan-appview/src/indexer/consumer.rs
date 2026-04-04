@@ -235,8 +235,21 @@ async fn dispatch_special_upsert(
 
         // ─── Pull Request (SSE event on create) ─────────────────────
         "dev.cospan.repo.pull" | "sh.tangled.repo.pull" => {
+            // Tangled pulls have target.repo instead of top-level repo;
+            // hoist it so the lens expression can find it.
+            let rec = if rec.get("repo").is_none() {
+                if let Some(target_repo) = rec.get("target").and_then(|t| t.get("repo")).cloned() {
+                    let mut patched = rec.clone();
+                    patched.as_object_mut().map(|o| o.insert("repo".to_string(), target_repo));
+                    patched
+                } else {
+                    rec.clone()
+                }
+            } else {
+                rec.clone()
+            };
             let mut row: db::pull::PullRow =
-                serde_json::from_value(transform_record(state, collection, rec))?;
+                serde_json::from_value(transform_record(state, collection, &rec))?;
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
