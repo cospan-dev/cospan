@@ -305,19 +305,28 @@ async fn dispatch_special_upsert(
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
+            // Tangled uses "status" not "state"; fill from raw record if empty
+            if row.state.is_empty() {
+                row.state = rec.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            }
+            if row.pull_uri.is_empty() {
+                row.pull_uri = pull_uri.clone();
+            }
             let new_state = row.state.clone();
             db::pull_state::upsert(&state.db, &row).await?;
 
             let (pull_did, pull_rkey) = at_uri::parse_did_rkey(&pull_uri);
             if let Some(pull) = db::pull::get_by_pk(&state.db, &pull_did, &pull_rkey).await? {
                 let old_state = &pull.state;
+                let old_is_open = old_state.is_empty() || old_state == "open";
+                let new_is_open = new_state.is_empty() || new_state == "open";
                 if old_state != &new_state {
                     db::pull::update_state(&state.db, &pull_did, &pull_rkey, &new_state).await?;
 
-                    if old_state == "open" && new_state != "open" {
+                    if old_is_open && !new_is_open {
                         decrement_repo_open_mr_count(&state.db, &pull.repo_did, &pull.repo_name)
                             .await?;
-                    } else if old_state != "open" && new_state == "open" {
+                    } else if !old_is_open && new_is_open {
                         increment_repo_open_mr_count(&state.db, &pull.repo_did, &pull.repo_name)
                             .await?;
                     }
