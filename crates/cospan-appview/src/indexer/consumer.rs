@@ -235,7 +235,6 @@ async fn dispatch_special_upsert(
 
         // ─── Pull Request (SSE event on create) ─────────────────────
         "dev.cospan.repo.pull" | "sh.tangled.repo.pull" => {
-            tracing::info!(collection, did, rkey, "processing pull record");
             // Tangled pulls have target.repo instead of top-level repo;
             // hoist it so the lens expression can find it.
             let rec = if rec.get("repo").is_none() {
