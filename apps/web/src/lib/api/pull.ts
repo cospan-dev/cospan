@@ -55,9 +55,10 @@ export async function listPullComments(params: {
 	limit?: number;
 	cursor?: string;
 }): Promise<PullCommentListResponse> {
+	const pullUri = `at://${params.did}/dev.cospan.repo.pull/${params.rkey}`;
 	const raw = await xrpcQuery<RawPullCommentListResponse>(
 		'dev.cospan.repo.pull.comment.list',
-		params
+		{ pull: pullUri, limit: params.limit, cursor: params.cursor }
 	);
 	return { items: raw.comments ?? [], cursor: raw.cursor ?? null };
 }

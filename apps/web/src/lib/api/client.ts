@@ -54,3 +54,31 @@ export async function xrpcQuery<T>(
 
 	return response.json() as Promise<T>;
 }
+
+export async function xrpcProcedure<T>(
+	nsid: string,
+	body: Record<string, unknown>
+): Promise<T> {
+	const base = getAppviewUrl();
+	const url = `${base || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')}/xrpc/${nsid}`;
+
+	const response = await fetch(url, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(body),
+		credentials: 'include',
+	});
+
+	if (!response.ok) {
+		let error = 'Unknown';
+		let message = response.statusText;
+		try {
+			const b = await response.json();
+			error = b.error ?? error;
+			message = b.message ?? message;
+		} catch {}
+		throw new XRPCError(response.status, error, message);
+	}
+
+	return response.json() as Promise<T>;
+}

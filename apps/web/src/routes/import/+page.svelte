@@ -5,11 +5,31 @@
 	import type { Repo } from '$lib/api/repo.js';
 	import { listRepos } from '$lib/api/repo.js';
 	import { resolveHandle } from '$lib/api/handle.js';
+	import { xrpcProcedure } from '$lib/api/client.js';
 	import { getAuth } from '$lib/stores/auth.svelte';
 
 	let { data } = $props();
 
 	let auth = $derived(getAuth());
+	let forkingRepo = $state<string | null>(null);
+	let forkError = $state<string | null>(null);
+
+	async function forkRepo(repo: Repo) {
+		if (!auth.authenticated || !auth.did) return;
+		forkingRepo = `${repo.did}/${repo.name}`;
+		forkError = null;
+		try {
+			const sourceUri = `at://${repo.did}/dev.cospan.repo/${repo.rkey ?? repo.name}`;
+			await xrpcProcedure('dev.cospan.repo.fork', {
+				sourceRepo: sourceUri,
+				did: auth.did,
+			});
+			goto(`/${auth.did}/${repo.name}`);
+		} catch (e: any) {
+			forkError = e.message ?? 'Fork failed';
+			forkingRepo = null;
+		}
+	}
 	let searchQuery = $state('');
 	let activeTab = $state<'all' | 'mine'>('all');
 
@@ -216,8 +236,12 @@
 								<p class="mt-0.5 truncate text-[12px] text-ghost">{repo.description}</p>
 							{/if}
 						</div>
-						<button class="shrink-0 rounded-md bg-focus px-3 py-1 text-[12px] font-medium text-white transition-all hover:bg-focus-bright">
-							Fork
+						<button
+							onclick={() => forkRepo(repo)}
+							disabled={forkingRepo === `${repo.did}/${repo.name}`}
+							class="shrink-0 rounded-md bg-focus px-3 py-1 text-[12px] font-medium text-white transition-all hover:bg-focus-bright disabled:opacity-50"
+						>
+							{forkingRepo === `${repo.did}/${repo.name}` ? 'Forking…' : 'Fork'}
 						</button>
 					</div>
 				{/each}
@@ -269,8 +293,12 @@
 								View on Tangled ↗
 							</a>
 						</div>
-						<button class="shrink-0 rounded-md border border-line px-2.5 py-1 text-[11px] font-medium text-caption transition-all hover:border-line-bright hover:text-ink">
-							Fork
+						<button
+							onclick={() => forkRepo(repo)}
+							disabled={!auth.authenticated || forkingRepo === `${repo.did}/${repo.name}`}
+							class="shrink-0 rounded-md border border-line px-2.5 py-1 text-[11px] font-medium text-caption transition-all hover:border-line-bright hover:text-ink disabled:opacity-50"
+						>
+							{forkingRepo === `${repo.did}/${repo.name}` ? 'Forking…' : 'Fork'}
 						</button>
 					</div>
 				{/each}
