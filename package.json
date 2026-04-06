@@ -3,5 +3,13 @@
   "private": true,
   "pnpm": {
     "onlyBuiltDependencies": ["esbuild"]
+  },
+  "scripts": {
+    "test:db:up": "./scripts/test-db.sh up",
+    "test:db:down": "./scripts/test-db.sh down",
+    "test": "DATABASE_URL=postgres://cospan:cospan@localhost:5433/cospan_test cargo test",
+    "test:appview": "DATABASE_URL=postgres://cospan:cospan@localhost:5433/cospan_test cargo test -p cospan-appview",
+    "test:node": "cargo test -p cospan-node",
+    "test:all": "pnpm test:db:up && pnpm test; EXIT=$?; pnpm test:db:down; exit $EXIT"
   }
 }

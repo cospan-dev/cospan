@@ -207,6 +207,118 @@ async fn search_repos_finds_matching(pool: PgPool) {
     assert!(!repos.is_empty(), "search for 'test' should return results");
 }
 
+// ─── Fork tests ──────────────────────────────────────────────────────
+
+#[sqlx::test(migrator = "cospan_appview::MIGRATOR")]
+async fn fork_creates_new_repo(pool: PgPool) {
+    seed_test_data(&pool).await;
+    let base = start_server(pool).await;
+    let client = Client::new();
+
+    let resp = client
+        .post(format!("{base}/xrpc/dev.cospan.repo.fork"))
+        .json(&serde_json::json!({
+            "sourceRepo": "at://did:plc:alice/dev.cospan.repo/test-project",
+            "did": "did:plc:carol",
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+
+    let json: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(json["did"].as_str().unwrap(), "did:plc:carol");
+    assert_eq!(json["name"].as_str().unwrap(), "test-project");
+    assert!(json["uri"].as_str().unwrap().starts_with("at://did:plc:carol/dev.cospan.repo/"));
+    assert_eq!(json["sourceRepo"].as_str().unwrap(), "at://did:plc:alice/dev.cospan.repo/test-project");
+}
+
+#[sqlx::test(migrator = "cospan_appview::MIGRATOR")]
+async fn fork_with_custom_name(pool: PgPool) {
+    seed_test_data(&pool).await;
+    let base = start_server(pool).await;
+    let client = Client::new();
+
+    let resp = client
+        .post(format!("{base}/xrpc/dev.cospan.repo.fork"))
+        .json(&serde_json::json!({
+            "sourceRepo": "at://did:plc:alice/dev.cospan.repo/test-project",
+            "did": "did:plc:carol",
+            "name": "my-fork",
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+
+    let json: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(json["name"].as_str().unwrap(), "my-fork");
+}
+
+#[sqlx::test(migrator = "cospan_appview::MIGRATOR")]
+async fn fork_increments_source_fork_count(pool: PgPool) {
+    seed_test_data(&pool).await;
+    let base = start_server(pool.clone()).await;
+    let client = Client::new();
+
+    // Fork the repo
+    let resp = client
+        .post(format!("{base}/xrpc/dev.cospan.repo.fork"))
+        .json(&serde_json::json!({
+            "sourceRepo": "at://did:plc:alice/dev.cospan.repo/test-project",
+            "did": "did:plc:carol",
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+
+    // Check source repo's fork_count
+    let resp = client
+        .get(format!(
+            "{base}/xrpc/dev.cospan.repo.get?did=did:plc:alice&name=test-project"
+        ))
+        .send()
+        .await
+        .unwrap();
+    let json: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(json["forkCount"].as_i64().unwrap(), 1);
+}
+
+#[sqlx::test(migrator = "cospan_appview::MIGRATOR")]
+async fn fork_nonexistent_source_returns_404(pool: PgPool) {
+    let base = start_server(pool).await;
+    let client = Client::new();
+
+    let resp = client
+        .post(format!("{base}/xrpc/dev.cospan.repo.fork"))
+        .json(&serde_json::json!({
+            "sourceRepo": "at://did:plc:nobody/dev.cospan.repo/nonexistent",
+            "did": "did:plc:carol",
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 404);
+}
+
+#[sqlx::test(migrator = "cospan_appview::MIGRATOR")]
+async fn fork_invalid_uri_returns_400(pool: PgPool) {
+    let base = start_server(pool).await;
+    let client = Client::new();
+
+    let resp = client
+        .post(format!("{base}/xrpc/dev.cospan.repo.fork"))
+        .json(&serde_json::json!({
+            "sourceRepo": "not-a-valid-uri",
+            "did": "did:plc:carol",
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 400);
+}
+
 #[sqlx::test(migrator = "cospan_appview::MIGRATOR")]
 async fn health_endpoint(pool: PgPool) {
     let base = start_server(pool).await;
