@@ -9,6 +9,18 @@ use crate::xrpc::sse::IndexEvent;
 
 use super::dispatch;
 
+/// Normalize state values from Tangled's NSID format to simple strings.
+/// e.g., "sh.tangled.repo.pull.status.merged" → "merged"
+///       "sh.tangled.repo.issue.state.closed" → "closed"
+fn normalize_state(state: &str) -> String {
+    if let Some(last) = state.rsplit('.').next() {
+        if state.contains("tangled") || state.contains('.') {
+            return last.to_string();
+        }
+    }
+    state.to_string()
+}
+
 /// Transform a record through the pre-compiled panproto morphism.
 /// Handles both Cospan (DB projection) and Tangled (interop + DB projection).
 pub(super) fn transform_record(
@@ -184,11 +196,9 @@ async fn dispatch_special_upsert(
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let new_state = rec
-                .get("state")
-                .and_then(|v| v.as_str())
-                .unwrap_or("open")
-                .to_string();
+            let new_state = normalize_state(
+                rec.get("state").and_then(|v| v.as_str()).unwrap_or("open")
+            );
 
             let mut row: db::issue_state::IssueStateRow =
                 serde_json::from_value(transform_record(state, collection, rec))?;
@@ -309,6 +319,8 @@ async fn dispatch_special_upsert(
             if row.state.is_empty() {
                 row.state = rec.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string();
             }
+            // Normalize NSID-style states: "sh.tangled.repo.pull.status.merged" → "merged"
+            row.state = normalize_state(&row.state);
             if row.pull_uri.is_empty() {
                 row.pull_uri = pull_uri.clone();
             }

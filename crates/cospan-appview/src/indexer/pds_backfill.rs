@@ -20,11 +20,17 @@ const BACKFILL_COLLECTIONS: &[&str] = &[
 pub async fn run(state: Arc<AppState>) {
     tracing::info!("starting PDS backfill for state records");
 
-    // Get all unique DIDs that have pulls or issues
+    // Get all unique DIDs: PR authors, issue authors, AND repo owners
     let dids = match sqlx::query_scalar::<_, String>(
         "SELECT DISTINCT did FROM pulls \
          UNION \
-         SELECT DISTINCT did FROM issues",
+         SELECT DISTINCT did FROM issues \
+         UNION \
+         SELECT DISTINCT repo_did FROM pulls WHERE repo_did <> '' \
+         UNION \
+         SELECT DISTINCT repo_did FROM issues WHERE repo_did <> '' \
+         UNION \
+         SELECT DISTINCT did FROM repos WHERE source = 'tangled'",
     )
     .fetch_all(&state.db)
     .await
