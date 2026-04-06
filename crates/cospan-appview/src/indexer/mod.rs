@@ -2,6 +2,7 @@ pub(crate) mod consumer;
 mod dispatch;
 mod jetstream;
 mod knot_consumer;
+mod pds_backfill;
 mod tap;
 
 use std::sync::Arc;
@@ -36,6 +37,13 @@ pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
     let knot_state = state.clone();
     tokio::spawn(async move {
         knot_consumer::run(knot_state).await;
+    });
+
+    // Run PDS backfill after 60s delay (let Tap deliver what it can first)
+    let backfill_state = state.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        pds_backfill::run(backfill_state).await;
     });
 
     // Run Jetstream consumer (primary live stream with cursor persistence)

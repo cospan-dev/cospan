@@ -101,6 +101,14 @@ impl DidResolver {
         }
     }
 
+    /// Resolve a DID to its PDS service endpoint URL.
+    pub async fn resolve_pds(&self, did: &str) -> Option<String> {
+        self.resolve_did(did)
+            .await
+            .ok()
+            .and_then(|doc| doc.pds_endpoint().map(String::from))
+    }
+
     /// Resolve a DID to its DID document.
     /// Supports did:plc (via plc.directory) and did:web (.well-known/did.json).
     pub async fn resolve_did(&self, did: &str) -> anyhow::Result<DidDocument> {
