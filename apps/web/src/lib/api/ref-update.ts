@@ -19,7 +19,7 @@ export async function listRefUpdates(params: {
 	cursor?: string;
 }): Promise<RefUpdateListResponse> {
 	const raw = await xrpcQuery<RawRefUpdateListResponse>(
-		'dev.cospan.vcs.refUpdate.list',
+		'dev.panproto.vcs.refUpdate.list',
 		params
 	);
 	return { items: raw.refUpdates ?? [], cursor: raw.cursor ?? null };

@@ -1,9 +1,9 @@
 {
   "$type": "panproto.protolens",
-  "id": "dev.cospan.vcs.refUpdate.db-projection",
+  "id": "dev.panproto.vcs.refUpdate.db-projection",
   "description": "Lexicon \u2192 appview DB projection for ref updates",
-  "source": "dev.cospan.vcs.refUpdate",
-  "target": "dev.cospan.vcs.refUpdate.view",
+  "source": "dev.panproto.vcs.refUpdate",
+  "target": "dev.panproto.vcs.refUpdate.view",
   "steps": [
     {
       "rename_field": { "old": "ref", "new": "refName" }

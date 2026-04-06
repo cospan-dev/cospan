@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "dev.panproto.node.listRefs",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List all refs in a repository.",
+      "parameters": {
+        "type": "params",
+        "required": ["did", "repo"],
+        "properties": {
+          "did": { "type": "string", "format": "did", "description": "DID of the repository owner." },
+          "repo": { "type": "string", "description": "Repository name." }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["refs"],
+          "properties": {
+            "refs": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#refEntry" }
+            }
+          }
+        }
+      }
+    },
+    "refEntry": {
+      "type": "object",
+      "required": ["ref", "target"],
+      "properties": {
+        "ref": { "type": "string" },
+        "target": { "type": "string" }
+      }
+    }
+  }
+}

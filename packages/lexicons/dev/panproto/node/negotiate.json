@@ -1,0 +1,50 @@
+{
+  "lexicon": 1,
+  "id": "dev.panproto.node.negotiate",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Negotiate which objects need to be transferred. The client sends object IDs it already has and refs it wants; the server responds with the set of object IDs the client needs.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["did", "repo", "have", "want"],
+          "properties": {
+            "did": { "type": "string", "format": "did", "description": "DID of the repository owner." },
+            "repo": { "type": "string", "description": "Repository name." },
+            "have": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Object IDs the client already has."
+            },
+            "want": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Ref names the client wants to fetch."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["need", "wantResolved"],
+          "properties": {
+            "need": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Object IDs the client needs to download."
+            },
+            "wantResolved": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Object IDs that the wanted refs resolved to."
+            }
+          }
+        }
+      }
+    }
+  }
+}

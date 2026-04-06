@@ -1,0 +1,30 @@
+{
+  "lexicon": 1,
+  "id": "dev.panproto.node.getRef",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Resolve a named ref to its target object ID.",
+      "parameters": {
+        "type": "params",
+        "required": ["did", "repo", "ref"],
+        "properties": {
+          "did": { "type": "string", "format": "did", "description": "DID of the repository owner." },
+          "repo": { "type": "string", "description": "Repository name." },
+          "ref": { "type": "string", "description": "Ref name (e.g. refs/heads/main)." }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ref", "target"],
+          "properties": {
+            "ref": { "type": "string" },
+            "target": { "type": "string", "description": "Object ID the ref points to." }
+          }
+        }
+      }
+    }
+  }
+}

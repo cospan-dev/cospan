@@ -74,16 +74,9 @@ pub async fn dispatch_simple_upsert(
     }
 
     match collection {
-        // ─── dev.cospan simple records ──────────────────────────────
-        "dev.cospan.node" => simple_upsert!(node, NodeRow),
-        "dev.cospan.actor.profile" => simple_upsert!(actor_profile, ActorProfileRow, no_rkey),
-        "dev.cospan.graph.follow" => simple_upsert!(follow, FollowRow),
-        "dev.cospan.feed.reaction" => simple_upsert!(reaction, ReactionRow),
-        "dev.cospan.label.definition" => simple_upsert!(label, LabelRow, repo_fk),
-        "dev.cospan.org" => simple_upsert!(org, OrgRow),
-        "dev.cospan.org.member" => simple_upsert!(org_member, OrgMemberRow),
-        "dev.cospan.repo.collaborator" => simple_upsert!(collaborator, CollaboratorRow, repo_fk),
-        "dev.cospan.repo.dependency" => {
+        // ─── dev.panproto infrastructure records ────────────────────
+        "dev.panproto.node" => simple_upsert!(node, NodeRow),
+        "dev.panproto.registry.dependency" => {
             let mut row: db::dependency::DependencyRow =
                 serde_json::from_value(transform_record(state, collection, record))?;
             row.did = did.to_string();
@@ -94,6 +87,15 @@ pub async fn dispatch_simple_upsert(
             db::dependency::upsert(&state.db, &row).await?;
             Ok(true)
         }
+
+        // ─── dev.cospan social records ─────────────────────────────
+        "dev.cospan.actor.profile" => simple_upsert!(actor_profile, ActorProfileRow, no_rkey),
+        "dev.cospan.graph.follow" => simple_upsert!(follow, FollowRow),
+        "dev.cospan.feed.reaction" => simple_upsert!(reaction, ReactionRow),
+        "dev.cospan.label.definition" => simple_upsert!(label, LabelRow, repo_fk),
+        "dev.cospan.org" => simple_upsert!(org, OrgRow),
+        "dev.cospan.org.member" => simple_upsert!(org_member, OrgMemberRow),
+        "dev.cospan.repo.collaborator" => simple_upsert!(collaborator, CollaboratorRow, repo_fk),
 
         // ─── sh.tangled simple records (same DB tables) ─────────────
         "sh.tangled.knot" => simple_upsert!(node, NodeRow),
@@ -130,8 +132,12 @@ pub async fn dispatch_simple_delete(
     }
 
     match collection {
-        // ─── dev.cospan simple deletes ──────────────────────────────
-        "dev.cospan.node" => simple_delete!(node, did_only),
+        // ─── dev.panproto infrastructure deletes ────────────────────
+        "dev.panproto.node" => simple_delete!(node, did_only),
+        "dev.panproto.vcs.refUpdate" => simple_delete!(ref_update, did_rkey),
+        "dev.panproto.registry.dependency" => simple_delete!(dependency, did_rkey),
+
+        // ─── dev.cospan social deletes ──────────────────────────────
         "dev.cospan.actor.profile" => simple_delete!(actor_profile, did_only),
         "dev.cospan.graph.follow" => simple_delete!(follow, did_rkey),
         "dev.cospan.feed.reaction" => simple_delete!(reaction, did_rkey),
@@ -139,10 +145,8 @@ pub async fn dispatch_simple_delete(
         "dev.cospan.org" => simple_delete!(org, did_rkey),
         "dev.cospan.org.member" => simple_delete!(org_member, did_rkey),
         "dev.cospan.repo.collaborator" => simple_delete!(collaborator, did_rkey),
-        "dev.cospan.repo.dependency" => simple_delete!(dependency, did_rkey),
         "dev.cospan.repo.issue.state" => simple_delete!(issue_state, did_rkey),
         "dev.cospan.repo.pull.state" => simple_delete!(pull_state, did_rkey),
-        "dev.cospan.vcs.refUpdate" => simple_delete!(ref_update, did_rkey),
 
         // ─── sh.tangled simple deletes ──────────────────────────────
         "sh.tangled.knot" => simple_delete!(node, did_only),

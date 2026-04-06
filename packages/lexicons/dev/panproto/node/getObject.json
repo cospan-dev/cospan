@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "dev.panproto.node.getObject",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Retrieve a content-addressed object from a node's object store.",
+      "parameters": {
+        "type": "params",
+        "required": ["did", "repo", "id"],
+        "properties": {
+          "did": { "type": "string", "format": "did", "description": "DID of the repository owner." },
+          "repo": { "type": "string", "description": "Repository name." },
+          "id": { "type": "string", "description": "Content-addressed object ID." }
+        }
+      },
+      "output": {
+        "encoding": "application/vnd.panproto.object+msgpack",
+        "description": "The serialized object in msgpack format."
+      }
+    }
+  }
+}
