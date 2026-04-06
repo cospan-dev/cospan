@@ -307,7 +307,15 @@ async fn dispatch_special_upsert(
             row.indexed_at = Utc::now();
             // Tangled uses "status" not "state"; fill from raw record if empty
             if row.state.is_empty() {
-                row.state = rec.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let status = rec.get("status").and_then(|v| v.as_str()).unwrap_or("");
+                tracing::info!(
+                    collection, did, rkey,
+                    raw_status = status,
+                    has_pull = rec.get("pull").is_some(),
+                    raw_keys = ?rec.as_object().map(|o| o.keys().collect::<Vec<_>>()),
+                    "pull state record with empty state"
+                );
+                row.state = status.to_string();
             }
             if row.pull_uri.is_empty() {
                 row.pull_uri = pull_uri.clone();
