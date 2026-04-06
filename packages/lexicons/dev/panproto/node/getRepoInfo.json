@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "dev.panproto.node.getRepoInfo",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get metadata about a repository hosted on this node.",
+      "parameters": {
+        "type": "params",
+        "required": ["did", "repo"],
+        "properties": {
+          "did": { "type": "string", "format": "did", "description": "DID of the repository owner." },
+          "repo": { "type": "string", "description": "Repository name." }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["did", "repo", "refCount", "nodeDid"],
+          "properties": {
+            "did": { "type": "string", "format": "did" },
+            "repo": { "type": "string" },
+            "head": { "type": "ref", "ref": "dev.panproto.node.getHead#headState" },
+            "refCount": { "type": "integer" },
+            "nodeDid": { "type": "string", "format": "did", "description": "DID of the node hosting this repo." }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "dev.panproto.vcs.repo",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["protocol", "createdAt"],
+        "properties": {
+          "protocol": { "type": "string", "description": "Protocol identifier for this repository." },
+          "defaultBranch": { "type": "string", "default": "main", "description": "Default branch name." },
+          "headCommit": { "type": "string", "description": "Object ID of the current head commit." },
+          "commitCount": { "type": "integer", "default": 0, "description": "Total number of commits." },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

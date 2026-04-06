@@ -10,17 +10,20 @@ use super::consumer;
 
 /// Wanted collections for Jetstream subscription.
 const WANTED_COLLECTIONS: &[&str] = &[
-    "dev.cospan.node",
+    // panproto: VCS / infrastructure
+    "dev.panproto.node",
+    "dev.panproto.vcs.refUpdate",
+    "dev.panproto.vcs.repo",
+    "dev.panproto.registry.dependency",
+    // cospan: social / collaboration
     "dev.cospan.actor.profile",
     "dev.cospan.repo",
-    "dev.cospan.vcs.refUpdate",
     "dev.cospan.repo.issue",
     "dev.cospan.repo.issue.comment",
     "dev.cospan.repo.issue.state",
     "dev.cospan.repo.pull",
     "dev.cospan.repo.pull.comment",
     "dev.cospan.repo.pull.state",
-    "dev.cospan.repo.dependency",
     "dev.cospan.repo.collaborator",
     "dev.cospan.feed.star",
     "dev.cospan.feed.reaction",

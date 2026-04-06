@@ -1,6 +1,6 @@
 {
   "lexicon": 1,
-  "id": "dev.cospan.vcs.refUpdate",
+  "id": "dev.panproto.vcs.refUpdate",
   "defs": {
     "main": {
       "type": "record",

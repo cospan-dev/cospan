@@ -60,12 +60,9 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(actor_get_profile::handler),
         )
         // VCS
-        .route(
-            "/xrpc/dev.cospan.vcs.refUpdate.list",
-            get(ref_update_list::handler),
-        )
+        .route("/xrpc/dev.panproto.vcs.refUpdate.list", get(ref_update_list::handler))
         // Node
-        .route("/xrpc/dev.cospan.node.list", get(node_list::handler))
+        .route("/xrpc/dev.panproto.node.list", get(node_list::handler))
         // Issues
         .route("/xrpc/dev.cospan.repo.issue.get", get(issue_get::handler))
         .route("/xrpc/dev.cospan.repo.issue.list", get(issue_list::handler))
@@ -108,10 +105,7 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(pipeline_list::handler),
         )
         // Dependencies
-        .route(
-            "/xrpc/dev.cospan.repo.dependency.list",
-            get(dependency_list::handler),
-        )
+        .route("/xrpc/dev.panproto.registry.dependency.list", get(dependency_list::handler))
         // Collaborators
         .route(
             "/xrpc/dev.cospan.repo.collaborator.list",
@@ -124,10 +118,7 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(search_structural::handler),
         )
         // SSE
-        .route(
-            "/xrpc/dev.cospan.sync.subscribeEvents",
-            get(sse::subscribe_events),
-        )
+        .route("/xrpc/dev.panproto.sync.subscribeEvents", get(sse::subscribe_events))
         // Feed generators
         .route(
             "/xrpc/dev.cospan.feed.getBreakingChanges",
@@ -137,19 +128,10 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/xrpc/dev.cospan.feed.getTimeline",
             get(feed_timeline::handler),
         )
-        // Node proxy (fetches from cospan nodes via panproto-xrpc)
-        .route(
-            "/xrpc/dev.cospan.node.proxy.listRefs",
-            get(node_proxy::proxy_list_refs),
-        )
-        .route(
-            "/xrpc/dev.cospan.node.proxy.getHead",
-            get(node_proxy::proxy_get_head),
-        )
-        .route(
-            "/xrpc/dev.cospan.node.proxy.getObject",
-            get(node_proxy::proxy_get_object),
-        )
+        // Node proxy
+        .route("/xrpc/dev.panproto.node.proxy.listRefs", get(node_proxy::proxy_list_refs))
+        .route("/xrpc/dev.panproto.node.proxy.getHead", get(node_proxy::proxy_get_head))
+        .route("/xrpc/dev.panproto.node.proxy.getObject", get(node_proxy::proxy_get_object))
         // --- Procedures (POST) ---
         .route(
             "/xrpc/dev.cospan.feed.star.toggle",

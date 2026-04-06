@@ -122,7 +122,7 @@ async fn dispatch_special_upsert(
         }
 
         // ─── Ref Update (breaking change count computed by DB projection + SSE) ──
-        "dev.cospan.vcs.refUpdate" | "sh.tangled.git.refUpdate" => {
+        "dev.panproto.vcs.refUpdate" | "sh.tangled.git.refUpdate" => {
             // DB projection compute_array_len handles breakingChanges → breakingChangeCount
             let mut row: db::ref_update::RefUpdateRow =
                 serde_json::from_value(transform_record(state, collection, rec))?;

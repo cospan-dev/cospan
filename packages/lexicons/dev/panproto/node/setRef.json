@@ -1,0 +1,50 @@
+{
+  "lexicon": 1,
+  "id": "dev.panproto.node.setRef",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Update a ref to point to a new target object. Supports optimistic concurrency via oldTarget.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["did", "repo", "ref", "newTarget", "protocol"],
+          "properties": {
+            "did": { "type": "string", "format": "did", "description": "DID of the repository owner." },
+            "repo": { "type": "string", "description": "Repository name." },
+            "ref": { "type": "string", "description": "Ref name (e.g. refs/heads/main)." },
+            "oldTarget": { "type": "string", "description": "Expected current target for optimistic concurrency. Omit to skip check." },
+            "newTarget": { "type": "string", "description": "Object ID to set the ref to." },
+            "protocol": { "type": "string", "description": "Protocol identifier for validation." },
+            "commitCount": { "type": "integer", "description": "Number of commits in this push." }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ref", "target"],
+          "properties": {
+            "ref": { "type": "string" },
+            "target": { "type": "string" },
+            "refUpdateUri": { "type": "string", "format": "at-uri", "description": "AT-URI of the emitted refUpdate record." },
+            "validation": { "type": "ref", "ref": "#validationResult" }
+          }
+        }
+      }
+    },
+    "validationResult": {
+      "type": "object",
+      "properties": {
+        "breakingChanges": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "dev.panproto.vcs.refUpdate#breakingChange" }
+        },
+        "lensId": { "type": "string" },
+        "lensQuality": { "type": "number" }
+      }
+    }
+  }
+}

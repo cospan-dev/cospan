@@ -1,0 +1,48 @@
+{
+  "lexicon": 1,
+  "id": "dev.panproto.node.getHead",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get the HEAD state of a repository (branch reference or detached commit).",
+      "parameters": {
+        "type": "params",
+        "required": ["did", "repo"],
+        "properties": {
+          "did": { "type": "string", "format": "did", "description": "DID of the repository owner." },
+          "repo": { "type": "string", "description": "Repository name." }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["head"],
+          "properties": {
+            "head": { "type": "ref", "ref": "#headState" }
+          }
+        }
+      }
+    },
+    "headState": {
+      "type": "union",
+      "refs": ["#branchHead", "#detachedHead"]
+    },
+    "branchHead": {
+      "type": "object",
+      "required": ["type", "ref"],
+      "properties": {
+        "type": { "type": "string", "const": "branch" },
+        "ref": { "type": "string", "description": "Branch name HEAD points to." }
+      }
+    },
+    "detachedHead": {
+      "type": "object",
+      "required": ["type", "target"],
+      "properties": {
+        "type": { "type": "string", "const": "detached" },
+        "target": { "type": "string", "description": "Object ID HEAD is detached at." }
+      }
+    }
+  }
+}

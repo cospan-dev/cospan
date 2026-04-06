@@ -160,7 +160,7 @@ const URI_DECOMP_TARGET_REPO: UriDecomposition = UriDecomposition {
 pub fn all_record_configs() -> Vec<RecordConfig> {
     vec![
         RecordConfig {
-            nsid: "dev.cospan.node",
+            nsid: "dev.panproto.node",
             table_name: "nodes",
             row_struct_name: "NodeRow",
             conflict_keys: &["did"],
@@ -173,16 +173,34 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             has_serial_id: false,
             include_did: true,
             include_rkey: true,
-            indexes: &[IndexConfig {
-                name: "idx_nodes_endpoint",
-                columns: &["public_endpoint"],
-                unique: false,
-                where_clause: Some("public_endpoint IS NOT NULL"),
-                using: None,
-                raw_expression: None,
-            }],
+            indexes: &[],
             foreign_keys: &[],
             column_defaults: &[],
+        },
+        // dev.panproto.vcs.repo → new table for VCS metadata split from dev.cospan.repo
+        RecordConfig {
+            nsid: "dev.panproto.vcs.repo",
+            table_name: "vcs_repos",
+            row_struct_name: "VcsRepoRow",
+            conflict_keys: &["did", "rkey"],
+            uri_decompositions: &[],
+            uri_storages: &[],
+            field_renames: &[],
+            type_overrides: &[],
+            extra_columns: &[],
+            skip_fields: &[],
+            has_serial_id: false,
+            include_did: true,
+            include_rkey: true,
+            indexes: &[],
+            foreign_keys: &[],
+            column_defaults: &[ColumnDefault {
+                column: "default_branch",
+                expression: "'main'",
+            }, ColumnDefault {
+                column: "commit_count",
+                expression: "0",
+            }],
         },
         RecordConfig {
             nsid: "dev.cospan.actor.profile",
@@ -1111,9 +1129,19 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
     ]
 }
 
+/// Map panproto NSIDs to their cospan equivalents that share the same DB table.
+fn resolve_nsid_alias(nsid: &str) -> &str {
+    match nsid {
+        "dev.panproto.vcs.refUpdate" => "dev.cospan.vcs.refUpdate",
+        "dev.panproto.registry.dependency" => "dev.cospan.repo.dependency",
+        _ => nsid,
+    }
+}
+
 /// Look up the record config for a given NSID.
 pub fn config_for_nsid(nsid: &str) -> Option<&'static RecordConfig> {
     static CONFIGS: std::sync::OnceLock<Vec<RecordConfig>> = std::sync::OnceLock::new();
     let configs = CONFIGS.get_or_init(all_record_configs);
-    configs.iter().find(|c| c.nsid == nsid)
+    let resolved = resolve_nsid_alias(nsid);
+    configs.iter().find(|c| c.nsid == resolved)
 }

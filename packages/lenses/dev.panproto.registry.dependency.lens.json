@@ -1,8 +1,9 @@
 {
   "$type": "panproto.protolens",
-  "id": "dev.cospan.repo.dependency.db-projection",
-  "source": "dev.cospan.repo.dependency",
-  "target": "dev.cospan.repo.dependency.view",
+  "id": "dev.panproto.registry.dependency.db-projection",
+  "description": "Lexicon \u2192 appview DB projection for cross-schema dependencies",
+  "source": "dev.panproto.registry.dependency",
+  "target": "dev.panproto.registry.dependency.view",
   "steps": [
     {
       "remove_field": "sourceRepo"

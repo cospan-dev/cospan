@@ -1,0 +1,22 @@
+{
+  "$type": "panproto.protolens",
+  "id": "dev.panproto.vcs.repo.db-projection",
+  "description": "Lexicon → appview DB projection for VCS repo metadata",
+  "source": "dev.panproto.vcs.repo",
+  "target": "dev.panproto.vcs.repo.view",
+  "steps": [],
+  "extensions": {
+    "table": {
+      "name": "vcs_repos",
+      "row_struct": "VcsRepoRow",
+      "conflict_keys": [
+        "did",
+        "rkey"
+      ],
+      "column_defaults": {
+        "defaultBranch": "'main'",
+        "commitCount": "0"
+      }
+    }
+  }
+}

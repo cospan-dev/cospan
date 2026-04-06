@@ -10,20 +10,14 @@ use crate::state::NodeState;
 
 pub fn build(state: Arc<NodeState>) -> Router {
     let xrpc = Router::new()
-        .route("/xrpc/dev.cospan.node.getObject", get(handlers::get_object))
-        .route(
-            "/xrpc/dev.cospan.node.putObject",
-            post(handlers::put_object),
-        )
-        .route("/xrpc/dev.cospan.node.getRef", get(handlers::get_ref))
-        .route("/xrpc/dev.cospan.node.setRef", post(handlers::set_ref))
-        .route("/xrpc/dev.cospan.node.listRefs", get(handlers::list_refs))
-        .route("/xrpc/dev.cospan.node.getHead", get(handlers::get_head))
-        .route("/xrpc/dev.cospan.node.negotiate", post(handlers::negotiate))
-        .route(
-            "/xrpc/dev.cospan.node.getRepoInfo",
-            get(handlers::get_repo_info),
-        );
+        .route("/xrpc/dev.panproto.node.getObject", get(handlers::get_object))
+        .route("/xrpc/dev.panproto.node.putObject", post(handlers::put_object))
+        .route("/xrpc/dev.panproto.node.getRef", get(handlers::get_ref))
+        .route("/xrpc/dev.panproto.node.setRef", post(handlers::set_ref))
+        .route("/xrpc/dev.panproto.node.listRefs", get(handlers::list_refs))
+        .route("/xrpc/dev.panproto.node.getHead", get(handlers::get_head))
+        .route("/xrpc/dev.panproto.node.negotiate", post(handlers::negotiate))
+        .route("/xrpc/dev.panproto.node.getRepoInfo", get(handlers::get_repo_info));
 
     let git = git_compat::git_routes();
 

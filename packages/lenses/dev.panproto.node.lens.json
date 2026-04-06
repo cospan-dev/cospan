@@ -1,8 +1,8 @@
 {
   "$type": "panproto.protolens",
-  "id": "dev.cospan.node.db-projection",
-  "source": "dev.cospan.node",
-  "target": "dev.cospan.node.view",
+  "id": "dev.panproto.node.db-projection",
+  "source": "dev.panproto.node",
+  "target": "dev.panproto.node.view",
   "steps": [],
   "extensions": {
     "table": {

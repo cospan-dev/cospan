@@ -1,6 +1,6 @@
 {
   "lexicon": 1,
-  "id": "dev.cospan.repo.dependency",
+  "id": "dev.panproto.registry.dependency",
   "defs": {
     "main": {
       "type": "record",

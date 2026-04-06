@@ -93,7 +93,7 @@ pub async fn set_ref(
 
     let at_uri = state
         .pds_client
-        .create_record(&auth.did, "dev.cospan.vcs.refUpdate", &ref_update_record)
+        .create_record(&auth.did, "dev.panproto.vcs.refUpdate", &ref_update_record)
         .await?;
 
     Ok(Json(serde_json::json!({
