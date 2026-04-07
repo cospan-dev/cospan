@@ -224,9 +224,11 @@ async fn fork_creates_new_repo(pool: PgPool) {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 200);
+    let status = resp.status();
+    let body = resp.text().await.unwrap();
+    assert_eq!(status, 200, "fork failed: {body}");
 
-    let json: serde_json::Value = resp.json().await.unwrap();
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["did"].as_str().unwrap(), "did:plc:carol");
     assert_eq!(json["name"].as_str().unwrap(), "test-project");
     assert!(json["uri"].as_str().unwrap().starts_with("at://did:plc:carol/dev.cospan.repo/"));
