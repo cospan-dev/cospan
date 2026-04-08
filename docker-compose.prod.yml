@@ -162,6 +162,8 @@ services:
       TAP_URL: ws://tap:2480/channel,ws://tap-knots:2480/channel
       APPVIEW_LISTEN: "0.0.0.0:3000"
       PUBLIC_URL: https://${DOMAIN:?DOMAIN is required}
+      DEFAULT_NODE_DID: ${NODE_DID:?NODE_DID is required}
+      DEFAULT_NODE_URL: https://node.${DOMAIN:?DOMAIN is required}
     depends_on:
       db:
         condition: service_healthy

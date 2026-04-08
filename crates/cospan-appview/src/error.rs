@@ -15,6 +15,9 @@ pub enum AppError {
 
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+
+    #[error("upstream error: {0}")]
+    Upstream(String),
 }
 
 impl IntoResponse for AppError {
@@ -26,6 +29,10 @@ impl IntoResponse for AppError {
             AppError::Database(e) => {
                 tracing::error!(error = %e, "database error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "InternalServerError")
+            }
+            AppError::Upstream(e) => {
+                tracing::error!(error = %e, "upstream error");
+                (StatusCode::BAD_GATEWAY, "UpstreamError")
             }
         };
 

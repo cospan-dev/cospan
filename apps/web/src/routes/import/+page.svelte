@@ -20,11 +20,11 @@
 		forkError = null;
 		try {
 			const sourceUri = `at://${repo.did}/dev.cospan.repo/${repo.rkey ?? repo.name}`;
-			await xrpcProcedure('dev.cospan.repo.fork', {
-				sourceRepo: sourceUri,
-				did: auth.did,
-			});
-			goto(`/${auth.did}/${repo.name}`);
+			const result = await xrpcProcedure<{ rkey: string; name: string }>(
+				'dev.cospan.repo.fork',
+				{ sourceRepo: sourceUri }
+			);
+			goto(`/${auth.did}/${result.name}`);
 		} catch (e: any) {
 			forkError = e.message ?? 'Fork failed';
 			forkingRepo = null;

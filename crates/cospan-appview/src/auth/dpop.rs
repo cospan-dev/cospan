@@ -113,6 +113,38 @@ impl DpopKey {
             htu: url.to_string(),
             iat: chrono::Utc::now().timestamp(),
             nonce: nonce.map(String::from),
+            ath: None,
+        };
+
+        encode_es256_jwt(&header, &claims, &self.signing_key)
+    }
+
+    /// Create a DPoP proof JWT for a resource-server (PDS) request.
+    /// Includes the `ath` claim (SHA-256 hash of the access token, base64url).
+    pub fn create_resource_proof(
+        &self,
+        method: &str,
+        url: &str,
+        access_token: &str,
+        nonce: Option<&str>,
+    ) -> anyhow::Result<String> {
+        let mut hasher = Sha256::new();
+        hasher.update(access_token.as_bytes());
+        let ath = URL_SAFE_NO_PAD.encode(hasher.finalize());
+
+        let header = DpopHeader {
+            alg: "ES256".to_string(),
+            typ: "dpop+jwt".to_string(),
+            jwk: self.public_jwk.clone(),
+        };
+
+        let claims = DpopClaims {
+            jti: uuid::Uuid::new_v4().to_string(),
+            htm: method.to_uppercase(),
+            htu: url.to_string(),
+            iat: chrono::Utc::now().timestamp(),
+            nonce: nonce.map(String::from),
+            ath: Some(ath),
         };
 
         encode_es256_jwt(&header, &claims, &self.signing_key)
@@ -163,6 +195,9 @@ struct DpopClaims {
     iat: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     nonce: Option<String>,
+    /// Access token hash (SHA-256, base64url) — required for resource server requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ath: Option<String>,
 }
 
 #[derive(Serialize)]

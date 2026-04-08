@@ -1,6 +1,7 @@
 pub mod did_resolver;
 pub mod dpop;
 pub mod oauth;
+pub mod pds_client;
 pub mod session;
 
 use serde::{Deserialize, Serialize};
