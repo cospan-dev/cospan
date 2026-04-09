@@ -13,24 +13,24 @@ license = "AGPL-3.0-or-later"
 repository = "https://github.com/cospan-dev/cospan"
 
 [workspace.dependencies]
-# panproto v0.25.0 — includes panproto-lens-dsl
-panproto-core = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-vcs = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-schema = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-check = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-lens = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-lens-dsl = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-protocols = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-io = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-inst = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-gat = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-mig = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-expr = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-expr-parser = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-xrpc = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-parse = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0", features = ["group-all"] }
-panproto-git = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
-panproto-project = { git = "https://github.com/panproto/panproto.git", tag = "v0.25.0" }
+# panproto v0.27.3
+panproto-core = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-vcs = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-schema = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-check = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-lens = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-lens-dsl = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-protocols = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-io = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-inst = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-gat = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-mig = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-expr = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-expr-parser = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-xrpc = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-parse = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3", features = ["group-all"] }
+panproto-git = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
+panproto-project = { git = "https://github.com/panproto/panproto.git", tag = "v0.27.3" }
 git2 = "0.20"
 
 # Web framework
@@ -45,7 +45,7 @@ serde_json = "1"
 rmp-serde = "1"
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "migrate", "json", "chrono"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "migrate", "json", "chrono", "uuid"] }
 
 # Crypto / identity
 blake3 = "1"
@@ -79,7 +79,7 @@ tree-sitter = "0.25"
 # General
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 toml = "0.8"
 dotenvy = "0.15"
 async-trait = "0.1"

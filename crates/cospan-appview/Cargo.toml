@@ -57,8 +57,11 @@ async-trait.workspace = true
 anyhow.workspace = true
 uuid.workspace = true
 
+git2.workspace = true
+tempfile = "3"
+
 [dev-dependencies]
 mockall.workspace = true
 reqwest.workspace = true
-tempfile = "3"
 wiremock = "0.6"
+cospan-node = { path = "../cospan-node" }

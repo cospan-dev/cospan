@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import CommitList from '$lib/components/repo/CommitList.svelte';
+	import CommitGraph from '$lib/components/repo/CommitGraph.svelte';
 	import StarButton from '$lib/components/shared/StarButton.svelte';
 	import ForkButton from '$lib/components/shared/ForkButton.svelte';
 	import { getAuth } from '$lib/stores/auth.svelte';
@@ -147,15 +148,34 @@
 		</div>
 	{/if}
 
-	<div class="rounded-lg border border-border bg-surface-1 p-4">
-		<h2 class="mb-3 text-sm font-medium text-text-primary">Recent Activity</h2>
-		<CommitList
-			refUpdates={data.refUpdates.items}
-			commitUrlBase={isTangled
-				? `https://tangled.sh/${ownerLabel}/${data.repo.name}/commit`
-				: `${basePath}/commit`}
-		/>
-	</div>
+	{#if (data.commits?.length ?? 0) > 0}
+		<!-- Commit graph: full DAG with lanes + merge markers, fetched from
+		     the hosting node. Only available for Cospan-hosted repos. -->
+		<div class="rounded-lg border border-border bg-surface-1 p-4">
+			<h2 class="mb-3 text-sm font-medium text-text-primary">
+				Commit graph
+				<span class="ml-1 text-xs font-normal text-text-muted">({data.commits.length})</span>
+			</h2>
+			<CommitGraph
+				commits={data.commits}
+				{basePath}
+				commitUrlBase={`${basePath}/commit`}
+			/>
+		</div>
+	{:else}
+		<!-- Fallback: flat list of ref updates from the firehose. Used for
+		     Tangled-hosted repos where we only observe pushes via the
+		     jetstream, not the full commit DAG. -->
+		<div class="rounded-lg border border-border bg-surface-1 p-4">
+			<h2 class="mb-3 text-sm font-medium text-text-primary">Recent Activity</h2>
+			<CommitList
+				refUpdates={data.refUpdates.items}
+				commitUrlBase={isTangled
+					? `https://tangled.sh/${ownerLabel}/${data.repo.name}/commit`
+					: `${basePath}/commit`}
+			/>
+		</div>
+	{/if}
 {:else}
 	<div class="mb-6">
 		<h1 class="mt-3 text-xl font-semibold text-text-primary">{data.repoName}</h1>

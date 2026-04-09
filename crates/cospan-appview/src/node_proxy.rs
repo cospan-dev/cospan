@@ -75,3 +75,58 @@ pub async fn get_head(
         .await
         .map_err(|e| format!("node get_head error: {e}"))
 }
+
+/// Proxy an arbitrary node XRPC GET request and return the raw JSON.
+///
+/// Used for endpoints like `listCommits` / `diffCommits` that aren't
+/// modeled in panproto-xrpc's typed NodeClient yet. These belong in
+/// panproto upstream — tracked at <https://github.com/panproto/panproto/issues/25>.
+/// Once the typed client lands, migrate the call sites back to it.
+///
+/// The `did`/`repo` query parameters are injected automatically so the
+/// frontend doesn't have to know them.
+pub async fn proxy_get_json(
+    state: &Arc<AppState>,
+    repo_did: &str,
+    repo_name: &str,
+    endpoint: &str,
+    extra_params: &[(&str, String)],
+) -> Result<serde_json::Value, String> {
+    let row: Option<(String,)> = sqlx::query_as::<_, (String,)>(
+        "SELECT node_url FROM repos WHERE did = $1 AND name = $2",
+    )
+    .bind(repo_did)
+    .bind(repo_name)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| format!("database error: {e}"))?;
+
+    let (node_url,) =
+        row.ok_or_else(|| format!("repo {repo_did}/{repo_name} not found"))?;
+    if node_url.is_empty() {
+        return Err("repo has no node URL configured".into());
+    }
+
+    let base = node_url.trim_end_matches('/');
+    let url = format!("{base}/xrpc/{endpoint}");
+
+    let mut req = state.http_client.get(&url);
+    req = req.query(&[("did", repo_did), ("repo", repo_name)]);
+    if !extra_params.is_empty() {
+        req = req.query(extra_params);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("proxy request failed: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("node returned {status}: {body}"));
+    }
+
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("proxy response parse error: {e}"))
+}

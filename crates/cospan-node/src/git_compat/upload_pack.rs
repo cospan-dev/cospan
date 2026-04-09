@@ -1,15 +1,9 @@
 //! `POST /:did/:repo/git-upload-pack` handler.
 //!
 //! Handles `git clone` and `git fetch` by reading want/have negotiation
-//! lines from the client, exporting panproto-vcs objects to a temporary
-//! git repository via panproto-git's `export_to_git`, and sending the
-//! resulting packfile back.
-//!
-//! The git smart HTTP upload-pack protocol:
-//! 1. Client sends want/have lines (which objects it wants/has)
-//! 2. Server responds with NAK/ACK and a packfile
-
-use std::collections::HashMap;
+//! lines from the client, building a packfile from the persistent git
+//! mirror (see `git_compat::receive_pack`), and sending it back wrapped
+//! in the sideband protocol if the client requested it.
 
 use std::sync::Arc;
 
@@ -19,13 +13,20 @@ use axum::response::IntoResponse;
 
 use crate::state::NodeState;
 
+/// Negotiated client capabilities from upload-pack.
+#[derive(Default, Debug)]
+struct ClientCaps {
+    side_band: bool,
+    side_band_64k: bool,
+}
+
 /// Parse pkt-line formatted want/have negotiation from the upload-pack body.
-///
-/// Returns (want_oids, have_oids).
-fn parse_wants_haves(body: &[u8]) -> (Vec<String>, Vec<String>) {
+fn parse_wants_haves(body: &[u8]) -> (Vec<String>, Vec<String>, ClientCaps) {
     let mut wants = Vec::new();
     let mut haves = Vec::new();
+    let mut caps = ClientCaps::default();
     let mut pos = 0;
+    let mut first_want_parsed = false;
 
     loop {
         if pos + 4 > body.len() {
@@ -42,14 +43,13 @@ fn parse_wants_haves(body: &[u8]) -> (Vec<String>, Vec<String>) {
             Err(_) => break,
         };
 
-        // Flush packet or special packets.
-        if pkt_len == 0 {
+        if pkt_len == 0 || pkt_len == 1 || pkt_len == 2 {
             pos += 4;
-            continue;
-        }
-        if pkt_len == 1 || pkt_len == 2 {
-            pos += 4;
-            continue;
+            if pkt_len == 0 {
+                continue;
+            } else {
+                continue;
+            }
         }
 
         if pos + pkt_len > body.len() {
@@ -60,41 +60,58 @@ fn parse_wants_haves(body: &[u8]) -> (Vec<String>, Vec<String>) {
         pos += pkt_len;
 
         if let Ok(line_str) = std::str::from_utf8(line) {
-            let line_str = line_str.trim();
-            // Strip capabilities after NUL.
-            let command_part = line_str.split('\0').next().unwrap_or(line_str);
+            let line_str = line_str.trim_end_matches('\n');
 
-            if let Some(oid) = command_part.strip_prefix("want ") {
-                wants.push(oid.split_whitespace().next().unwrap_or(oid).to_string());
-            } else if let Some(oid) = command_part.strip_prefix("have ") {
-                haves.push(oid.split_whitespace().next().unwrap_or(oid).to_string());
-            } else if command_part == "done" {
+            // upload-pack first-want line format (git wire protocol v1):
+            //     "want <oid> <cap1> <cap2> ... <capN>"
+            // Capabilities are space-separated, NOT NUL-separated (that's
+            // the receive-pack convention). Subsequent wants don't carry
+            // capabilities.
+            if let Some(rest) = line_str.strip_prefix("want ") {
+                let mut parts = rest.split_whitespace();
+                if let Some(oid) = parts.next() {
+                    wants.push(oid.to_string());
+                    if !first_want_parsed {
+                        first_want_parsed = true;
+                        for cap in parts {
+                            match cap {
+                                "side-band" => caps.side_band = true,
+                                "side-band-64k" => caps.side_band_64k = true,
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            } else if let Some(rest) = line_str.strip_prefix("have ") {
+                if let Some(oid) = rest.split_whitespace().next() {
+                    haves.push(oid.to_string());
+                }
+            } else if line_str == "done" {
                 break;
             }
         }
     }
 
-    (wants, haves)
+    (wants, haves, caps)
 }
 
-/// Build a pkt-line.
+/// Build a pkt-line byte vector.
 fn pkt_line(data: &str) -> Vec<u8> {
     let len = data.len() + 4;
     format!("{len:04x}{data}").into_bytes()
 }
 
 /// Handle `POST /:did/:repo/git-upload-pack`.
-///
-/// Receives want/have negotiation from the git client, exports panproto-vcs
-/// objects to git format via panproto-git, and sends the packfile back.
 pub async fn git_upload_pack(
     State(state): State<Arc<NodeState>>,
     Path((did, repo)): Path<(String, String)>,
     body: axum::body::Bytes,
 ) -> impl IntoResponse {
     tracing::info!(%did, %repo, body_len = body.len(), "git-upload-pack requested");
+    tracing::info!(body_hex = ?String::from_utf8_lossy(&body).chars().take(500).collect::<String>(), "upload-pack raw body");
 
-    let (wants, _haves) = parse_wants_haves(&body);
+    let (wants, haves, caps) = parse_wants_haves(&body);
+    tracing::info!(?wants, ?haves, ?caps, "parsed wants/haves");
 
     if wants.is_empty() {
         let mut response = Vec::new();
@@ -110,10 +127,10 @@ pub async fn git_upload_pack(
         );
     }
 
-    // Open the panproto-vcs store for this repo.
+    // Open the persistent git mirror (single source of truth for git
+    // smart HTTP). The panproto-vcs store is not consulted here.
     let store_guard = state.store.lock().await;
-
-    if !store_guard.exists(&did, &repo) {
+    if !store_guard.has_git_mirror(&did, &repo) {
         let mut response = Vec::new();
         response.extend_from_slice(&pkt_line("ERR repository not found\n"));
         response.extend_from_slice(b"0000");
@@ -126,12 +143,11 @@ pub async fn git_upload_pack(
             response,
         );
     }
-
-    let vcs_store = match store_guard.open(&did, &repo) {
-        Ok(s) => s,
+    let mirror = match store_guard.open_or_init_git_mirror(&did, &repo) {
+        Ok(m) => m,
         Err(e) => {
             let mut response = Vec::new();
-            response.extend_from_slice(&pkt_line(&format!("ERR store error: {e}\n")));
+            response.extend_from_slice(&pkt_line(&format!("ERR open mirror: {e}\n")));
             response.extend_from_slice(b"0000");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -143,94 +159,16 @@ pub async fn git_upload_pack(
             );
         }
     };
-
-    // Create a temporary git repository for the export.
-    let temp_dir = match tempfile::tempdir() {
-        Ok(d) => d,
-        Err(e) => {
-            let mut response = Vec::new();
-            response.extend_from_slice(&pkt_line(&format!("ERR temp dir failed: {e}\n")));
-            response.extend_from_slice(b"0000");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                [(
-                    header::CONTENT_TYPE,
-                    "application/x-git-upload-pack-result".to_owned(),
-                )],
-                response,
-            );
-        }
-    };
-
-    let git_repo = match git2::Repository::init(temp_dir.path()) {
-        Ok(r) => r,
-        Err(e) => {
-            let mut response = Vec::new();
-            response.extend_from_slice(&pkt_line(&format!("ERR git init failed: {e}\n")));
-            response.extend_from_slice(b"0000");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                [(
-                    header::CONTENT_TYPE,
-                    "application/x-git-upload-pack-result".to_owned(),
-                )],
-                response,
-            );
-        }
-    };
-
-    // Get all refs from the panproto store.
-    let refs = match store_guard.list_refs(&did, &repo) {
-        Ok(r) => r,
-        Err(e) => {
-            let mut response = Vec::new();
-            response.extend_from_slice(&pkt_line(&format!("ERR list refs failed: {e}\n")));
-            response.extend_from_slice(b"0000");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                [(
-                    header::CONTENT_TYPE,
-                    "application/x-git-upload-pack-result".to_owned(),
-                )],
-                response,
-            );
-        }
-    };
-
-    // Export each ref's commit chain to the temporary git repo.
-    // Build a mapping from panproto commit IDs to git OIDs.
-    let mut panproto_to_git: HashMap<panproto_vcs::ObjectId, git2::Oid> = HashMap::new();
-
-    for (ref_name, panproto_id) in &refs {
-        match panproto_git::export_to_git(&vcs_store, &git_repo, *panproto_id, &panproto_to_git) {
-            Ok(export_result) => {
-                panproto_to_git.insert(*panproto_id, export_result.git_oid);
-                // Set the ref in the git repo.
-                let _ = git_repo.reference(ref_name, export_result.git_oid, true, "export");
-                tracing::debug!(
-                    %ref_name, files = export_result.file_count,
-                    "exported panproto commit to git"
-                );
-            }
-            Err(e) => {
-                tracing::warn!(
-                    %ref_name, error = %e,
-                    "failed to export panproto commit"
-                );
-            }
-        }
-    }
-
-    // Drop the store lock before building the packfile.
     drop(store_guard);
 
-    // Build a packfile from the temporary git repo containing the wanted objects.
-    // Use `git pack-objects` through libgit2's packbuilder.
-    let mut packbuilder = match git_repo.packbuilder() {
+    // Set up a revwalk that walks the wanted commits from the mirror
+    // and excludes whatever the client already has. Then feed it into
+    // the packbuilder so it grabs every reachable object.
+    let mut packbuilder = match mirror.packbuilder() {
         Ok(pb) => pb,
         Err(e) => {
             let mut response = Vec::new();
-            response.extend_from_slice(&pkt_line(&format!("ERR packbuilder failed: {e}\n")));
+            response.extend_from_slice(&pkt_line(&format!("ERR packbuilder: {e}\n")));
             response.extend_from_slice(b"0000");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -243,41 +181,40 @@ pub async fn git_upload_pack(
         }
     };
 
-    // Add wanted objects. The want OIDs are truncated blake3 hashes (40 chars).
-    // Find the matching git OIDs from our exported refs.
-    let mut found_any = false;
-    for want_oid_str in &wants {
-        // Try to find a matching git OID in the repo by iterating refs.
-        if let Ok(oid) = git2::Oid::from_str(want_oid_str)
-            && let Ok(commit) = git_repo.find_commit(oid)
-        {
-            let _ = packbuilder.insert_commit(commit.id());
-            found_any = true;
-            continue;
+    let mut revwalk = match mirror.revwalk() {
+        Ok(rw) => rw,
+        Err(e) => {
+            let mut response = Vec::new();
+            response.extend_from_slice(&pkt_line(&format!("ERR revwalk: {e}\n")));
+            response.extend_from_slice(b"0000");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [(
+                    header::CONTENT_TYPE,
+                    "application/x-git-upload-pack-result".to_owned(),
+                )],
+                response,
+            );
         }
+    };
+    let _ = revwalk.set_sorting(git2::Sort::TIME | git2::Sort::TOPOLOGICAL);
 
-        // The want OIDs might be truncated blake3 that we advertised via info/refs.
-        // Search through our refs for matching truncated hashes.
-        for (_, panproto_id) in &refs {
-            let full_hex = panproto_id.to_string();
-            let truncated = if full_hex.len() > 40 {
-                &full_hex[..40]
-            } else {
-                &full_hex
-            };
-            if truncated == want_oid_str
-                && let Some(git_oid) = panproto_to_git.get(panproto_id)
-            {
-                let _ = packbuilder.insert_commit(*git_oid);
-                found_any = true;
-            }
+    let mut found_any = false;
+    for want in &wants {
+        if let Ok(oid) = git2::Oid::from_str(want)
+            && mirror.find_commit(oid).is_ok()
+        {
+            let _ = revwalk.push(oid);
+            found_any = true;
         }
     }
-
-    // Remove objects the client already has.
-    // For a full implementation we'd use the have list to minimize the pack,
-    // but libgit2's packbuilder doesn't directly support this — it's
-    // handled by the revwalk. For now, we send all wanted objects.
+    for have in &haves {
+        if let Ok(oid) = git2::Oid::from_str(have)
+            && mirror.find_commit(oid).is_ok()
+        {
+            let _ = revwalk.hide(oid);
+        }
+    }
 
     if !found_any {
         let mut response = Vec::new();
@@ -293,14 +230,9 @@ pub async fn git_upload_pack(
         );
     }
 
-    // Build the packfile.
-    let mut pack_data = Vec::new();
-    if let Err(e) = packbuilder.foreach(|data| {
-        pack_data.extend_from_slice(data);
-        true
-    }) {
+    if let Err(e) = packbuilder.insert_walk(&mut revwalk) {
         let mut response = Vec::new();
-        response.extend_from_slice(&pkt_line(&format!("ERR pack build failed: {e}\n")));
+        response.extend_from_slice(&pkt_line(&format!("ERR insert_walk: {e}\n")));
         response.extend_from_slice(b"0000");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -312,27 +244,52 @@ pub async fn git_upload_pack(
         );
     }
 
-    // Build the response: NAK + sideband-encoded packfile.
-    // Git smart HTTP protocol sends the packfile in sideband format:
-    // - Band 1: packfile data
-    // - Band 2: progress messages
-    // - Band 3: error messages
+    // Build the packfile into a buffer.
+    let mut pack_data = Vec::new();
+    if let Err(e) = packbuilder.foreach(|data| {
+        pack_data.extend_from_slice(data);
+        true
+    }) {
+        let mut response = Vec::new();
+        response.extend_from_slice(&pkt_line(&format!("ERR pack build: {e}\n")));
+        response.extend_from_slice(b"0000");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            [(
+                header::CONTENT_TYPE,
+                "application/x-git-upload-pack-result".to_owned(),
+            )],
+            response,
+        );
+    }
+
+    tracing::info!(
+        object_count = packbuilder.object_count(),
+        pack_bytes = pack_data.len(),
+        side_band = caps.side_band,
+        side_band_64k = caps.side_band_64k,
+        "upload-pack built"
+    );
+
+    // Assemble the response. Always start with NAK. If the client
+    // supports sideband, frame the pack in band 1 pkt-lines; otherwise
+    // append the pack bytes directly after NAK.
     let mut response = Vec::new();
     response.extend_from_slice(&pkt_line("NAK\n"));
 
-    // Send packfile data in sideband band 1.
-    // Each sideband packet: pkt-line with first byte = band number.
-    const SIDEBAND_CHUNK_SIZE: usize = 65515; // Max pkt-line payload minus band byte
-    for chunk in pack_data.chunks(SIDEBAND_CHUNK_SIZE) {
-        let pkt_len = chunk.len() + 5; // 4 for length prefix + 1 for band byte
-        let len_str = format!("{pkt_len:04x}");
-        response.extend_from_slice(len_str.as_bytes());
-        response.push(1); // sideband band 1 = packfile data
-        response.extend_from_slice(chunk);
+    if caps.side_band_64k || caps.side_band {
+        let chunk_size: usize = if caps.side_band_64k { 65515 } else { 995 };
+        for chunk in pack_data.chunks(chunk_size) {
+            let pkt_len = chunk.len() + 5;
+            let len_str = format!("{pkt_len:04x}");
+            response.extend_from_slice(len_str.as_bytes());
+            response.push(1); // sideband band 1 = pack data
+            response.extend_from_slice(chunk);
+        }
+        response.extend_from_slice(b"0000");
+    } else {
+        response.extend_from_slice(&pack_data);
     }
-
-    // Flush packet to end the response.
-    response.extend_from_slice(b"0000");
 
     (
         StatusCode::OK,

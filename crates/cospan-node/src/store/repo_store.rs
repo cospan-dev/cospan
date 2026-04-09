@@ -19,6 +19,37 @@ impl RepoManager {
         self.root.join(did).join(name)
     }
 
+    /// Path to the persistent bare git mirror for a repo. This is a
+    /// companion to the panproto-vcs FsStore: git smart HTTP endpoints
+    /// serve refs and packs from here so we avoid re-exporting panproto
+    /// objects on every request (the export is not deterministic and
+    /// would produce different git OIDs each time).
+    pub fn git_mirror_dir(&self, did: &str, name: &str) -> PathBuf {
+        self.repo_dir(did, name).join(".git-mirror")
+    }
+
+    /// Open or initialize the bare git mirror for a repo.
+    pub fn open_or_init_git_mirror(
+        &self,
+        did: &str,
+        name: &str,
+    ) -> Result<git2::Repository, git2::Error> {
+        let path = self.git_mirror_dir(did, name);
+        if path.exists() {
+            git2::Repository::open_bare(&path)
+        } else {
+            std::fs::create_dir_all(&path).map_err(|e| {
+                git2::Error::from_str(&format!("failed to create git mirror dir: {e}"))
+            })?;
+            git2::Repository::init_bare(&path)
+        }
+    }
+
+    /// Check if the git mirror exists for a repo.
+    pub fn has_git_mirror(&self, did: &str, name: &str) -> bool {
+        self.git_mirror_dir(did, name).exists()
+    }
+
     /// Open an existing repo's FsStore.
     pub fn open(&self, did: &str, name: &str) -> Result<FsStore, VcsError> {
         let dir = self.repo_dir(did, name);
@@ -88,9 +119,13 @@ impl RepoManager {
     }
 
     /// List all refs in a repo.
+    ///
+    /// NOTE: panproto-vcs `FsStore::list_refs("")` would walk the whole
+    /// store root (objects/, HEAD, etc.) and fail on binary files, so
+    /// we scope the listing to the `refs/` directory.
     pub fn list_refs(&self, did: &str, name: &str) -> Result<Vec<(String, ObjectId)>, VcsError> {
         let store = self.open(did, name)?;
-        store.list_refs("")
+        store.list_refs("refs/")
     }
 
     /// Get HEAD state.

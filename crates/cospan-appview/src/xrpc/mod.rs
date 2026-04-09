@@ -150,6 +150,14 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/xrpc/dev.cospan.node.proxy.getObject",
             get(node_proxy::proxy_get_object),
         )
+        .route(
+            "/xrpc/dev.cospan.node.proxy.listCommits",
+            get(node_proxy::proxy_list_commits),
+        )
+        .route(
+            "/xrpc/dev.cospan.node.proxy.diffCommits",
+            get(node_proxy::proxy_diff_commits),
+        )
         // --- Procedures (POST) ---
         .route(
             "/xrpc/dev.cospan.feed.star.toggle",

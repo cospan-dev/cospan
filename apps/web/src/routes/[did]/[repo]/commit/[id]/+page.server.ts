@@ -1,52 +1,40 @@
 import type { PageServerLoad } from './$types';
-import { env } from '$env/dynamic/private';
-import { getObject } from '$lib/api/node.js';
-
-const DEFAULT_NODE_URL = env.NODE_URL ?? 'http://localhost:3002';
-
-export interface CommitObject {
-	id: string;
-	kind: string;
-	author: string | null;
-	committer: string | null;
-	message: string | null;
-	parents: string[];
-	schemaId: string | null;
-	migrationId: string | null;
-	timestamp: string | null;
-	raw: string;
-}
-
-function parseCommitObject(obj: { id: string; kind: string; data: string }): CommitObject {
-	let parsed: Record<string, unknown> = {};
-	try {
-		parsed = JSON.parse(obj.data);
-	} catch {
-		// Data might not be JSON; treat as raw.
-	}
-
-	return {
-		id: obj.id,
-		kind: obj.kind,
-		author: (parsed.author as string) ?? null,
-		committer: (parsed.committer as string) ?? null,
-		message: (parsed.message as string) ?? null,
-		parents: Array.isArray(parsed.parents) ? (parsed.parents as string[]) : [],
-		schemaId: (parsed.schemaId as string) ?? (parsed.schema_id as string) ?? null,
-		migrationId: (parsed.migrationId as string) ?? (parsed.migration_id as string) ?? null,
-		timestamp: (parsed.timestamp as string) ?? (parsed.createdAt as string) ?? null,
-		raw: obj.data,
-	};
-}
+import { listCommits, diffCommits, type Commit, type DiffCommitsResponse } from '$lib/api/vcs.js';
 
 export const load: PageServerLoad = async ({ params }) => {
-	let commit: CommitObject | null = null;
+	let commit: Commit | null = null;
+	let diff: DiffCommitsResponse | null = null;
+	let error: string | null = null;
 
+	// Fetch the commit + its parent ancestry via listCommits starting at
+	// this ref. We only need the commit itself plus its parents for the
+	// detail view and first-parent diff.
 	try {
-		const obj = await getObject(DEFAULT_NODE_URL, params.did, params.repo, params.id);
-		commit = parseCommitObject(obj);
-	} catch (err) {
-		console.error(`Failed to load commit ${params.id}:`, err);
+		const result = await listCommits({
+			did: params.did,
+			repo: params.repo,
+			ref: params.id,
+			limit: 2,
+		});
+		commit = result.commits[0] ?? null;
+	} catch (e) {
+		error = (e as Error).message;
+	}
+
+	// If we have a commit with at least one parent, fetch the diff
+	// against the first parent. For merge commits this is the "mainline"
+	// diff; for root commits we skip.
+	if (commit && commit.parents.length > 0) {
+		try {
+			diff = await diffCommits({
+				did: params.did,
+				repo: params.repo,
+				from: commit.parents[0],
+				to: commit.oid,
+			});
+		} catch (e) {
+			console.warn('failed to fetch commit diff:', (e as Error).message);
+		}
 	}
 
 	return {
@@ -54,5 +42,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		repoName: params.repo,
 		commitId: params.id,
 		commit,
+		diff,
+		error,
 	};
 };

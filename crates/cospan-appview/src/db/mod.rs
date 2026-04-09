@@ -3,6 +3,7 @@ pub mod collaborator;
 pub mod cursor;
 pub mod dependency;
 pub mod follow;
+pub mod fork_job;
 #[allow(dead_code)]
 pub mod generated;
 pub mod issue;

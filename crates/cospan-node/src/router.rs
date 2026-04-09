@@ -18,6 +18,14 @@ pub fn build(state: Arc<NodeState>) -> Router {
         .route("/xrpc/dev.cospan.node.getRef", get(handlers::get_ref))
         .route("/xrpc/dev.cospan.node.setRef", post(handlers::set_ref))
         .route("/xrpc/dev.cospan.node.listRefs", get(handlers::list_refs))
+        .route(
+            "/xrpc/dev.cospan.node.listCommits",
+            get(handlers::list_commits),
+        )
+        .route(
+            "/xrpc/dev.cospan.node.diffCommits",
+            get(handlers::diff_commits),
+        )
         .route("/xrpc/dev.cospan.node.getHead", get(handlers::get_head))
         .route("/xrpc/dev.cospan.node.negotiate", post(handlers::negotiate))
         .route(

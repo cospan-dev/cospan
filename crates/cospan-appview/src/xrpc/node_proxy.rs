@@ -26,6 +26,25 @@ pub struct ObjectParams {
     pub id: String,
 }
 
+#[derive(Deserialize)]
+pub struct ListCommitsParams {
+    pub did: String,
+    pub repo: String,
+    #[serde(rename = "ref")]
+    pub ref_name: Option<String>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
+pub struct DiffCommitsParams {
+    pub did: String,
+    pub repo: String,
+    pub from: String,
+    pub to: String,
+    #[serde(rename = "contextLines")]
+    pub context_lines: Option<i64>,
+}
+
 /// GET /xrpc/dev.cospan.node.proxy.listRefs
 /// Proxies to the node hosting this repo.
 pub async fn proxy_list_refs(
@@ -63,6 +82,58 @@ pub async fn proxy_get_head(
     };
 
     Ok(Json(serde_json::json!({ "head": head_json })))
+}
+
+/// GET /xrpc/dev.cospan.node.proxy.listCommits
+pub async fn proxy_list_commits(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ListCommitsParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut extra: Vec<(&str, String)> = Vec::new();
+    if let Some(ref r) = params.ref_name {
+        extra.push(("ref", r.clone()));
+    }
+    if let Some(l) = params.limit {
+        extra.push(("limit", l.to_string()));
+    }
+
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.cospan.node.listCommits",
+        &extra,
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+
+    Ok(Json(result))
+}
+
+/// GET /xrpc/dev.cospan.node.proxy.diffCommits
+pub async fn proxy_diff_commits(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<DiffCommitsParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut extra: Vec<(&str, String)> = vec![
+        ("from", params.from.clone()),
+        ("to", params.to.clone()),
+    ];
+    if let Some(c) = params.context_lines {
+        extra.push(("contextLines", c.to_string()));
+    }
+
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.cospan.node.diffCommits",
+        &extra,
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+
+    Ok(Json(result))
 }
 
 /// GET /xrpc/dev.cospan.node.proxy.getObject

@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { getContext } from 'svelte';
 	import BackLink from '$lib/components/shared/BackLink.svelte';
+	import StructuralDiff from '$lib/components/repo/StructuralDiff.svelte';
 
 	let { data } = $props();
 
@@ -150,26 +151,17 @@
 			<div class="mt-4 rounded-md bg-compatible/10 px-3 py-2 text-sm text-compatible">
 				Both refs point to the same commit. No differences.
 			</div>
+		{:else if data.diff}
+			<div class="mt-5">
+				<StructuralDiff diff={data.diff} />
+			</div>
+		{:else if data.diffError}
+			<div class="mt-4 rounded-md bg-breaking/10 px-3 py-2 text-sm text-breaking">
+				Could not fetch diff: {data.diffError}
+			</div>
 		{:else if baseTarget && headTarget}
-			<div class="mt-4 rounded-md border border-border bg-surface-0 p-4">
-				<p class="text-sm text-text-secondary">
-					Structural diff viewer will be displayed here once the panproto-wasm module
-					is integrated. For now, the commit objects can be inspected individually.
-				</p>
-				<div class="mt-3 flex flex-wrap gap-2">
-					<a
-						href="{basePath}/commit/{baseTarget}"
-						class="rounded-md border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-accent hover:text-text-primary"
-					>
-						View base commit
-					</a>
-					<a
-						href="{basePath}/commit/{headTarget}"
-						class="rounded-md border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-accent hover:text-text-primary"
-					>
-						View head commit
-					</a>
-				</div>
+			<div class="mt-4 rounded-md border border-border bg-surface-0 p-4 text-center text-sm text-text-secondary">
+				Loading diff…
 			</div>
 		{/if}
 	</div>

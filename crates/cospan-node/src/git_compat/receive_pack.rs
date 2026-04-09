@@ -1,17 +1,23 @@
 //! `POST /:did/:repo/git-receive-pack` handler.
 //!
 //! Handles `git push` by receiving packfile data from the git client,
-//! materializing it into a temporary git repository, then using
-//! panproto-git's `import_git_repo` to convert the git objects into
-//! panproto-vcs objects stored in the FsStore.
+//! writing it into a persistent bare git mirror via libgit2's packwriter,
+//! updating refs in the mirror, and THEN importing the same objects into
+//! the panproto-vcs store so schema-aware operations continue to work.
 //!
-//! The git smart HTTP receive-pack protocol sends:
-//! 1. Reference update commands (old-oid new-oid refname)
-//! 2. A packfile containing the objects
+//! Keeping the git mirror is essential: subsequent upload-pack / info-refs
+//! calls can serve the original git objects directly without having to
+//! re-export panproto-vcs objects (that export is not deterministic, so
+//! two calls would advertise different OIDs and break `git clone`).
 //!
-//! We parse the update commands, unpack the packfile via libgit2, import
-//! the objects through panproto-git, and update refs accordingly.
+//! Protocol sketch:
+//!
+//! 1. Client sends reference update commands (old-oid new-oid refname).
+//! 2. Client sends a packfile containing the objects.
+//! 3. We index the pack into the persistent mirror, update mirror refs,
+//!    and import the corresponding commits into panproto-vcs.
 
+use std::io::Write;
 use std::sync::Arc;
 
 use axum::extract::{Path, State};
@@ -60,7 +66,6 @@ fn parse_ref_updates(body: &[u8]) -> (Vec<(String, String, String)>, &[u8]) {
         // Parse "old-oid new-oid refname\n" (strip capabilities after NUL if present).
         if let Ok(line_str) = std::str::from_utf8(line) {
             let line_str = line_str.trim();
-            // Capabilities are separated by NUL on the first line.
             let command_part = line_str.split('\0').next().unwrap_or(line_str);
             let parts: Vec<&str> = command_part.splitn(3, ' ').collect();
             if parts.len() == 3 {
@@ -76,24 +81,32 @@ fn parse_ref_updates(body: &[u8]) -> (Vec<(String, String, String)>, &[u8]) {
     (updates, &body[pos..])
 }
 
-/// Build a pkt-line formatted response.
+/// Build a pkt-line formatted response chunk.
 fn pkt_line(data: &str) -> String {
     let len = data.len() + 4;
     format!("{len:04x}{data}")
 }
 
+fn err_response(msg: String) -> impl IntoResponse {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        [(
+            header::CONTENT_TYPE,
+            "application/x-git-receive-pack-result",
+        )],
+        pkt_line(&format!("ERR {msg}\n")) + "0000",
+    )
+}
+
 /// Handle `POST /:did/:repo/git-receive-pack`.
-///
-/// Receives a packfile from the git client, imports the objects through
-/// panproto-git into the panproto-vcs store, and updates refs.
 pub async fn git_receive_pack(
     State(state): State<Arc<NodeState>>,
     Path((did, repo)): Path<(String, String)>,
     body: axum::body::Bytes,
-) -> impl IntoResponse {
+) -> axum::response::Response {
     tracing::info!(%did, %repo, body_len = body.len(), "git-receive-pack requested");
 
-    // Parse reference update commands and extract packfile data.
+    // 1. Parse reference update commands and extract packfile data.
     let (ref_updates, packfile_data) = parse_ref_updates(&body);
 
     if ref_updates.is_empty() {
@@ -105,147 +118,107 @@ pub async fn git_receive_pack(
                 "application/x-git-receive-pack-result",
             )],
             format!("{msg}0000"),
-        );
+        )
+            .into_response();
     }
 
-    // Create a temporary directory to materialize the packfile as a git repo.
-    let temp_dir = match tempfile::tempdir() {
-        Ok(d) => d,
-        Err(e) => {
-            let err_msg = format!("ERR failed to create temp dir: {e}\n");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                [(
-                    header::CONTENT_TYPE,
-                    "application/x-git-receive-pack-result",
-                )],
-                pkt_line(&err_msg) + "0000",
-            );
-        }
-    };
-
-    // Initialize a bare git repo in the temp directory.
-    let git_repo = match git2::Repository::init_bare(temp_dir.path()) {
+    // 2. Open (or initialise) the persistent bare git mirror for this repo.
+    let store_guard = state.store.lock().await;
+    let git_mirror = match store_guard.open_or_init_git_mirror(&did, &repo) {
         Ok(r) => r,
         Err(e) => {
-            let err_msg = format!("ERR failed to init temp git repo: {e}\n");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                [(
-                    header::CONTENT_TYPE,
-                    "application/x-git-receive-pack-result",
-                )],
-                pkt_line(&err_msg) + "0000",
-            );
+            return err_response(format!("open git mirror: {e}")).into_response();
         }
     };
 
-    // Write the packfile data and index it via libgit2's ODB.
+    // 3. Index the packfile into the mirror via libgit2's packwriter.
     if !packfile_data.is_empty() {
-        let odb = match git_repo.odb() {
+        let odb = match git_mirror.odb() {
             Ok(o) => o,
-            Err(e) => {
-                let err_msg = format!("ERR failed to open ODB: {e}\n");
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    [(
-                        header::CONTENT_TYPE,
-                        "application/x-git-receive-pack-result",
-                    )],
-                    pkt_line(&err_msg) + "0000",
-                );
-            }
+            Err(e) => return err_response(format!("open ODB: {e}")).into_response(),
         };
-
-        // Write the packfile to the ODB so libgit2 can index it.
-        let pack_path = temp_dir.path().join("objects").join("pack");
-        let _ = std::fs::create_dir_all(&pack_path);
-        let pack_file = pack_path.join("incoming.pack");
-        if let Err(e) = std::fs::write(&pack_file, packfile_data) {
-            let err_msg = format!("ERR failed to write packfile: {e}\n");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                [(
-                    header::CONTENT_TYPE,
-                    "application/x-git-receive-pack-result",
-                )],
-                pkt_line(&err_msg) + "0000",
-            );
+        let mut writer = match odb.packwriter() {
+            Ok(w) => w,
+            Err(e) => return err_response(format!("open packwriter: {e}")).into_response(),
+        };
+        if let Err(e) = writer.write_all(packfile_data) {
+            return err_response(format!("write pack: {e}")).into_response();
         }
-
-        // Use git index-pack to index the packfile.
-        // libgit2's indexer API handles this.
-        match odb.add_disk_alternate(pack_path.to_str().unwrap_or(".")) {
-            Ok(_) => {}
-            Err(e) => {
-                tracing::warn!("failed to add pack alternate: {e}");
-            }
+        if let Err(e) = writer.commit() {
+            return err_response(format!("commit pack: {e}")).into_response();
         }
     }
 
-    // For each ref update, set the ref in the temp repo so import can walk it.
-    for (_, new_oid, refname) in &ref_updates {
-        let zero_oid = "0".repeat(40);
-        if new_oid != &zero_oid
-            && let Ok(oid) = git2::Oid::from_str(new_oid)
-        {
-            let _ = git_repo.reference(refname, oid, true, "receive-pack");
-        }
-    }
-
-    // Import the git objects into panproto-vcs via panproto-git.
-    let store = state.store.lock().await;
-    let mut vcs_store = match store.open_or_init(&did, &repo) {
+    // 4. Apply ref updates on the mirror, then mirror them into panproto-vcs.
+    let mut vcs_store = match store_guard.open_or_init(&did, &repo) {
         Ok(s) => s,
-        Err(e) => {
-            let err_msg = format!("ERR failed to open panproto store: {e}\n");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                [(
-                    header::CONTENT_TYPE,
-                    "application/x-git-receive-pack-result",
-                )],
-                pkt_line(&err_msg) + "0000",
-            );
-        }
+        Err(e) => return err_response(format!("open panproto store: {e}")).into_response(),
     };
 
-    // Import from the first ref update's new target.
     let mut response = String::new();
 
     for (_old_oid, new_oid, refname) in &ref_updates {
         let zero_oid = "0".repeat(40);
 
         if new_oid == &zero_oid {
-            // Ref deletion — not supported through git bridge.
-            response.push_str(&pkt_line(&format!("ng {refname} deletion not supported\n")));
+            // Ref deletion: remove from mirror and panproto store.
+            match git_mirror.find_reference(refname) {
+                Ok(mut r) => {
+                    let _ = r.delete();
+                }
+                Err(_) => {}
+            }
+            let _ = panproto_vcs::Store::delete_ref(&mut vcs_store, refname);
+            response.push_str(&pkt_line(&format!("ok {refname}\n")));
             continue;
         }
 
-        match panproto_git::import_git_repo(&git_repo, &mut vcs_store, new_oid) {
+        let git_oid = match git2::Oid::from_str(new_oid) {
+            Ok(o) => o,
+            Err(e) => {
+                response.push_str(&pkt_line(&format!("ng {refname} bad oid: {e}\n")));
+                continue;
+            }
+        };
+
+        // Update the mirror ref.
+        if let Err(e) = git_mirror.reference(refname, git_oid, true, "receive-pack") {
+            response.push_str(&pkt_line(&format!("ng {refname} mirror ref: {e}\n")));
+            continue;
+        }
+
+        // Import the git commit into panproto-vcs so schema operations
+        // can see it. Failure is logged but not fatal to the push —
+        // the mirror is the source of truth for git clients.
+        match panproto_git::import_git_repo(&git_mirror, &mut vcs_store, new_oid) {
             Ok(import_result) => {
-                // Update the panproto ref to point to the imported commit.
                 if let Err(e) =
                     panproto_vcs::Store::set_ref(&mut vcs_store, refname, import_result.head_id)
                 {
-                    response.push_str(&pkt_line(&format!("ng {refname} store error: {e}\n")));
-                } else {
-                    tracing::info!(
-                        %did, %repo, %refname,
-                        commits = import_result.commit_count,
-                        "imported git commits into panproto-vcs"
+                    tracing::warn!(
+                        %did, %repo, %refname, error = %e,
+                        "failed to set panproto ref after import"
                     );
-                    response.push_str(&pkt_line(&format!("ok {refname}\n")));
                 }
+                tracing::info!(
+                    %did, %repo, %refname,
+                    commits = import_result.commit_count,
+                    "imported git commits into panproto-vcs"
+                );
             }
             Err(e) => {
-                tracing::error!(%did, %repo, %refname, error = %e, "git import failed");
-                response.push_str(&pkt_line(&format!("ng {refname} import failed: {e}\n")));
+                tracing::warn!(
+                    %did, %repo, %refname, error = %e,
+                    "panproto-vcs import failed (git mirror still updated)"
+                );
             }
         }
+
+        response.push_str(&pkt_line(&format!("ok {refname}\n")));
     }
 
-    // Prepend unpack status.
+    drop(store_guard);
+
     let full_response = format!("{}{}0000", pkt_line("unpack ok\n"), response);
 
     (
@@ -256,4 +229,5 @@ pub async fn git_receive_pack(
         )],
         full_response,
     )
+        .into_response()
 }
