@@ -48,6 +48,13 @@ pub async fn handler(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, AppError> {
     // 1. Require an authenticated session.
+    let has_cookie = headers.get("cookie").is_some();
+    let cookie_preview = headers
+        .get("cookie")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| if s.len() > 40 { format!("{}...", &s[..40]) } else { s.to_string() })
+        .unwrap_or_default();
+    tracing::info!(has_cookie, cookie_preview, "createPushToken auth check");
     let session_id = extract_session_id(&headers)
         .ok_or_else(|| AppError::Unauthorized("sign in required".to_string()))?;
     let session = state
