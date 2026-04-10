@@ -57,7 +57,7 @@ pub fn validate(uri: &str) -> Result<AtUri, String> {
         return Err(format!("invalid AT-URI: missing DID (got: {uri})"));
     }
     if parsed.rkey.is_empty() {
-        return Err(format!("invalid AT-URI: missing rkey/name (got: {uri})");
+        return Err(format!("invalid AT-URI: missing rkey/name (got: {uri})"));
     }
     Ok(parsed)
 }
