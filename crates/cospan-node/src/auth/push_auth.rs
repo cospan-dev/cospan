@@ -40,6 +40,10 @@ struct PushTokenClaims {
 }
 
 /// Extract HTTP Basic Auth credentials from the Authorization header.
+///
+/// The username is a DID (`did:plc:abc123`) which contains colons.
+/// The password is a JWT (starts with `eyJ`). We split at `:eyJ`
+/// to find the boundary between DID and token.
 fn extract_basic_auth(headers: &axum::http::HeaderMap) -> Option<(String, String)> {
     let auth = headers.get("authorization")?.to_str().ok()?;
     let encoded = auth.strip_prefix("Basic ")?;
@@ -47,8 +51,13 @@ fn extract_basic_auth(headers: &axum::http::HeaderMap) -> Option<(String, String
         .decode(encoded)
         .ok()?;
     let text = String::from_utf8(decoded).ok()?;
-    let (user, pass) = text.split_once(':')?;
-    Some((user.to_string(), pass.to_string()))
+    // JWT always starts with "eyJ" (base64 of '{"'). DIDs never contain this.
+    if let Some(pos) = text.find(":eyJ") {
+        Some((text[..pos].to_string(), text[pos + 1..].to_string()))
+    } else {
+        let (user, pass) = text.split_once(':')?;
+        Some((user.to_string(), pass.to_string()))
+    }
 }
 
 /// Verify a push token from git credentials.
