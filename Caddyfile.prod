@@ -1,8 +1,18 @@
 {$DOMAIN:cospan.dev} {
-	reverse_proxy web:3000
-
+	# AppView: XRPC, OAuth, JWKS
 	handle /xrpc/* {
 		reverse_proxy appview:3000
+	}
+	handle /oauth/* {
+		reverse_proxy appview:3000
+	}
+	handle /.well-known/jwks.json {
+		reverse_proxy appview:3000
+	}
+
+	# Frontend: everything else
+	handle {
+		reverse_proxy web:3000
 	}
 }
 
