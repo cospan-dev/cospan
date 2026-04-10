@@ -3,6 +3,7 @@
 	import { getAuth } from '$lib/stores/auth.svelte';
 	import KeyForm from '$lib/components/settings/KeyForm.svelte';
 	import { listKeys, addKey, deleteKey, type Key, type KeyType } from '$lib/api/keys.js';
+	import { xrpcProcedure } from '$lib/api/client.js';
 	import { formatDate } from '$lib/utils/time.js';
 
 	let auth = $derived(getAuth());
@@ -10,9 +11,39 @@
 	let loading = $state(true);
 	let deletingKey = $state<string | null>(null);
 	let showForm = $state(false);
-	let activeTab: KeyType = $state('ssh');
+	let activeTab: KeyType | 'push' = $state('ssh');
 
 	let filteredKeys = $derived(keys.filter((k) => k.type === activeTab));
+
+	// Push token state
+	let pushToken = $state<string | null>(null);
+	let pushTokenLoading = $state(false);
+	let pushTokenError = $state<string | null>(null);
+	let pushTokenCopied = $state(false);
+
+	async function generatePushToken() {
+		pushTokenLoading = true;
+		pushTokenError = null;
+		pushToken = null;
+		try {
+			const result = await xrpcProcedure<{ token: string; did: string; expiresIn: number }>(
+				'dev.cospan.repo.createPushToken',
+				{}
+			);
+			pushToken = result.token;
+		} catch (e: any) {
+			pushTokenError = e.message ?? 'Failed to generate token';
+		} finally {
+			pushTokenLoading = false;
+		}
+	}
+
+	async function copyToken() {
+		if (!pushToken) return;
+		await navigator.clipboard.writeText(pushToken);
+		pushTokenCopied = true;
+		setTimeout(() => { pushTokenCopied = false; }, 2000);
+	}
 
 	onMount(async () => {
 		if (!auth.authenticated || !auth.did) {
@@ -102,8 +133,78 @@
 			>
 				GPG Keys
 			</button>
+			<button
+				onclick={() => { activeTab = 'push'; }}
+				class="border-b-2 px-4 py-2 text-sm font-medium transition-colors
+					{activeTab === 'push'
+						? 'border-accent text-text-primary'
+						: 'border-transparent text-text-secondary hover:text-text-primary'}"
+			>
+				Push Tokens
+			</button>
 		</div>
 
+		{#if activeTab === 'push'}
+			<!-- Push Tokens tab -->
+			<div class="rounded-lg border border-border bg-surface-1 p-6">
+				<h2 class="mb-2 text-sm font-medium text-text-primary">Git Push Token</h2>
+				<p class="mb-4 text-xs text-text-secondary">
+					Generate a short-lived token to authenticate <code class="rounded bg-surface-2 px-1">git push</code> to cospan-node.
+					Tokens expire after 1 hour.
+				</p>
+
+				<div class="mb-4 rounded-md border border-border bg-surface-0 p-3 text-xs text-text-secondary">
+					<p class="mb-2 font-medium text-text-primary">Usage:</p>
+					<ol class="list-inside list-decimal space-y-1">
+						<li>Click "Generate Token" below</li>
+						<li>Copy the token</li>
+						<li>When git prompts for credentials:</li>
+					</ol>
+					<div class="mt-2 rounded bg-surface-2 px-3 py-2 font-mono text-[11px]">
+						<div>Username: <span class="text-accent">{auth.did ?? 'your-did'}</span></div>
+						<div>Password: <span class="text-accent">(paste the token)</span></div>
+					</div>
+					<div class="mt-2 font-mono text-[11px] text-text-muted">
+						git remote add cospan https://node.cospan.dev/{auth.did ?? 'your-did'}/REPO<br/>
+						git push cospan main
+					</div>
+				</div>
+
+				{#if pushToken}
+					<div class="mb-4 rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3">
+						<div class="mb-2 flex items-center justify-between">
+							<span class="text-xs font-medium text-emerald-400">Token generated (expires in 1 hour)</span>
+							<button
+								onclick={copyToken}
+								class="rounded bg-emerald-500/15 px-2 py-1 text-[11px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25"
+							>
+								{pushTokenCopied ? 'Copied!' : 'Copy'}
+							</button>
+						</div>
+						<code class="block break-all rounded bg-surface-2 px-3 py-2 font-mono text-[11px] text-text-primary">
+							{pushToken}
+						</code>
+						<p class="mt-2 text-[10px] text-text-muted">
+							This token will not be shown again. Generate a new one if it expires.
+						</p>
+					</div>
+				{/if}
+
+				{#if pushTokenError}
+					<div class="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">
+						{pushTokenError}
+					</div>
+				{/if}
+
+				<button
+					onclick={generatePushToken}
+					disabled={pushTokenLoading}
+					class="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+				>
+					{pushTokenLoading ? 'Generating...' : 'Generate Token'}
+				</button>
+			</div>
+		{:else}
 		<!-- Add key button / form -->
 		{#if showForm}
 			<div class="mb-6 rounded-lg border border-border bg-surface-1 p-6">
@@ -172,5 +273,6 @@
 				{/each}
 			</div>
 		{/if}
+		{/if}<!-- close push tab {:else} -->
 	{/if}
 </section>
