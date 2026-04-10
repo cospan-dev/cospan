@@ -38,6 +38,9 @@ export async function initAuth(serverUser?: ServerUser | null): Promise<void> {
 				avatar: result.avatar,
 				loading: false,
 			};
+			// Bridge the browser OAuth session to a server-side cookie so
+			// server-rendered pages and form actions can see the session.
+			bridgeSession(result.did, result.handle).catch(() => {});
 		} else if (serverUser) {
 			// IndexedDB session lost but server cookie still valid
 			state = {
@@ -75,6 +78,20 @@ export function getAuth(): AuthState {
 
 export async function doLogout(): Promise<void> {
 	await oauthLogout();
+	// Clear the server-side session cookie too.
+	fetch('/oauth/bridge', { method: 'DELETE', credentials: 'include' }).catch(() => {});
 	state = { authenticated: false, loading: false };
 	initialized = false;
+}
+
+/// Bridge the browser OAuth session to a server-side session cookie.
+/// Called after every successful browser OAuth init so that form
+/// actions and server-side rendering can see the authenticated user.
+async function bridgeSession(did: string, handle?: string): Promise<void> {
+	await fetch('/oauth/bridge', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ did, handle }),
+		credentials: 'include',
+	});
 }

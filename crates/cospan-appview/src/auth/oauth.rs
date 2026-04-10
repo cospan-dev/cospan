@@ -13,7 +13,7 @@ use std::sync::Arc;
 use axum::extract::{Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -34,6 +34,8 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/oauth/callback", get(callback))
         .route("/oauth/logout", post(logout))
         .route("/oauth/session", get(session_info))
+        .route("/oauth/bridge", post(bridge_session))
+        .route("/oauth/bridge", delete(bridge_delete))
 }
 
 // -- GET /oauth/client-metadata.json --
@@ -712,4 +714,92 @@ impl IntoResponse for OAuthError {
         )
             .into_response()
     }
+}
+
+// -- Bridge: connect browser OAuth to server-side session --
+//
+// The frontend uses @atproto/oauth-client-browser which stores tokens
+// in IndexedDB. Server-side features (form actions, SSR) need a
+// session cookie. This endpoint bridges the two: the frontend POSTs
+// the authenticated DID after browser OAuth completes, and we create
+// a lightweight server-side session + cookie.
+
+#[derive(Deserialize)]
+struct BridgeInput {
+    did: String,
+    handle: Option<String>,
+}
+
+async fn bridge_session(
+    State(state): State<Arc<AppState>>,
+    Json(input): Json<BridgeInput>,
+) -> impl IntoResponse {
+    let session_id = uuid::Uuid::new_v4().to_string();
+    let session = Session {
+        did: input.did.clone(),
+        handle: input.handle.clone(),
+        // Bridge sessions don't have PDS tokens (the browser has them).
+        // They only exist so the server can identify the user for form
+        // actions like createPushToken.
+        access_token: String::new(),
+        refresh_token: String::new(),
+        dpop_private_key_b64: String::new(),
+        auth_server_issuer: String::new(),
+        pds_url: String::new(),
+        dpop_nonce: None,
+        expires_at: chrono::Utc::now() + chrono::Duration::days(7),
+        created_at: chrono::Utc::now(),
+    };
+
+    if let Err(e) = state.session_store.put_session(&session_id, session).await {
+        tracing::error!(error = %e, "bridge: failed to store session");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": "session store failed"})),
+        )
+            .into_response();
+    }
+
+    tracing::info!(did = %input.did, "bridge: created server session");
+
+    let cookie_value = format!(
+        "{}={}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800{}",
+        SESSION_COOKIE,
+        session_id,
+        if state.oauth_config.public_url.starts_with("https://") {
+            "; Secure"
+        } else {
+            ""
+        }
+    );
+
+    (
+        StatusCode::OK,
+        [(header::SET_COOKIE, cookie_value)],
+        Json(json!({"ok": true, "did": input.did})),
+    )
+        .into_response()
+}
+
+async fn bridge_delete(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    if let Some(session_id) = extract_session_id(&headers) {
+        let _ = state.session_store.delete_session(&session_id).await;
+    }
+    let clear_cookie = format!(
+        "{}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0{}",
+        SESSION_COOKIE,
+        if state.oauth_config.public_url.starts_with("https://") {
+            "; Secure"
+        } else {
+            ""
+        }
+    );
+    (
+        StatusCode::OK,
+        [(header::SET_COOKIE, clear_cookie)],
+        Json(json!({"ok": true})),
+    )
 }
