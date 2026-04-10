@@ -76,12 +76,37 @@ fn build_info_refs_body(
 }
 
 /// Handle `GET /:did/:repo/info/refs?service=git-upload-pack|git-receive-pack`.
+///
+/// For receive-pack (push), requires authentication. For upload-pack
+/// (clone/fetch), access is public.
 pub async fn git_info_refs(
     State(state): State<Arc<NodeState>>,
+    headers: axum::http::HeaderMap,
     Path((did, repo)): Path<(String, String)>,
     Query(params): Query<InfoRefsParams>,
 ) -> impl IntoResponse {
     let service = &params.service;
+
+    // Require auth for receive-pack (push) but not upload-pack (clone/fetch).
+    if service == "git-receive-pack" {
+        match crate::auth::push_auth::verify_push(&headers, &did) {
+            crate::auth::push_auth::PushAuth::Authenticated(_) => {}
+            crate::auth::push_auth::PushAuth::NoCredentials => {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    [(header::CONTENT_TYPE, "text/plain".to_owned())],
+                    b"Authentication required for push".to_vec(),
+                );
+            }
+            crate::auth::push_auth::PushAuth::Denied(reason) => {
+                return (
+                    StatusCode::FORBIDDEN,
+                    [(header::CONTENT_TYPE, "text/plain".to_owned())],
+                    format!("Push denied: {reason}").into_bytes(),
+                );
+            }
+        }
+    }
 
     if service != "git-upload-pack" && service != "git-receive-pack" {
         return (

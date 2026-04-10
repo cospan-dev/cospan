@@ -99,12 +99,42 @@ fn err_response(msg: String) -> impl IntoResponse {
 }
 
 /// Handle `POST /:did/:repo/git-receive-pack`.
+///
+/// Requires authentication: the pusher must provide HTTP Basic Auth
+/// with username=DID, password=push-token (a JWT from the appview's
+/// `dev.cospan.repo.createPushToken` endpoint).
 pub async fn git_receive_pack(
     State(state): State<Arc<NodeState>>,
+    headers: axum::http::HeaderMap,
     Path((did, repo)): Path<(String, String)>,
     body: axum::body::Bytes,
 ) -> axum::response::Response {
     tracing::info!(%did, %repo, body_len = body.len(), "git-receive-pack requested");
+
+    // 0. Authenticate the pusher.
+    match crate::auth::push_auth::verify_push(&headers, &did) {
+        crate::auth::push_auth::PushAuth::Authenticated(authed_did) => {
+            tracing::info!(%authed_did, "push authenticated");
+        }
+        crate::auth::push_auth::PushAuth::NoCredentials => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                [(header::WWW_AUTHENTICATE, "Basic realm=\"cospan-node\"")],
+                [(header::CONTENT_TYPE, "application/x-git-receive-pack-result")],
+                pkt_line("ERR authentication required\n") + "0000",
+            )
+                .into_response();
+        }
+        crate::auth::push_auth::PushAuth::Denied(reason) => {
+            tracing::warn!(%did, %reason, "push denied");
+            return (
+                StatusCode::FORBIDDEN,
+                [(header::CONTENT_TYPE, "application/x-git-receive-pack-result")],
+                pkt_line(&format!("ERR {reason}\n")) + "0000",
+            )
+                .into_response();
+        }
+    }
 
     // 1. Parse reference update commands and extract packfile data.
     let (ref_updates, packfile_data) = parse_ref_updates(&body);

@@ -53,6 +53,10 @@ impl Default for ValidationConfig {
 pub struct AuthConfig {
     #[serde(default)]
     pub allowed_dids: Vec<String>,
+    /// URL of the appview's JWKS endpoint for verifying push tokens.
+    /// e.g. "https://cospan.dev/.well-known/jwks.json"
+    #[serde(default)]
+    pub appview_jwks_url: Option<String>,
 }
 
 impl NodeConfig {

@@ -239,6 +239,15 @@ pub fn compute_code_challenge(verifier: &str) -> String {
 // custom header fields like `jwk` (for DPoP) cleanly. ES256 signing with p256
 // is straightforward.
 
+/// Sign an arbitrary JWT with a DpopKey. Used by push token issuance.
+pub fn encode_es256_jwt_public<H: Serialize, C: Serialize>(
+    header: &H,
+    claims: &C,
+    key: &DpopKey,
+) -> anyhow::Result<String> {
+    encode_es256_jwt(header, claims, &key.signing_key)
+}
+
 fn encode_es256_jwt<H: Serialize, C: Serialize>(
     header: &H,
     claims: &C,

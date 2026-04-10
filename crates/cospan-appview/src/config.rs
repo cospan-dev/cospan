@@ -14,6 +14,10 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
+    pub fn public_url(&self) -> String {
+        std::env::var("PUBLIC_URL").unwrap_or_else(|_| "https://cospan.dev".to_string())
+    }
+
     pub fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             database_url: std::env::var("DATABASE_URL")
