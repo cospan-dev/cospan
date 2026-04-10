@@ -1,4 +1,4 @@
-pub use super::generated::crud::repos::{get, list, upsert};
+pub use super::generated::crud::repos::{delete, get, list, upsert};
 pub use super::generated::types::RepoRow;
 
 use chrono::{DateTime, Utc};

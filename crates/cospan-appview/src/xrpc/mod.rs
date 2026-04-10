@@ -27,6 +27,7 @@ mod reaction_list;
 mod ref_update_list;
 mod push_token;
 mod repo_create;
+mod repo_delete;
 mod repo_fork;
 mod repo_get;
 mod repo_import;
@@ -182,6 +183,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         )
         .route("/xrpc/dev.cospan.repo.create", post(repo_create::handler))
         .route("/xrpc/dev.cospan.repo.fork", post(repo_fork::handler))
+        .route("/xrpc/dev.cospan.repo.delete", post(repo_delete::handler))
         .route("/xrpc/dev.cospan.repo.import", post(repo_import::handler))
         .route(
             "/xrpc/dev.cospan.repo.createPushToken",

@@ -167,3 +167,67 @@ async fn parse_create_response(
         cid: body.cid,
     })
 }
+
+/// Delete a record from the authenticated user's PDS.
+pub async fn delete_record(
+    http: &reqwest::Client,
+    session: &Session,
+    collection: &str,
+    rkey: &str,
+) -> Result<(), PdsClientError> {
+    let dpop_key = DpopKey::from_private_key_b64(
+        &session.dpop_private_key_b64,
+        format!("session-{}", session.did),
+    )
+    .map_err(|e| PdsClientError::DpopKey(e.to_string()))?;
+
+    let url = format!(
+        "{}/xrpc/com.atproto.repo.deleteRecord",
+        session.pds_url.trim_end_matches('/')
+    );
+
+    let body = serde_json::json!({
+        "repo": session.did,
+        "collection": collection,
+        "rkey": rkey,
+    });
+
+    let resp = send_dpop_post(
+        http,
+        &dpop_key,
+        &url,
+        &session.access_token,
+        session.dpop_nonce.as_deref(),
+        &body,
+    )
+    .await?;
+
+    if resp.status().is_success() {
+        return Ok(());
+    }
+
+    // Nonce retry
+    let new_nonce = resp
+        .headers()
+        .get("dpop-nonce")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+    let status = resp.status();
+    let body_text = resp.text().await.unwrap_or_default();
+
+    if (status.as_u16() == 401 || status.as_u16() == 400)
+        && (body_text.contains("use_dpop_nonce") || body_text.contains("DPoP"))
+    {
+        if let Some(ref nonce) = new_nonce {
+            let retry = send_dpop_post(http, &dpop_key, &url, &session.access_token, Some(nonce), &body).await?;
+            if retry.status().is_success() {
+                return Ok(());
+            }
+        }
+    }
+
+    Err(PdsClientError::PdsError {
+        status: status.as_u16(),
+        body: body_text,
+    })
+}
