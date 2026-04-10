@@ -3,7 +3,7 @@
 	import { getAuth } from '$lib/stores/auth.svelte';
 	import KeyForm from '$lib/components/settings/KeyForm.svelte';
 	import { listKeys, addKey, deleteKey, type Key, type KeyType } from '$lib/api/keys.js';
-	import { xrpcProcedure } from '$lib/api/client.js';
+	import { enhance } from '$app/forms';
 	import { formatDate } from '$lib/utils/time.js';
 
 	let auth = $derived(getAuth());
@@ -15,28 +15,12 @@
 
 	let filteredKeys = $derived(keys.filter((k) => k.type === activeTab));
 
-	// Push token state
-	let pushToken = $state<string | null>(null);
-	let pushTokenLoading = $state(false);
-	let pushTokenError = $state<string | null>(null);
-	let pushTokenCopied = $state(false);
+	let { form } = $props();
 
-	async function generatePushToken() {
-		pushTokenLoading = true;
-		pushTokenError = null;
-		pushToken = null;
-		try {
-			const result = await xrpcProcedure<{ token: string; did: string; expiresIn: number }>(
-				'dev.cospan.repo.createPushToken',
-				{}
-			);
-			pushToken = result.token;
-		} catch (e: any) {
-			pushTokenError = e.message ?? 'Failed to generate token';
-		} finally {
-			pushTokenLoading = false;
-		}
-	}
+	// Push token state
+	let pushToken = $derived(form?.token as string | undefined);
+	let pushTokenError = $derived(form?.error as string | undefined);
+	let pushTokenCopied = $state(false);
 
 	async function copyToken() {
 		if (!pushToken) return;
@@ -196,13 +180,14 @@
 					</div>
 				{/if}
 
-				<button
-					onclick={generatePushToken}
-					disabled={pushTokenLoading}
-					class="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
-				>
-					{pushTokenLoading ? 'Generating...' : 'Generate Token'}
-				</button>
+				<form method="POST" action="?/createPushToken" use:enhance>
+					<button
+						type="submit"
+						class="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+					>
+						Generate Token
+					</button>
+				</form>
 			</div>
 		{:else}
 		<!-- Add key button / form -->
