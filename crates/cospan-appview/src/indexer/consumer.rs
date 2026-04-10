@@ -149,7 +149,7 @@ async fn dispatch_special_upsert(
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
-            // AT-URI decomposition yields rkey, not name — resolve to human-readable name
+            // AT-URI decomposition yields rkey, not name: resolve to human-readable name
             if !row.repo_did.is_empty() && !row.repo_name.is_empty() {
                 row.repo_name = db::repo::resolve_rkey_to_name(&state.db, &row.repo_did, &row.repo_name).await?;
             }

@@ -29,7 +29,7 @@ export const load = async ({ params, url }: { params: { did: string; repo: strin
 	// If both refs are selected, resolve their targets and fetch the
 	// structural diff through the node proxy. The compare page's Svelte
 	// template used to say "structural diff viewer will be displayed
-	// here once..." — this is that.
+	// here once..." - this is that.
 	let diff: DiffCommitsResponse | null = null;
 	let diffError: string | null = null;
 	const baseTarget = refs.find((r) => r.name === baseRef)?.target ?? null;

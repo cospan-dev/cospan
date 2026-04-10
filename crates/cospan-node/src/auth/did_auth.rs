@@ -264,7 +264,7 @@ fn try_decoding_key_from_multibase(multibase: &str, algorithm: Algorithm) -> Opt
     // For now, we handle the most common case: compressed P-256 points.
     // The multicodec prefix for P-256 compressed is 0x1200.
     // Full multibase decoding would require a multibase library.
-    // This is a known limitation — JWK keys are preferred.
+    // This is a known limitation: JWK keys are preferred.
     let _ = (multibase, algorithm);
     None
 }

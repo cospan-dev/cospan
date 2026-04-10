@@ -2,9 +2,9 @@
 //!
 //! Implements the three endpoints required for git's HTTP smart protocol:
 //!
-//! - `GET  /:did/:repo/info/refs`        — ref advertisement (`git ls-remote`)
-//! - `POST /:did/:repo/git-upload-pack`  — packfile serving (`git clone`/`git fetch`)
-//! - `POST /:did/:repo/git-receive-pack` — packfile receiving (`git push`)
+//! - `GET  /:did/:repo/info/refs`       : ref advertisement (`git ls-remote`)
+//! - `POST /:did/:repo/git-upload-pack` : packfile serving (`git clone`/`git fetch`)
+//! - `POST /:did/:repo/git-receive-pack`: packfile receiving (`git push`)
 //!
 //! `info/refs` reads real refs from the panproto-vcs store.
 //! `upload-pack` and `receive-pack` bridge via panproto-git and git2.

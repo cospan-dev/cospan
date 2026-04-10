@@ -8,6 +8,7 @@ mod list_refs;
 mod negotiate;
 mod put_object;
 mod set_ref;
+pub(crate) mod structural;
 
 pub use diff_commits::diff_commits;
 pub use get_head::get_head;

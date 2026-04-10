@@ -80,7 +80,7 @@ pub async fn get_head(
 ///
 /// Used for endpoints like `listCommits` / `diffCommits` that aren't
 /// modeled in panproto-xrpc's typed NodeClient yet. These belong in
-/// panproto upstream — tracked at <https://github.com/panproto/panproto/issues/25>.
+/// panproto upstream: tracked at <https://github.com/panproto/panproto/issues/25>.
 /// Once the typed client lands, migrate the call sites back to it.
 ///
 /// The `did`/`repo` query parameters are injected automatically so the

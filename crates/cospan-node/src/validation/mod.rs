@@ -45,7 +45,7 @@ impl ValidationPipeline {
     ) -> Result<ValidationResult, String> {
         let mut result = ValidationResult::default();
 
-        // If there's no old target, this is the first commit — nothing to diff against.
+        // If there's no old target, this is the first commit: nothing to diff against.
         let old_target = match old_target {
             Some(t) => t,
             None => return Ok(result),
@@ -71,7 +71,7 @@ impl ValidationPipeline {
                 .parse()
                 .map_err(|_| format!("invalid new target object ID: {new_target}"))?;
 
-            // Load objects — they should be commits. Walk to their schemas.
+            // Load objects: they should be commits. Walk to their schemas.
             let old_obj = store_guard
                 .get_object(did, repo, &old_id)
                 .map_err(|e| format!("failed to load old target: {e}"))?;
@@ -87,7 +87,7 @@ impl ValidationPipeline {
             (old_schema, new_schema)
         };
 
-        // Step 1: GAT type-check — validate the schemas against the protocol theory.
+        // Step 1: GAT type-check: validate the schemas against the protocol theory.
         match self.gat_type_check {
             CheckMode::Strict => {
                 let errors =
@@ -197,7 +197,7 @@ impl ValidationPipeline {
                 }
                 Err(e) => {
                     tracing::warn!("auto-lens generation failed: {e}");
-                    // Not fatal — auto-lens is best-effort.
+                    // Not fatal: auto-lens is best-effort.
                 }
             }
         }

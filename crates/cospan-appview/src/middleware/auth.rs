@@ -1,7 +1,7 @@
 //! Axum extractors for authentication.
 //!
-//! - `OptionalAuth` — resolves the session if present, but does not require it.
-//! - `RequiredAuth` — resolves the session and returns 401 if missing or invalid.
+//! - `OptionalAuth`: resolves the session if present, but does not require it.
+//! - `RequiredAuth`: resolves the session and returns 401 if missing or invalid.
 
 use std::sync::Arc;
 

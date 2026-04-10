@@ -1,6 +1,6 @@
 //! SSE endpoint for streaming index events to connected clients.
 //!
-//! `GET /xrpc/dev.cospan.sync.subscribeEvents` — streams events from the
+//! `GET /xrpc/dev.cospan.sync.subscribeEvents`: streams events from the
 //! indexer to connected clients using Server-Sent Events.
 
 use std::convert::Infallible;
@@ -85,7 +85,7 @@ pub async fn subscribe_events(
             Some(Ok(Event::default().event(event_type).data(json)))
         }
         Err(_) => {
-            // Lagged — receiver fell behind, skip the lost messages.
+            // Lagged: receiver fell behind, skip the lost messages.
             None
         }
     });

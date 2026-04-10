@@ -166,7 +166,7 @@ pub async fn resolve_rkey_to_name(
 /// Ensure a repo exists for (did, name) so FK constraints are satisfied.
 /// If the name is already a real repo name, this is a no-op.
 /// If the name is a TID/rkey (no real repo found yet), check if a repo
-/// with this rkey exists and use its real name. Otherwise skip — the
+/// with this rkey exists and use its real name. Otherwise skip: the
 /// child record will fail FK and be retried when the repo arrives.
 pub async fn ensure_exists(
     pool: &PgPool,
@@ -194,11 +194,11 @@ pub async fn ensure_exists(
     .fetch_optional(pool)
     .await?;
     if exists_by_rkey.is_some() {
-        // Repo exists under a different name — the caller should
+        // Repo exists under a different name: the caller should
         // resolve the rkey to the real name before inserting.
         return Ok(());
     }
-    // No repo found at all — don't create a stub with a TID as name,
+    // No repo found at all: don't create a stub with a TID as name,
     // it creates garbage data. Let the FK constraint fail; the record
     // will be retried when the repo arrives via backfill.
     Ok(())

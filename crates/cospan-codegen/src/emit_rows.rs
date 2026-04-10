@@ -1,6 +1,6 @@
 //! Emit database Row types, CRUD functions, and from_json deserializers.
 //!
-//! These are the "appview projection" of the Lexicon schemas — they include
+//! These are the "appview projection" of the Lexicon schemas: they include
 //! standard ATProto columns (did, rkey, indexed_at) plus denormalized fields.
 
 use anyhow::Result;

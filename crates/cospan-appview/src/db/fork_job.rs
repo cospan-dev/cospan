@@ -1,4 +1,4 @@
-//! Fork job tracking — rows live in the `fork_jobs` table.
+//! Fork job tracking: rows live in the `fork_jobs` table.
 //!
 //! Each row represents a single background git-copy task spawned when a
 //! user initiates a fork via POST /xrpc/dev.cospan.repo.fork. The PDS

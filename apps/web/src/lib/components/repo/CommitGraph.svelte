@@ -55,7 +55,7 @@
 	// Build layout from the commits list.
 	let layout: CommitGraphLayout = $derived(layoutCommitGraph(commits));
 
-	// Lane colours — same palette as the design system's accent family.
+	// Lane colours - same palette as the design system's accent family.
 	const LANE_COLORS = [
 		'#6366f1', // indigo
 		'#10b981', // emerald

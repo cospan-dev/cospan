@@ -327,7 +327,7 @@ async fn list_refs_returns_set_ref() {
     assert_eq!(get_ref_json["ref"].as_str().unwrap(), "refs/heads/feature");
     assert_eq!(get_ref_json["target"].as_str().unwrap(), object_id);
 
-    // List refs - may return 500 if the list_refs prefix scan encounters
+    // List refs: may return 500 if the list_refs prefix scan encounters
     // filesystem layout issues; verify via listRefs endpoint
     let list_resp = client
         .get(format!(

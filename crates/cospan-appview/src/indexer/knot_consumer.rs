@@ -1,4 +1,4 @@
-//! Knot event consumer — connects to Tangled knot servers' WebSocket event
+//! Knot event consumer: connects to Tangled knot servers' WebSocket event
 //! streams to ingest refUpdates (commits) and other knot-authored records.
 //!
 //! Tangled knots serve events at wss://{host}/events (not via ATProto relay).

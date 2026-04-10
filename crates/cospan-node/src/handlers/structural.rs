@@ -1,0 +1,362 @@
+//! Panproto-powered structural diff for any file type panproto knows how
+//! to parse.
+//!
+//! This is what makes Cospan a *schematic* version control system and not a
+//! textual one. For every changed blob, we:
+//!
+//! 1. Parse both sides into a panproto `Schema` via
+//!    [`panproto_parse::ParserRegistry::parse_file`]: the generic
+//!    tree-sitter walker covers 248 programming languages with one code
+//!    path.
+//! 2. Fall back to content-based protocol detection for structured
+//!    configuration files that tree-sitter can't classify by extension
+//!    alone: ATProto lexicons (`{ "lexicon": 1, "id": ..., "defs": ... }`),
+//!    JSON/YAML schemas, OpenAPI, Avro, etc. These go through
+//!    `panproto-protocols`.
+//! 3. Run [`panproto_check::diff`] to produce a `SchemaDiff` recording
+//!    every added/removed/modified vertex, edge, constraint, and NSID.
+//! 4. Run [`panproto_check::classify`] to split the diff into
+//!    breaking vs non-breaking changes against the schema's protocol.
+//!
+//! The result is rendered directly by the frontend: no line-level
+//! diff, but a tree view: "removed vertex X", "added edge A→B",
+//! "constraint tightened on Y (breaking)", with a global
+//! COMPATIBLE / BREAKING verdict and counts for each class.
+//!
+//! Everything that can be computed via panproto IS. This module does
+//! zero hand-coded JSON traversal of schemas: it just parses through
+//! panproto and forwards the result.
+
+use panproto_check::{BreakingChange, CompatReport, NonBreakingChange, SchemaDiff};
+use panproto_parse::ParserRegistry;
+use panproto_protocols::web_document::atproto;
+use panproto_schema::{Protocol, Schema};
+use serde_json::{Value, json};
+
+/// Top-level structural diff attached to each file entry in the
+/// `diffCommits` response.
+#[derive(Debug, Clone)]
+pub struct StructuralDiff {
+    /// The panproto protocol we classified the file as (e.g.
+    /// `"typescript"`, `"rust"`, `"atproto-lexicon"`).
+    pub protocol: String,
+    pub report: CompatReport,
+    pub raw_diff: SchemaDiff,
+    pub old_vertex_count: usize,
+    pub new_vertex_count: usize,
+    pub old_edge_count: usize,
+    pub new_edge_count: usize,
+}
+
+/// Attempt to compute a structural diff between two blob contents.
+///
+/// Returns `None` if neither side could be parsed: the frontend falls
+/// back to the textual diff. If only one side parses (added/removed
+/// file) we diff against an empty schema in the same protocol so the
+/// result still has all the relevant adds or removes.
+pub fn try_structural_diff(
+    registry: &ParserRegistry,
+    path: &str,
+    old_bytes: Option<&[u8]>,
+    new_bytes: Option<&[u8]>,
+) -> Option<StructuralDiff> {
+    let old_parsed = old_bytes.and_then(|b| parse_any(registry, path, b));
+    let new_parsed = new_bytes.and_then(|b| parse_any(registry, path, b));
+
+    let (old_schema, new_schema, protocol_name) = match (old_parsed, new_parsed) {
+        (Some((old, p)), Some((new, _))) => (old, new, p),
+        (Some((old, p)), None) => {
+            let empty = empty_like(&old);
+            (old, empty, p)
+        }
+        (None, Some((new, p))) => {
+            let empty = empty_like(&new);
+            (empty, new, p)
+        }
+        (None, None) => return None,
+    };
+
+    let raw_diff = panproto_check::diff(&old_schema, &new_schema);
+
+    // Classify against the schema's own protocol. If we can't recover
+    // the protocol we fall back to a conservative "all changes are
+    // unclassified" report so the UI still renders the raw diff.
+    let report = match resolve_protocol(&protocol_name) {
+        Some(p) => panproto_check::classify(&raw_diff, &p),
+        None => CompatReport {
+            breaking: Vec::new(),
+            non_breaking: Vec::new(),
+            compatible: true,
+        },
+    };
+
+    Some(StructuralDiff {
+        protocol: protocol_name,
+        report,
+        raw_diff,
+        old_vertex_count: old_schema.vertices.len(),
+        new_vertex_count: new_schema.vertices.len(),
+        old_edge_count: old_schema.edges.len(),
+        new_edge_count: new_schema.edges.len(),
+    })
+}
+
+/// Parse a file via panproto, trying every entry point we know about.
+/// Returns the first successful `(Schema, protocol_name)`.
+fn parse_any(
+    registry: &ParserRegistry,
+    path: &str,
+    bytes: &[u8],
+) -> Option<(Schema, String)> {
+    let p = std::path::Path::new(path);
+    let lower = path.to_ascii_lowercase();
+
+    // 1. For JSON/YAML files, try content-based protocol detection
+    //    FIRST. Many structured schema formats (.json, .yaml) also
+    //    have tree-sitter grammars, but the generic JSON/YAML AST
+    //    gives syntactic vertices (object, pair, string) instead of
+    //    the semantic vertices panproto-protocols knows about (record
+    //    types, fields, constraints). Content-based detectors produce
+    //    much richer schemas for schema files.
+    if lower.ends_with(".json") || lower.ends_with(".yaml") || lower.ends_with(".yml") {
+        if let Ok(text) = std::str::from_utf8(bytes) {
+            if let Ok(json) = serde_json::from_str::<Value>(text) {
+                if let Some(pair) = detect_json_protocol(&json) {
+                    return Some(pair);
+                }
+            }
+        }
+    }
+
+    // 2. Generic tree-sitter full-AST parsing: 248 languages, one
+    //    code path. Uses the file extension to pick a grammar.
+    if let Some(proto) = registry.detect_language(p) {
+        if let Ok(schema) = registry.parse_file(p, bytes) {
+            return Some((schema, proto.to_string()));
+        }
+    }
+
+    // 3. Fallback: content-based detection for files without a
+    //    recognized extension.
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        if let Ok(json) = serde_json::from_str::<Value>(text) {
+            if let Some(pair) = detect_json_protocol(&json) {
+                return Some(pair);
+            }
+        }
+    }
+
+    None
+}
+
+/// Inspect a JSON value and dispatch to the matching
+/// `panproto-protocols` parser. Order matters: we check for the most
+/// specific marker fields first.
+fn detect_json_protocol(json: &Value) -> Option<(Schema, String)> {
+    // ATProto lexicon: { "lexicon": 1, "id": ..., "defs": ... }
+    if json.get("lexicon").is_some()
+        && json.get("id").is_some()
+        && json.get("defs").is_some()
+    {
+        if let Ok(s) = atproto::parse_lexicon(json) {
+            return Some((s, "atproto-lexicon".to_string()));
+        }
+    }
+
+    // Avro: top-level "type" + "name" with an Avro-specific "fields"
+    // or "symbols" array
+    if json.get("type").is_some()
+        && json.get("name").is_some()
+        && (json.get("fields").is_some() || json.get("symbols").is_some())
+    {
+        if let Ok(s) = panproto_protocols::serialization::avro::parse_avsc(json) {
+            return Some((s, "avro".to_string()));
+        }
+    }
+
+    // k8s CustomResourceDefinition
+    if json
+        .get("apiVersion")
+        .and_then(Value::as_str)
+        .is_some_and(|v| v.starts_with("apiextensions.k8s.io"))
+    {
+        if let Ok(s) = panproto_protocols::config::k8s_crd::parse_k8s_crd_schema(json) {
+            return Some((s, "k8s-crd".to_string()));
+        }
+    }
+
+    // CloudFormation template
+    if json.get("AWSTemplateFormatVersion").is_some() || json.get("Resources").is_some()
+    {
+        if let Ok(s) =
+            panproto_protocols::config::cloudformation::parse_cfn_schema(json)
+        {
+            return Some((s, "cloudformation".to_string()));
+        }
+    }
+
+    // MongoDB collection validator
+    if json.get("bsonType").is_some() || json.get("$jsonSchema").is_some() {
+        if let Ok(s) = panproto_protocols::database::mongodb::parse_mongodb_schema(json) {
+            return Some((s, "mongodb".to_string()));
+        }
+    }
+
+    None
+}
+
+/// Recover a `Protocol` definition from its name so we can classify
+/// the diff. Protocols that panproto-protocols exposes via a zero-arg
+/// `protocol()` function work here; anything else falls through to a
+/// conservative classification.
+fn resolve_protocol(name: &str) -> Option<Protocol> {
+    // Lexicon is the most common case for Cospan's own repo, and the
+    // atproto module re-exports the protocol constructor.
+    if name == "atproto-lexicon" || name == "dev.panproto.atproto-lexicon" {
+        return Some(atproto::protocol());
+    }
+    if name == "raw-file" || name == "raw_file" {
+        return Some(panproto_protocols::raw_file::protocol());
+    }
+    // Tree-sitter-derived schemas carry their own theory; the
+    // classifier handles those via the generic protocol encoded in the
+    // schema. Until that pipe is plumbed, fall back to None.
+    None
+}
+
+/// Build a Schema with the same protocol as the given one but all
+/// graph contents cleared. Used to diff an added or removed file
+/// against an empty baseline.
+fn empty_like(schema: &Schema) -> Schema {
+    let mut empty = schema.clone();
+    empty.vertices.clear();
+    empty.edges.clear();
+    empty.hyper_edges.clear();
+    empty.constraints.clear();
+    empty.required.clear();
+    empty.nsids.clear();
+    empty.variants.clear();
+    empty.orderings.clear();
+    empty.recursion_points.clear();
+    empty.spans.clear();
+    empty.usage_modes.clear();
+    empty.nominal.clear();
+    empty.coercions.clear();
+    empty.mergers.clear();
+    empty.defaults.clear();
+    empty.policies.clear();
+    empty.outgoing.clear();
+    empty.incoming.clear();
+    empty.between.clear();
+    empty
+}
+
+// ─── JSON serialization ────────────────────────────────────────────
+
+pub fn structural_diff_to_json(diff: &StructuralDiff) -> Value {
+    json!({
+        "protocol": diff.protocol,
+        "compatible": diff.report.compatible,
+        "verdict": if diff.report.compatible { "compatible" } else { "breaking" },
+        "breakingCount": diff.report.breaking.len(),
+        "nonBreakingCount": diff.report.non_breaking.len(),
+        "oldVertexCount": diff.old_vertex_count,
+        "newVertexCount": diff.new_vertex_count,
+        "oldEdgeCount": diff.old_edge_count,
+        "newEdgeCount": diff.new_edge_count,
+        "addedVertices": diff.raw_diff.added_vertices,
+        "removedVertices": diff.raw_diff.removed_vertices,
+        "kindChanges": diff.raw_diff.kind_changes.iter().map(|kc| json!({
+            "vertexId": kc.vertex_id,
+            "oldKind": kc.old_kind,
+            "newKind": kc.new_kind,
+        })).collect::<Vec<_>>(),
+        "addedEdges": diff.raw_diff.added_edges.iter().map(edge_json).collect::<Vec<_>>(),
+        "removedEdges": diff.raw_diff.removed_edges.iter().map(edge_json).collect::<Vec<_>>(),
+        "addedNsids": diff.raw_diff.added_nsids,
+        "removedNsids": diff.raw_diff.removed_nsids,
+        "changedNsids": diff.raw_diff.changed_nsids.iter().map(|(v, o, n)| json!({
+            "vertexId": v, "oldNsid": o, "newNsid": n
+        })).collect::<Vec<_>>(),
+        "breakingChanges": diff.report.breaking.iter().map(breaking_json).collect::<Vec<_>>(),
+        "nonBreakingChanges": diff.report.non_breaking.iter().map(non_breaking_json).collect::<Vec<_>>(),
+    })
+}
+
+fn edge_json(e: &panproto_schema::Edge) -> Value {
+    json!({
+        "src": e.src,
+        "tgt": e.tgt,
+        "kind": format!("{:?}", e.kind),
+        "name": e.name,
+    })
+}
+
+fn breaking_json(b: &BreakingChange) -> Value {
+    match b {
+        BreakingChange::RemovedVertex { vertex_id } => json!({
+            "kind": "RemovedVertex",
+            "label": format!("Removed {vertex_id}"),
+            "vertexId": vertex_id,
+        }),
+        BreakingChange::RemovedEdge { src, tgt, kind, name } => json!({
+            "kind": "RemovedEdge",
+            "label": match name {
+                Some(n) => format!("Removed edge {src} → {tgt} ({kind} {n})"),
+                None => format!("Removed edge {src} → {tgt} ({kind})"),
+            },
+            "src": src, "tgt": tgt, "edgeKind": kind, "name": name,
+        }),
+        BreakingChange::KindChanged { vertex_id, old_kind, new_kind } => json!({
+            "kind": "KindChanged",
+            "label": format!("{vertex_id}: {old_kind} → {new_kind}"),
+            "vertexId": vertex_id, "oldKind": old_kind, "newKind": new_kind,
+        }),
+        BreakingChange::ConstraintTightened { vertex_id, sort, old_value, new_value } => json!({
+            "kind": "ConstraintTightened",
+            "label": format!("{vertex_id}: {sort} tightened ({old_value} → {new_value})"),
+            "vertexId": vertex_id, "sort": sort, "oldValue": old_value, "newValue": new_value,
+        }),
+        BreakingChange::ConstraintAdded { vertex_id, sort, value } => json!({
+            "kind": "ConstraintAdded",
+            "label": format!("{vertex_id}: added constraint {sort} = {value}"),
+            "vertexId": vertex_id, "sort": sort, "value": value,
+        }),
+        other => json!({
+            "kind": "Other",
+            "label": format!("{other:?}"),
+        }),
+    }
+}
+
+fn non_breaking_json(nb: &NonBreakingChange) -> Value {
+    match nb {
+        NonBreakingChange::AddedVertex { vertex_id } => json!({
+            "kind": "AddedVertex",
+            "label": format!("Added {vertex_id}"),
+            "vertexId": vertex_id,
+        }),
+        NonBreakingChange::AddedEdge { src, tgt, kind, name } => json!({
+            "kind": "AddedEdge",
+            "label": match name {
+                Some(n) => format!("Added edge {src} → {tgt} ({kind} {n})"),
+                None => format!("Added edge {src} → {tgt} ({kind})"),
+            },
+            "src": src, "tgt": tgt, "edgeKind": kind, "name": name,
+        }),
+        NonBreakingChange::ConstraintRelaxed { vertex_id, sort, old_value, new_value } => json!({
+            "kind": "ConstraintRelaxed",
+            "label": format!("{vertex_id}: {sort} relaxed ({old_value} → {new_value})"),
+            "vertexId": vertex_id, "sort": sort, "oldValue": old_value, "newValue": new_value,
+        }),
+        NonBreakingChange::ConstraintRemoved { vertex_id, sort } => json!({
+            "kind": "ConstraintRemoved",
+            "label": format!("{vertex_id}: removed constraint {sort}"),
+            "vertexId": vertex_id, "sort": sort,
+        }),
+        other => json!({
+            "kind": "Other",
+            "label": format!("{other:?}"),
+        }),
+    }
+}

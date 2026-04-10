@@ -424,7 +424,7 @@ async fn git_copy_reports_empty_source() {
     .unwrap()
     .unwrap_err();
 
-    // Empty source should fail — either no refs to fetch or fetch errors.
+    // Empty source should fail: either no refs to fetch or fetch errors.
     let msg = err.to_string();
     assert!(
         msg.contains("refs")
@@ -557,7 +557,7 @@ async fn diff_commits_shows_added_modified_removed_files() {
     assert_eq!(files.len(), 3, "should have 3 changed files");
 
     // libgit2 reports removed files with the old path in `old_file.path()`
-    // and no new path — we copy the `new_file.path()` into our `path`,
+    // and no new path: we copy the `new_file.path()` into our `path`,
     // which for a delete is the empty string. So look up by iterating.
     let find = |status: &str| -> &serde_json::Value {
         files

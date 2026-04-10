@@ -3,14 +3,14 @@
 //! Walks the repo's persistent git mirror using libgit2's RevWalk and
 //! returns a flat list of commits with the parent pointers needed to
 //! draw a DAG. This is the data source for the frontend CommitGraph
-//! visualization — we return things in topological order newest-first
+//! visualization: we return things in topological order newest-first
 //! so the UI can lay out lanes without re-sorting.
 //!
 //! Query parameters:
-//!   - `did` — repo owner
-//!   - `repo` — repo name (rkey or human name)
-//!   - `ref` — optional ref to start from (default: HEAD → first branch)
-//!   - `limit` — optional max commits to return (default 50, max 500)
+//!   - `did`: repo owner
+//!   - `repo`: repo name (rkey or human name)
+//!   - `ref`: optional ref to start from (default: HEAD → first branch)
+//!   - `limit`: optional max commits to return (default 50, max 500)
 
 use std::sync::Arc;
 

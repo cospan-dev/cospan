@@ -10,7 +10,7 @@ export interface IssueListResponse {
 	cursor: string | null;
 }
 
-// Timeline is a composite type — not directly generated from a single Row
+// Timeline is a composite type - not directly generated from a single Row
 export interface IssueTimelineResponse {
 	timeline: Record<string, unknown>[];
 	cursor: string | null;

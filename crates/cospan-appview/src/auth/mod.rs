@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// OAuth configuration for the ATProto BFF pattern.
 #[derive(Debug, Clone)]
 pub struct OAuthConfig {
-    /// The client_id URL — also where client-metadata.json is hosted.
+    /// The client_id URL: also where client-metadata.json is hosted.
     pub client_id: String,
     /// The redirect URI for OAuth callbacks.
     pub redirect_uri: String,

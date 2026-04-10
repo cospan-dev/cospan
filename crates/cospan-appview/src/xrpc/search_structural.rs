@@ -1,6 +1,6 @@
 //! Structural search: query schema graphs using panproto expressions.
 //!
-//! This is Cospan's differentiating search capability — users can search
+//! This is Cospan's differentiating search capability: users can search
 //! for schema elements (vertices, edges, constraints) across all repos
 //! using panproto's expression language.
 //!

@@ -17,7 +17,12 @@ export const load: PageServerLoad = async ({ params }) => {
 		let commits: Commit[] = [];
 		try {
 			if (repo && repo.source !== 'tangled') {
-				const resp = await listCommits({ did: params.did, repo: params.repo, limit: 50 });
+				const resp = await listCommits({
+					did: params.did,
+					repo: params.repo,
+					ref: repo?.defaultBranch || 'main',
+					limit: 50,
+				});
 				commits = resp.commits;
 			}
 		} catch (e) {

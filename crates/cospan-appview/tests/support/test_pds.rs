@@ -12,7 +12,7 @@
 //! `Authorization: DPoP <token>` and a `DPoP: <jwt>` proof header. The proof
 //! is decoded as a JWT and its claims are checked for shape (htm, htu, jti,
 //! iat, ath). Signature verification is skipped because the test PDS trusts
-//! the local session store's keypair — what we want to verify is that our
+//! the local session store's keypair: what we want to verify is that our
 //! fork handler emits well-formed DPoP proofs, not that libsodium works.
 //!
 //! Records are stored in memory. Each `TestPds` gets an isolated store so
@@ -199,7 +199,7 @@ fn validate_dpop_proof(
         ));
     }
 
-    // Decode header — must have alg + typ=dpop+jwt + jwk.
+    // Decode header: must have alg + typ=dpop+jwt + jwk.
     let header_bytes = URL_SAFE_NO_PAD
         .decode(parts[0])
         .map_err(|_| PdsError::new(401, "InvalidDpop", "invalid DPoP header encoding"))?;

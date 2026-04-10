@@ -66,7 +66,7 @@ pub async fn handler(
 
     let fork_name = input.name.unwrap_or_else(|| source.name.clone());
 
-    // 4. Choose the destination node — for now always the cospan default.
+    // 4. Choose the destination node: for now always the cospan default.
     if state.config.default_node_did.is_empty() {
         return Err(AppError::Upstream(
             "DEFAULT_NODE_DID not configured on this appview instance".to_string(),

@@ -51,7 +51,7 @@ impl AppState {
         let transformer = RecordTransformer::load(&lexicons_dir).unwrap_or_else(|e| {
             tracing::warn!(
                 error = %e,
-                "failed to load panproto morphisms — run `cargo run -p cospan-codegen`; \
+                "failed to load panproto morphisms - run `cargo run -p cospan-codegen`; \
                  falling back to empty transformer"
             );
             RecordTransformer::empty()

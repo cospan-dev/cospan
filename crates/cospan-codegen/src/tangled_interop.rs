@@ -22,7 +22,7 @@ pub struct InteropMorphism {
     pub build_migration: fn(&Schema, &Schema) -> Migration,
 }
 
-// migration_from_maps helper removed — use identity_morphism or build Migration directly
+// migration_from_maps helper removed: use identity_morphism or build Migration directly
 
 /// Build a morphism by matching vertices and edges with the same IDs
 /// between source and target schemas.
@@ -197,7 +197,7 @@ fn renamed_morphism(
 pub fn all_interop_morphisms() -> Vec<InteropMorphism> {
     vec![
         // These pairs have identical or near-identical Lexicon schemas.
-        // Field names match across NSIDs — renamed_morphism maps the NSID-prefixed
+        // Field names match across NSIDs: renamed_morphism maps the NSID-prefixed
         // vertex IDs while preserving field-level structure.
         InteropMorphism {
             tangled_nsid: "sh.tangled.feed.star",
@@ -355,7 +355,7 @@ pub fn all_interop_morphisms() -> Vec<InteropMorphism> {
                     "dev.cospan.repo.pull",
                     &[],
                     // title, body, mentions, references, createdAt match directly;
-                    // target/source are sub-objects with different structure — the
+                    // target/source are sub-objects with different structure: the
                     // renamed_morphism maps what overlaps automatically
                 )
             },

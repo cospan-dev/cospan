@@ -63,7 +63,7 @@ async function nodeXrpcQuery<T>(
 			// Response body was not JSON; use defaults.
 		}
 
-		throw new Error(`Node XRPC error (${response.status}): ${error} - ${message}`);
+		throw new Error(`Node XRPC error (${response.status}): ${error}: ${message}`);
 	}
 
 	return response.json() as Promise<T>;

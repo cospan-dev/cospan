@@ -195,7 +195,7 @@ struct DpopClaims {
     iat: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     nonce: Option<String>,
-    /// Access token hash (SHA-256, base64url) — required for resource server requests.
+    /// Access token hash (SHA-256, base64url): required for resource server requests.
     #[serde(skip_serializing_if = "Option::is_none")]
     ath: Option<String>,
 }

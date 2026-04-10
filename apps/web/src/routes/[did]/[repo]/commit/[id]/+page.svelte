@@ -90,7 +90,7 @@
 		</div>
 	{:else if data.commit.parents.length === 0}
 		<div class="mt-5 rounded-md border border-border bg-surface-1 p-4 text-center text-sm text-text-secondary">
-			Root commit — no parent to diff against.
+			Root commit (no parent to diff against).
 		</div>
 	{:else}
 		<div class="mt-5 rounded-md border border-border bg-surface-1 p-4 text-center text-sm text-text-secondary">

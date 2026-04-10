@@ -203,7 +203,7 @@ pub fn all_record_configs() -> Vec<RecordConfig> {
             skip_fields: &["avatar", "links"],
             has_serial_id: false,
             include_did: true,
-            include_rkey: false, // literal:self key — no rkey column in DB
+            include_rkey: false, // literal:self key: no rkey column in DB
             indexes: &[],
             foreign_keys: &[],
             column_defaults: &[],

@@ -60,9 +60,9 @@ const WANTED_COLLECTIONS: &[&str] = &[
 /// that will never succeed and should go to the DLQ.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ErrorClass {
-    /// Transient error — retry with backoff, will reprocess on reconnect.
+    /// Transient error: retry with backoff, will reprocess on reconnect.
     Retryable,
-    /// Permanent error — insert into DLQ, do not retry.
+    /// Permanent error: insert into DLQ, do not retry.
     Permanent,
 }
 
@@ -90,7 +90,7 @@ fn classify_error(err: &anyhow::Error) -> ErrorClass {
             sqlx::Error::Io(_) => return ErrorClass::Retryable,
             sqlx::Error::Database(db_err) => {
                 // PostgreSQL error codes:
-                // 23505 = unique_violation (constraint violation — permanent)
+                // 23505 = unique_violation (constraint violation: permanent)
                 // 40001 = serialization_failure (retryable)
                 // 40P01 = deadlock_detected (retryable)
                 // 08xxx = connection exceptions (retryable)
@@ -233,7 +233,7 @@ pub async fn subscribe(state: &Arc<AppState>) -> anyhow::Result<()> {
             Ok(v) => v,
             Err(e) => {
                 tracing::warn!(error = %e, "failed to parse jetstream event JSON");
-                // Raw JSON parse failure is permanent — the event data is malformed.
+                // Raw JSON parse failure is permanent: the event data is malformed.
                 // We cannot extract collection/rkey/did, so we use sentinel values.
                 let raw = serde_json::Value::String(String::from_utf8_lossy(&data).into_owned());
                 if let Err(dlq_err) = insert_dlq(

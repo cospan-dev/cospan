@@ -19,7 +19,7 @@
 	</main>
 	<footer class="border-t border-line/50 py-8">
 		<div class="mx-auto max-w-[1200px] px-6 flex items-center justify-between text-xs text-ghost">
-			<span>cospan — schema-first code hosting</span>
+			<span>cospan · schematic version control on atproto</span>
 			<span>built on <a href="https://atproto.com" class="text-caption hover:text-ink transition-colors">AT Protocol</a></span>
 		</div>
 	</footer>

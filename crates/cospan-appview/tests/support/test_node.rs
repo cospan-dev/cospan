@@ -218,7 +218,7 @@ fn seed_git_repo_blocking(
 pub struct CommitSpec<'a> {
     pub message: &'a str,
     /// Files to write for this commit. Entries completely replace the
-    /// working-copy contents — anything not listed is deleted.
+    /// working-copy contents: anything not listed is deleted.
     pub files: &'a [(&'a str, &'a str)],
 }
 

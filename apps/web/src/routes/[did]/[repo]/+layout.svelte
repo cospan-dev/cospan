@@ -38,7 +38,7 @@
 		return !NO_TABS_SUFFIXES.some(s => routeId.endsWith(s));
 	});
 
-	// Extra breadcrumb segments — child pages can extend via context
+	// Extra breadcrumb segments - child pages can extend via context
 	let extraCrumbs = $state<{ label: string; href?: string }[]>([]);
 
 	setContext('repoLayout', {

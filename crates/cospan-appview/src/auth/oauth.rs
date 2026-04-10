@@ -1,12 +1,12 @@
 //! OAuth 2.0 route handlers for the ATProto BFF pattern.
 //!
 //! Routes:
-//! - GET  /oauth/client-metadata.json — serve client metadata document
-//! - GET  /.well-known/jwks.json      — serve JWKS document
-//! - GET  /oauth/login?handle=...     — initiate PAR + redirect to PDS auth
-//! - GET  /oauth/callback             — exchange auth code for tokens, create session
-//! - POST /oauth/logout               — destroy session, clear cookie
-//! - GET  /oauth/session              — return current session info for the frontend
+//! - GET  /oauth/client-metadata.json: serve client metadata document
+//! - GET  /.well-known/jwks.json     : serve JWKS document
+//! - GET  /oauth/login?handle=...    : initiate PAR + redirect to PDS auth
+//! - GET  /oauth/callback            : exchange auth code for tokens, create session
+//! - POST /oauth/logout              : destroy session, clear cookie
+//! - GET  /oauth/session             : return current session info for the frontend
 
 use std::sync::Arc;
 
@@ -208,7 +208,7 @@ async fn login(
                 let status = resp_retry.status();
                 let body = resp_retry.text().await.unwrap_or_default();
                 return Err(OAuthError::ParFailed(format!(
-                    "PAR retry failed: HTTP {} — {}",
+                    "PAR retry failed: HTTP {} - {}",
                     status, body
                 )));
             }
@@ -243,7 +243,7 @@ async fn login(
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         return Err(OAuthError::ParFailed(format!(
-            "PAR failed: HTTP {} — {}",
+            "PAR failed: HTTP {} - {}",
             status, body
         )));
     };
@@ -422,7 +422,7 @@ async fn callback(
                 let status = resp_retry.status();
                 let body = resp_retry.text().await.unwrap_or_default();
                 return Err(OAuthError::TokenExchangeFailed(format!(
-                    "HTTP {} — {}",
+                    "HTTP {} - {}",
                     status, body
                 )));
             }
@@ -457,7 +457,7 @@ async fn callback(
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         return Err(OAuthError::TokenExchangeFailed(format!(
-            "HTTP {} — {}",
+            "HTTP {} - {}",
             status, body
         )));
     };

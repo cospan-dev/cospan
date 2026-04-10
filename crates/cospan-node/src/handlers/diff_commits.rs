@@ -3,17 +3,23 @@
 //! Computes the diff between two commits in the persistent git mirror.
 //!
 //! Returns, for each changed path:
-//!   - old/new OID
-//!   - file status (added / modified / removed / renamed)
-//!   - line-level hunks (unified diff format)
-//!   - total additions / deletions
+//!  : old/new OID
+//!  : file status (added / modified / removed / renamed)
+//!  : line-level hunks (unified diff format)
+//!  : total additions / deletions
+//!  : **structural diff**: for parseable files (currently ATProto
+//!     lexicon JSON), parses both sides into panproto `Schema` objects,
+//!     runs `panproto_check::diff` + `classify`, and attaches the
+//!     result. This is what makes Cospan a *schematic* VCS: the
+//!     frontend can show "removed vertex X, added edge Y, NSID
+//!     changed from A→B, net result: BREAKING / compatible".
 //!
 //! Query parameters:
-//!   - `did` — repo owner
-//!   - `repo` — repo name
-//!   - `from` — base commit OID
-//!   - `to` — head commit OID
-//!   - `contextLines` — optional unified context lines (default 3)
+//!   - `did`: repo owner
+//!   - `repo`: repo name
+//!   - `from`: base commit OID
+//!   - `to`: head commit OID
+//!   - `contextLines`: optional unified context lines (default 3)
 
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -189,9 +195,45 @@ pub async fn diff_commits(
     let total_additions: u32 = files.iter().map(|f| f.additions).sum();
     let total_deletions: u32 = files.iter().map(|f| f.deletions).sum();
 
+    // Pass 2: panproto structural diff per file.
+    //
+    // For each changed file, load the old and new blob contents from
+    // the git mirror and feed them to the panproto parser registry.
+    // Every file type the workspace can parse (248 languages via
+    // tree-sitter + all panproto-protocols schema formats) gets a
+    // vertex/edge-level diff with a compatibility verdict attached.
+    let registry = panproto_parse::ParserRegistry::new();
+    let mut structural_results: Vec<Option<serde_json::Value>> = Vec::with_capacity(files.len());
+    for f in &files {
+        if f.binary {
+            structural_results.push(None);
+            continue;
+        }
+        let old_bytes = if f.status != "added" {
+            load_blob(&mirror, &f.old_oid)
+        } else {
+            None
+        };
+        let new_bytes = if f.status != "removed" {
+            // For renames, libgit2 puts the new path in `f.path`; for
+            // everything else `f.path` is also the new path.
+            load_blob(&mirror, &f.new_oid)
+        } else {
+            None
+        };
+        let structural = super::structural::try_structural_diff(
+            &registry,
+            &f.path,
+            old_bytes.as_deref(),
+            new_bytes.as_deref(),
+        );
+        structural_results.push(structural.map(|s| super::structural::structural_diff_to_json(&s)));
+    }
+
     let files_json: Vec<serde_json::Value> = files
         .iter()
-        .map(|f| {
+        .zip(structural_results.into_iter())
+        .map(|(f, structural_json)| {
             let hunks_json: Vec<serde_json::Value> = f
                 .hunks
                 .iter()
@@ -228,6 +270,7 @@ pub async fn diff_commits(
                 "deletions": f.deletions,
                 "binary": f.binary,
                 "hunks": hunks_json,
+                "structuralDiff": structural_json,
             })
         })
         .collect();
@@ -240,4 +283,19 @@ pub async fn diff_commits(
         "totalDeletions": total_deletions,
         "fileCount": files.len(),
     })))
+}
+
+/// Load a blob's raw contents from the git mirror, if it exists. The
+/// OID may be the zero OID for added/removed files: in that case the
+/// caller should pass `None` for that side.
+fn load_blob(mirror: &git2::Repository, oid_str: &str) -> Option<Vec<u8>> {
+    let zero = "0".repeat(40);
+    if oid_str == zero || oid_str.is_empty() {
+        return None;
+    }
+    let oid = git2::Oid::from_str(oid_str).ok()?;
+    mirror
+        .find_blob(oid)
+        .ok()
+        .map(|b| b.content().to_vec())
 }

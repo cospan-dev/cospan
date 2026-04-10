@@ -43,7 +43,14 @@ fn build_info_refs_body(
             "{zero_id} capabilities^{{}}\0{capabilities}\n"
         )));
     } else {
-        let capabilities = "report-status delete-refs ofs-delta side-band-64k";
+        // Advertise side-band-64k only for upload-pack (clone/fetch).
+        // For receive-pack (push), our response is raw pkt-lines without
+        // sideband framing.
+        let capabilities = if service == "git-upload-pack" {
+            "report-status delete-refs ofs-delta side-band-64k"
+        } else {
+            "report-status delete-refs ofs-delta"
+        };
         let mut first = true;
 
         if let Some(head_name) = head_ref
@@ -89,8 +96,8 @@ pub async fn git_info_refs(
     let store = state.store.lock().await;
 
     // For a non-existent repo:
-    //   - upload-pack → 404 (nothing to clone)
-    //   - receive-pack → 200 with empty ref list so the client can push
+    //  : upload-pack → 404 (nothing to clone)
+    //  : receive-pack → 200 with empty ref list so the client can push
     //     and create the repo (init-on-first-push)
     if !store.has_git_mirror(&did, &repo) {
         drop(store);

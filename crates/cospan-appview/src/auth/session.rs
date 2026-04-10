@@ -21,7 +21,7 @@ pub trait SessionStore: Send + Sync + 'static {
     /// Store temporary auth flow state keyed by the `state` parameter.
     async fn put_auth_flow(&self, state: &str, flow: AuthFlowState) -> anyhow::Result<()>;
 
-    /// Retrieve and delete auth flow state (consume it — single use).
+    /// Retrieve and delete auth flow state (consume it: single use).
     async fn take_auth_flow(&self, state: &str) -> anyhow::Result<Option<AuthFlowState>>;
 }
 

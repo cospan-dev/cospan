@@ -179,7 +179,7 @@ impl DidResolver {
                     claimed = ?claimed_handles,
                     "handle not found in DID document alsoKnownAs"
                 );
-                // We warn but don't fail — the PDS has already confirmed the binding
+                // We warn but don't fail: the PDS has already confirmed the binding
                 // via resolveHandle. The DID doc may be stale in cache.
             }
         }

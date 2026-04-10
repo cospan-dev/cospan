@@ -42,7 +42,7 @@ pub fn parse_did_rkey(uri: &str) -> (String, String) {
 //
 // At runtime, the Jetstream record fields go through panproto's compiled
 // FieldTransforms (lift_wtype_sigma). This module handles AT-URIs that
-// appear in XRPC request parameters and Row struct fields — values that
+// appear in XRPC request parameters and Row struct fields: values that
 // are already deserialized strings, not part of a panproto instance.
 //
 // Both paths use the same semantic operation (AT-URI decomposition).
@@ -52,12 +52,12 @@ pub fn parse_did_rkey(uri: &str) -> (String, String) {
 /// Validate that a string is a well-formed AT-URI.
 pub fn validate(uri: &str) -> Result<AtUri, String> {
     let parsed =
-        parse(uri).ok_or_else(|| format!("invalid AT-URI: must start with at:// — got: {uri}"))?;
+        parse(uri).ok_or_else(|| format!("invalid AT-URI: must start with at:// (got: {uri})"))?;
     if parsed.did.is_empty() {
-        return Err(format!("invalid AT-URI: missing DID — got: {uri}"));
+        return Err(format!("invalid AT-URI: missing DID (got: {uri})"));
     }
     if parsed.rkey.is_empty() {
-        return Err(format!("invalid AT-URI: missing rkey/name — got: {uri}"));
+        return Err(format!("invalid AT-URI: missing rkey/name (got: {uri})");
     }
     Ok(parsed)
 }
