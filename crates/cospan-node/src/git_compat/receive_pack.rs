@@ -224,20 +224,27 @@ pub async fn git_receive_pack(
         let did_clone = did.clone();
         let repo_clone = repo.clone();
         tokio::task::spawn_blocking(move || {
-            let store_guard = store_clone.blocking_lock();
-            let mirror = match store_guard.open_or_init_git_mirror(&did_clone, &repo_clone) {
-                Ok(m) => m,
-                Err(e) => {
-                    tracing::error!(error = %e, "background import: open mirror failed");
-                    return;
-                }
-            };
-            let mut vcs_store = match store_guard.open_or_init(&did_clone, &repo_clone) {
-                Ok(s) => s,
-                Err(e) => {
-                    tracing::error!(error = %e, "background import: open vcs store failed");
-                    return;
-                }
+            // Open the stores under the lock, then DROP the lock before
+            // the expensive import. FsStore is file-backed so concurrent
+            // reads (listCommits, diffCommits) work fine while we write.
+            let (mirror, mut vcs_store) = {
+                let store_guard = store_clone.blocking_lock();
+                let mirror = match store_guard.open_or_init_git_mirror(&did_clone, &repo_clone) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        tracing::error!(error = %e, "background import: open mirror failed");
+                        return;
+                    }
+                };
+                let vcs_store = match store_guard.open_or_init(&did_clone, &repo_clone) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::error!(error = %e, "background import: open vcs store failed");
+                        return;
+                    }
+                };
+                (mirror, vcs_store)
+                // store_guard dropped here: lock released
             };
             for (new_oid, refname) in &import_tasks {
                 match panproto_git::import_git_repo(&mirror, &mut vcs_store, new_oid) {
