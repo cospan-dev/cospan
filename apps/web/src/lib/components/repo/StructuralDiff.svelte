@@ -346,14 +346,24 @@
 								{@const removedGroups = groupVertices(sd.removedVertices, file.path)}
 								{@const addedGroups = groupVertices(sd.addedVertices, file.path)}
 								<div class="mb-3 space-y-2">
-									<!-- Kind changes - grouped by scope, each clickable -->
-									{#if sd.kindChanges.length > 0}
-										{@const namedKindChanges = sd.kindChanges.filter(kc => !shortVertex(kc.vertexId).startsWith('$'))}
-										{@const internalKindCount = sd.kindChanges.length - namedKindChanges.length}
-										{@const kindByScope = groupKindChanges(namedKindChanges)}
+									<!-- Kind changes: only show changes to named program elements.
+								     Internal AST reshuffling is filtered out. -->
+									{#if sd.kindChanges.filter(kc => {
+										const name = shortVertex(kc.vertexId);
+										if (name.startsWith('$') || name.includes('/')) return false;
+										if (kc.oldKind.includes('_') && kc.newKind.includes('_')) return false;
+										return true;
+									}).length > 0}
+										{@const meaningfulKindChanges = sd.kindChanges.filter(kc => {
+											const name = shortVertex(kc.vertexId);
+											if (name.startsWith('$') || name.includes('/')) return false;
+											if (kc.oldKind.includes('_') && kc.newKind.includes('_')) return false;
+											return true;
+										})}
+										{@const kindByScope = groupKindChanges(meaningfulKindChanges)}
 										<details class="mb-2 rounded-md border border-amber-500/20">
 											<summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wider text-amber-400 hover:bg-amber-500/5">
-												◆ Type changes ({namedKindChanges.length}{internalKindCount > 0 ? ` + ${internalKindCount} internal` : ''})
+												◆ Type changes ({meaningfulKindChanges.length})
 											</summary>
 											<div class="space-y-0.5 px-2 pb-2">
 												{#each kindByScope as group (group.scope)}
