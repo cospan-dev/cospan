@@ -168,6 +168,59 @@
 			.sort((a, b) => b.changes.length - a.changes.length);
 	}
 
+	// Extract search terms from a change entry to find matching code lines.
+	// A change like { vertexId: "dev.cospan.repo:body.protocol", kind: "RemovedVertex" }
+	// produces search terms ["protocol"] so we can find the line in the diff.
+	function extractSearchTerms(change: { label: string; kind: string; vertexId?: string; src?: string; tgt?: string; name?: string }): string[] {
+		const terms: string[] = [];
+		// Extract the leaf name from vertexId
+		if (change.vertexId) {
+			const leaf = extractLeafName(change.vertexId);
+			if (leaf && !leaf.startsWith('$')) terms.push(leaf);
+		}
+		// Edge name
+		if (change.name && !change.name.startsWith('$')) terms.push(change.name);
+		// Extract names from src/tgt
+		if (change.src) {
+			const s = extractLeafName(change.src);
+			if (s && !s.startsWith('$')) terms.push(s);
+		}
+		if (change.tgt) {
+			const t = extractLeafName(change.tgt);
+			if (t && !t.startsWith('$')) terms.push(t);
+		}
+		// Deduplicate
+		return [...new Set(terms)];
+	}
+
+	// Find diff lines that match any of the search terms.
+	// Returns matching lines plus 1 line of context on each side.
+	function findMatchingLines(
+		hunks: DiffFile['hunks'],
+		terms: string[]
+	): DiffFile['hunks'][0]['lines'] {
+		if (terms.length === 0) return [];
+		const result: DiffFile['hunks'][0]['lines'] = [];
+		for (const hunk of hunks) {
+			for (let i = 0; i < hunk.lines.length; i++) {
+				const line = hunk.lines[i];
+				if (terms.some(t => line.content.includes(t))) {
+					// Add context: 1 line before and after
+					if (i > 0 && !result.includes(hunk.lines[i - 1])) {
+						result.push(hunk.lines[i - 1]);
+					}
+					if (!result.includes(line)) {
+						result.push(line);
+					}
+					if (i + 1 < hunk.lines.length && !result.includes(hunk.lines[i + 1])) {
+						result.push(hunk.lines[i + 1]);
+					}
+				}
+			}
+		}
+		return result.slice(0, 20); // Cap at 20 lines
+	}
+
 	function shortVertex(v: string): string {
 		const parts = v.split('::');
 		for (let i = parts.length - 1; i >= 0; i--) {
@@ -307,37 +360,65 @@
 								</div>
 							</div>
 
-							<!-- Breaking changes - open by default since they're critical -->
+							<!-- Breaking changes - open by default, each clickable to show code -->
 							{#if sd.breakingChanges.length > 0}
 								<details open class="mb-3 rounded-md border border-red-500/20">
 									<summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wider text-red-400 hover:bg-red-500/5">
 										⚠ Breaking changes ({sd.breakingCount})
 									</summary>
-									<ul class="space-y-1 px-3 pb-2">
+									<div class="space-y-0.5 px-2 pb-2">
 										{#each sd.breakingChanges as bc (bc.label)}
-											<li class="flex items-start gap-2 rounded-md bg-red-500/5 px-3 py-1.5 text-sm">
-												<span class="text-text-primary">{bc.label}</span>
-												<span class="ml-auto shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted">{bc.kind}</span>
-											</li>
+											{@const searchTerms = extractSearchTerms(bc)}
+											{@const matchingLines = findMatchingLines(file.hunks, searchTerms)}
+											<details class="rounded-md">
+												<summary class="flex cursor-pointer items-start gap-2 rounded-md bg-red-500/5 px-3 py-1.5 text-sm hover:bg-red-500/10 transition-colors">
+													<span class="shrink-0 text-red-400 mt-0.5">⚠</span>
+													<span class="text-text-primary flex-1">{bc.label}</span>
+													{#if matchingLines.length > 0}
+														<span class="shrink-0 text-[10px] text-text-muted mt-0.5">{matchingLines.length} lines</span>
+													{/if}
+													<span class="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted">{bc.kind}</span>
+												</summary>
+												{#if matchingLines.length > 0}
+													<pre class="mt-1 overflow-x-auto rounded bg-surface-0 font-mono text-[11px] leading-[18px] mx-3 mb-1">{#each matchingLines as line}<span class={lineClass(line.origin)}><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.oldLineno ?? ''}</span><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.newLineno ?? ''}</span><span class="inline-block w-3 select-none text-[10px]">{linePrefix(line.origin)}</span>{stripNewline(line.content)}
+</span>{/each}</pre>
+												{:else}
+													<p class="mx-3 mb-1 text-[11px] text-text-muted italic">No matching code found in this diff</p>
+												{/if}
+											</details>
 										{/each}
-									</ul>
+									</div>
 								</details>
 							{/if}
 
-							<!-- Compatible changes - collapsed by default -->
+							<!-- Compatible changes - collapsed, each clickable to show code -->
 							{#if sd.nonBreakingChanges.length > 0}
 								<details class="mb-3 rounded-md border border-emerald-500/20">
 									<summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wider text-emerald-400 hover:bg-emerald-500/5">
 										✓ Compatible changes ({sd.nonBreakingCount})
 									</summary>
-									<ul class="space-y-1 px-3 pb-2">
+									<div class="space-y-0.5 px-2 pb-2">
 										{#each sd.nonBreakingChanges as nb (nb.label)}
-											<li class="flex items-start gap-2 rounded-md bg-emerald-500/5 px-3 py-1.5 text-sm">
-												<span class="text-text-primary">{nb.label}</span>
-												<span class="ml-auto shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted">{nb.kind}</span>
-											</li>
+											{@const searchTerms = extractSearchTerms(nb)}
+											{@const matchingLines = findMatchingLines(file.hunks, searchTerms)}
+											<details class="rounded-md">
+												<summary class="flex cursor-pointer items-start gap-2 rounded-md bg-emerald-500/5 px-3 py-1.5 text-sm hover:bg-emerald-500/10 transition-colors">
+													<span class="shrink-0 text-emerald-400 mt-0.5">✓</span>
+													<span class="text-text-primary flex-1">{nb.label}</span>
+													{#if matchingLines.length > 0}
+														<span class="shrink-0 text-[10px] text-text-muted mt-0.5">{matchingLines.length} lines</span>
+													{/if}
+													<span class="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted">{nb.kind}</span>
+												</summary>
+												{#if matchingLines.length > 0}
+													<pre class="mt-1 overflow-x-auto rounded bg-surface-0 font-mono text-[11px] leading-[18px] mx-3 mb-1">{#each matchingLines as line}<span class={lineClass(line.origin)}><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.oldLineno ?? ''}</span><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.newLineno ?? ''}</span><span class="inline-block w-3 select-none text-[10px]">{linePrefix(line.origin)}</span>{stripNewline(line.content)}
+</span>{/each}</pre>
+												{:else}
+													<p class="mx-3 mb-1 text-[11px] text-text-muted italic">No matching code found in this diff</p>
+												{/if}
+											</details>
 										{/each}
-									</ul>
+									</div>
 								</details>
 							{/if}
 
