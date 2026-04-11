@@ -12,10 +12,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 			});
 			if (resp.ok) {
 				const session = await resp.json();
+				const avatarCookie = event.cookies.get('cospan_avatar');
 				event.locals.user = {
 					authenticated: true,
 					did: session.did,
-					handle: session.handle
+					handle: session.handle,
+					avatar: avatarCookie ? decodeURIComponent(avatarCookie) : undefined,
 				};
 			}
 		} catch {

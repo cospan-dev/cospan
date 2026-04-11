@@ -728,6 +728,7 @@ impl IntoResponse for OAuthError {
 struct BridgeInput {
     did: String,
     handle: Option<String>,
+    avatar: Option<String>,
 }
 
 async fn bridge_session(

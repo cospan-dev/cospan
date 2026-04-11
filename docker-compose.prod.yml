@@ -90,7 +90,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 2G
 
   # Tap: ATProto sync with full backfill
   # Discovers all repos with Tangled/Cospan records, downloads full history

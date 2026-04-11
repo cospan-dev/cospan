@@ -40,7 +40,7 @@ export async function initAuth(serverUser?: ServerUser | null): Promise<void> {
 			};
 			// Bridge the browser OAuth session to a server-side cookie so
 			// server-rendered pages and form actions can see the session.
-			bridgeSession(result.did, result.handle).catch(() => {});
+			bridgeSession(result.did, result.handle, result.avatar).catch(() => {});
 		} else if (serverUser) {
 			// IndexedDB session lost but server cookie still valid
 			state = {
@@ -87,11 +87,16 @@ export async function doLogout(): Promise<void> {
 /// Bridge the browser OAuth session to a server-side session cookie.
 /// Called after every successful browser OAuth init so that form
 /// actions and server-side rendering can see the authenticated user.
-async function bridgeSession(did: string, handle?: string): Promise<void> {
+async function bridgeSession(did: string, handle?: string, avatar?: string): Promise<void> {
 	await fetch('/oauth/bridge', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ did, handle }),
+		body: JSON.stringify({ did, handle, avatar }),
 		credentials: 'include',
 	});
+	// Store avatar in a non-httpOnly cookie so SSR can read it for
+	// rendering the user menu without waiting for browser OAuth to hydrate.
+	if (avatar) {
+		document.cookie = `cospan_avatar=${encodeURIComponent(avatar)}; path=/; max-age=604800; SameSite=Lax`;
+	}
 }
