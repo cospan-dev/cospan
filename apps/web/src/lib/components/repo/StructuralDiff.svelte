@@ -346,47 +346,8 @@
 								{@const removedGroups = groupVertices(sd.removedVertices, file.path)}
 								{@const addedGroups = groupVertices(sd.addedVertices, file.path)}
 								<div class="mb-3 space-y-2">
-									<!-- Kind changes: only show changes to named program elements.
-								     Internal AST reshuffling is filtered out. -->
-									{#if sd.kindChanges.filter(kc => {
-										const name = shortVertex(kc.vertexId);
-										if (name.startsWith('$') || name.includes('/')) return false;
-										if (kc.oldKind.includes('_') && kc.newKind.includes('_')) return false;
-										return true;
-									}).length > 0}
-										{@const meaningfulKindChanges = sd.kindChanges.filter(kc => {
-											const name = shortVertex(kc.vertexId);
-											if (name.startsWith('$') || name.includes('/')) return false;
-											if (kc.oldKind.includes('_') && kc.newKind.includes('_')) return false;
-											return true;
-										})}
-										{@const kindByScope = groupKindChanges(meaningfulKindChanges)}
-										<details class="mb-2 rounded-md border border-amber-500/20">
-											<summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wider text-amber-400 hover:bg-amber-500/5">
-												◆ Type changes ({meaningfulKindChanges.length})
-											</summary>
-											<div class="space-y-0.5 px-2 pb-2">
-												{#each kindByScope as group (group.scope)}
-													<details class="rounded-md bg-amber-500/5">
-														<summary class="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm hover:bg-surface-2">
-															<span class="text-amber-400">◆</span>
-															<span class="font-medium text-text-primary">{group.scope}</span>
-															<span class="text-xs text-text-muted">{group.changes.length} {group.changes.length === 1 ? 'change' : 'changes'}</span>
-														</summary>
-														<div class="border-t border-border/30 px-3 py-1.5 space-y-0.5">
-															{#each group.changes as kc (kc.vertexId)}
-																<div class="flex items-center gap-2 text-[12px]">
-																	<code class="rounded bg-red-500/10 px-1.5 py-0.5 text-red-400">{kc.oldKind}</code>
-																	<span class="text-text-muted">→</span>
-																	<code class="rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-400">{kc.newKind}</code>
-																</div>
-															{/each}
-														</div>
-													</details>
-												{/each}
-											</div>
-										</details>
-									{/if}
+									<!-- Kind changes are surfaced via the breaking/compatible
+								     change classifications above. No standalone section needed. -->
 
 									<!-- Show each scope that had changes -->
 									<!-- Scope tree - each element is clickable to show its details -->
