@@ -179,26 +179,18 @@ pub async fn git_receive_pack(
         }
     }
 
-    // 4. Apply ref updates on the mirror, then mirror them into panproto-vcs.
-    let mut vcs_store = match store_guard.open_or_init(&did, &repo) {
-        Ok(s) => s,
-        Err(e) => return err_response(format!("open panproto store: {e}")).into_response(),
-    };
-
+    // 4. Apply ref updates on the git mirror (fast: just updating ref pointers).
     let mut response = String::new();
+    let mut import_tasks: Vec<(String, String)> = Vec::new(); // (new_oid, refname) for async import
 
     for (_old_oid, new_oid, refname) in &ref_updates {
         let zero_oid = "0".repeat(40);
 
         if new_oid == &zero_oid {
-            // Ref deletion: remove from mirror and panproto store.
             match git_mirror.find_reference(refname) {
-                Ok(mut r) => {
-                    let _ = r.delete();
-                }
+                Ok(mut r) => { let _ = r.delete(); }
                 Err(_) => {}
             }
-            let _ = panproto_vcs::Store::delete_ref(&mut vcs_store, refname);
             response.push_str(&pkt_line(&format!("ok {refname}\n")));
             continue;
         }
@@ -211,43 +203,62 @@ pub async fn git_receive_pack(
             }
         };
 
-        // Update the mirror ref.
         if let Err(e) = git_mirror.reference(refname, git_oid, true, "receive-pack") {
             response.push_str(&pkt_line(&format!("ng {refname} mirror ref: {e}\n")));
             continue;
         }
 
-        // Import the git commit into panproto-vcs so schema operations
-        // can see it. Failure is logged but not fatal to the push —
-        // the mirror is the source of truth for git clients.
-        match panproto_git::import_git_repo(&git_mirror, &mut vcs_store, new_oid) {
-            Ok(import_result) => {
-                if let Err(e) =
-                    panproto_vcs::Store::set_ref(&mut vcs_store, refname, import_result.head_id)
-                {
-                    tracing::warn!(
-                        %did, %repo, %refname, error = %e,
-                        "failed to set panproto ref after import"
-                    );
-                }
-                tracing::info!(
-                    %did, %repo, %refname,
-                    commits = import_result.commit_count,
-                    "imported git commits into panproto-vcs"
-                );
-            }
-            Err(e) => {
-                tracing::warn!(
-                    %did, %repo, %refname, error = %e,
-                    "panproto-vcs import failed (git mirror still updated)"
-                );
-            }
-        }
-
+        import_tasks.push((new_oid.clone(), refname.clone()));
         response.push_str(&pkt_line(&format!("ok {refname}\n")));
     }
 
     drop(store_guard);
+
+    // 5. Import into panproto-vcs asynchronously. The push response is
+    //    sent immediately; the import runs in the background. This is
+    //    necessary because import_git_repo walks the entire commit
+    //    history (tracked upstream at panproto/panproto#26) and can
+    //    take minutes for repos with 100+ commits.
+    if !import_tasks.is_empty() {
+        let store_clone = state.store.clone();
+        let did_clone = did.clone();
+        let repo_clone = repo.clone();
+        tokio::task::spawn_blocking(move || {
+            let store_guard = store_clone.blocking_lock();
+            let mirror = match store_guard.open_or_init_git_mirror(&did_clone, &repo_clone) {
+                Ok(m) => m,
+                Err(e) => {
+                    tracing::error!(error = %e, "background import: open mirror failed");
+                    return;
+                }
+            };
+            let mut vcs_store = match store_guard.open_or_init(&did_clone, &repo_clone) {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::error!(error = %e, "background import: open vcs store failed");
+                    return;
+                }
+            };
+            for (new_oid, refname) in &import_tasks {
+                match panproto_git::import_git_repo(&mirror, &mut vcs_store, new_oid) {
+                    Ok(result) => {
+                        let _ = panproto_vcs::Store::set_ref(&mut vcs_store, refname, result.head_id);
+                        tracing::info!(
+                            did = %did_clone, repo = %repo_clone, %refname,
+                            commits = result.commit_count,
+                            "background: imported git commits into panproto-vcs"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            did = %did_clone, repo = %repo_clone, %refname, error = %e,
+                            "background: panproto-vcs import failed"
+                        );
+                    }
+                }
+            }
+        });
+    }
 
     let full_response = format!("{}{}0000", pkt_line("unpack ok\n"), response);
 
