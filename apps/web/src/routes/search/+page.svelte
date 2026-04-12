@@ -5,10 +5,16 @@
 
 	let { data } = $props();
 
-	let initialQuery = data.query ?? '';
-	let inputValue = $state(initialQuery);
+	let inputValue = $state(data.query ?? '');
 	let mode = $state(data.mode ?? 'repos');
 	let anchor = $state(data.anchor ?? 'function');
+
+	// Sync state when data changes (e.g., browser navigation)
+	$effect(() => {
+		inputValue = data.query ?? '';
+		mode = data.mode ?? 'repos';
+		anchor = data.anchor ?? 'function';
+	});
 
 	const debouncedSearch = debounce((q: string) => {
 		if (q.trim()) {
