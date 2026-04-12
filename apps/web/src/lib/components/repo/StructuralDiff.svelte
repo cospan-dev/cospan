@@ -422,25 +422,25 @@
 								</details>
 							{/if}
 
-							<!-- Structural change tree -->
-							{#if sd.removedVertices.length > 0 || sd.addedVertices.length > 0 || sd.kindChanges.length > 0}
+							<!-- Structural change tree (program elements) -->
+							{#if (() => {
+								const rg = groupVertices(sd.removedVertices, file.path);
+								const ag = groupVertices(sd.addedVertices, file.path);
+								return [...new Set([...rg.map(g => g.scope), ...ag.map(g => g.scope)])].filter(s => s !== '(other)' && s !== '(module)').length > 0;
+							})()}
 								{@const removedGroups = groupVertices(sd.removedVertices, file.path)}
 								{@const addedGroups = groupVertices(sd.addedVertices, file.path)}
+								{@const filteredScopes = [...new Set([
+									...removedGroups.map(g => g.scope),
+									...addedGroups.map(g => g.scope),
+								])].filter(s => s !== '(other)' && s !== '(module)')}
 								<div class="mb-3 space-y-2">
-									<!-- Kind changes are surfaced via the breaking/compatible
-								     change classifications above. No standalone section needed. -->
-
-									<!-- Show each scope that had changes -->
-									<!-- Scope tree - each element is clickable to show its details -->
 									<div class="rounded-md border border-border">
 										<div class="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
 											Program elements
 										</div>
 										<div class="space-y-0.5 px-1 pb-1">
-											{#each [...new Set([
-												...removedGroups.map(g => g.scope),
-												...addedGroups.map(g => g.scope),
-											])].filter(s => s !== '(other)' && s !== '(module)') as scope (scope)}
+											{#each filteredScopes as scope (scope)}
 												{@const removed = removedGroups.find(g => g.scope === scope)}
 												{@const added = addedGroups.find(g => g.scope === scope)}
 												{@const scopeKind = removed?.scopeKind ?? added?.scopeKind ?? '·'}
