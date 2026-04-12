@@ -21,6 +21,7 @@ panproto-lens.workspace = true
 panproto-parse.workspace = true
 panproto-git.workspace = true
 panproto-vcs.workspace = true
+panproto-xrpc.workspace = true
 git2.workspace = true
 
 axum.workspace = true

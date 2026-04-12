@@ -214,20 +214,17 @@ pub async fn git_receive_pack(
 
     drop(store_guard);
 
-    // 5. Import into panproto-vcs asynchronously. The push response is
-    //    sent immediately; the import runs in the background. This is
-    //    necessary because import_git_repo walks the entire commit
-    //    history (tracked upstream at panproto/panproto#26) and can
-    //    take minutes for repos with 100+ commits.
+    // 5. Import into panproto-vcs asynchronously using incremental
+    //    import. The marks file tracks which git OIDs have already been
+    //    translated, so repeated pushes only import new commits.
     if !import_tasks.is_empty() {
         let store_clone = state.store.clone();
         let did_clone = did.clone();
         let repo_clone = repo.clone();
         tokio::task::spawn_blocking(move || {
-            // Open the stores under the lock, then DROP the lock before
-            // the expensive import. FsStore is file-backed so concurrent
-            // reads (listCommits, diffCommits) work fine while we write.
-            let (mirror, mut vcs_store) = {
+            // Open the stores under the lock, load marks, then DROP the
+            // lock before the expensive import.
+            let (mirror, mut vcs_store, known) = {
                 let store_guard = store_clone.blocking_lock();
                 let mirror = match store_guard.open_or_init_git_mirror(&did_clone, &repo_clone) {
                     Ok(m) => m,
@@ -243,17 +240,31 @@ pub async fn git_receive_pack(
                         return;
                     }
                 };
-                (mirror, vcs_store)
+                let known = store_guard.load_import_marks(&did_clone, &repo_clone);
+                (mirror, vcs_store, known)
                 // store_guard dropped here: lock released
             };
             for (new_oid, refname) in &import_tasks {
-                match panproto_git::import_git_repo(&mirror, &mut vcs_store, new_oid) {
+                match panproto_git::import_git_repo_incremental(
+                    &mirror,
+                    &mut vcs_store,
+                    new_oid,
+                    &known,
+                ) {
                     Ok(result) => {
                         let _ = panproto_vcs::Store::set_ref(&mut vcs_store, refname, result.head_id);
+                        // Persist the new OID mappings for future incremental imports.
+                        let store_guard = store_clone.blocking_lock();
+                        store_guard.save_import_marks(
+                            &did_clone,
+                            &repo_clone,
+                            &result.oid_map,
+                        );
+                        drop(store_guard);
                         tracing::info!(
                             did = %did_clone, repo = %repo_clone, %refname,
                             commits = result.commit_count,
-                            "background: imported git commits into panproto-vcs"
+                            "background: incrementally imported git commits into panproto-vcs"
                         );
                     }
                     Err(e) => {

@@ -45,6 +45,7 @@ fn test_config(tmp: &TempDir) -> cospan_node::config::NodeConfig {
         validation: cospan_node::config::ValidationConfig::default(),
         auth: cospan_node::config::AuthConfig {
             allowed_dids: vec![], // allow all
+            appview_jwks_url: None,
         },
     }
 }

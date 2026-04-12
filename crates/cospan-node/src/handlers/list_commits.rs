@@ -2,22 +2,21 @@
 //!
 //! Walks the repo's persistent git mirror using libgit2's RevWalk and
 //! returns a flat list of commits with the parent pointers needed to
-//! draw a DAG. This is the data source for the frontend CommitGraph
-//! visualization: we return things in topological order newest-first
-//! so the UI can lay out lanes without re-sorting.
+//! draw a DAG. Uses panproto-xrpc's typed response structs to guarantee
+//! wire-format compatibility with panproto clients.
 //!
 //! Query parameters:
 //!   - `did`: repo owner
 //!   - `repo`: repo name (rkey or human name)
-//!   - `ref`: optional ref to start from (default: HEAD → first branch)
+//!   - `ref`: optional ref to start from (default: HEAD / first branch)
 //!   - `limit`: optional max commits to return (default 50, max 500)
 
 use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Query, State};
+use panproto_xrpc::{CommitEntry, CommitIdentity, ListCommitsResult};
 use serde::Deserialize;
-use serde_json::json;
 
 use crate::error::NodeError;
 use crate::state::NodeState;
@@ -34,7 +33,7 @@ pub struct ListCommitsParams {
 pub async fn list_commits(
     State(state): State<Arc<NodeState>>,
     Query(params): Query<ListCommitsParams>,
-) -> Result<Json<serde_json::Value>, NodeError> {
+) -> Result<Json<ListCommitsResult>, NodeError> {
     let limit = params.limit.unwrap_or(50).min(500);
 
     let store = state.store.lock().await;
@@ -85,34 +84,31 @@ pub async fn list_commits(
 
         let author = commit.author();
         let committer = commit.committer();
-        let summary = commit.summary().unwrap_or_default().to_string();
-        let message = commit.message().unwrap_or_default().to_string();
-        let timestamp = commit.time().seconds();
-        let parents: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
 
-        commits.push(json!({
-            "oid": oid.to_string(),
-            "parents": parents,
-            "summary": summary,
-            "message": message,
-            "author": {
-                "name": author.name().unwrap_or_default(),
-                "email": author.email().unwrap_or_default(),
+        commits.push(CommitEntry {
+            oid: oid.to_string(),
+            parents: commit.parent_ids().map(|p| p.to_string()).collect(),
+            summary: commit.summary().unwrap_or_default().to_string(),
+            message: commit.message().unwrap_or_default().to_string(),
+            author: CommitIdentity {
+                name: author.name().unwrap_or_default().to_string(),
+                email: Some(author.email().unwrap_or_default().to_string()),
             },
-            "committer": {
-                "name": committer.name().unwrap_or_default(),
-                "email": committer.email().unwrap_or_default(),
-            },
-            "timestamp": timestamp,
-            "treeOid": commit.tree_id().to_string(),
-        }));
+            committer: Some(CommitIdentity {
+                name: committer.name().unwrap_or_default().to_string(),
+                email: Some(committer.email().unwrap_or_default().to_string()),
+            }),
+            timestamp: u64::try_from(commit.time().seconds()).unwrap_or(0),
+            tree_oid: Some(commit.tree_id().to_string()),
+        });
     }
 
-    Ok(Json(json!({
-        "commits": commits,
-        "count": commits.len(),
-        "start": start_oid.to_string(),
-    })))
+    let count = commits.len() as u64;
+    Ok(Json(ListCommitsResult {
+        commits,
+        count,
+        start: Some(start_oid.to_string()),
+    }))
 }
 
 /// Resolve a ref name to its target OID. Accepts short names like

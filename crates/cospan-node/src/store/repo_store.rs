@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use panproto_core::vcs::{FsStore, HeadState, Object, ObjectId, Store, VcsError};
@@ -132,5 +133,65 @@ impl RepoManager {
     pub fn get_head(&self, did: &str, name: &str) -> Result<HeadState, VcsError> {
         let store = self.open(did, name)?;
         store.get_head()
+    }
+
+    /// Path to the git-import marks file. Stores a mapping from git
+    /// commit OIDs to panproto-vcs ObjectIds so that subsequent imports
+    /// can skip already-imported commits via `import_git_repo_incremental`.
+    fn marks_path(&self, did: &str, name: &str) -> PathBuf {
+        self.repo_dir(did, name).join(".git-import-marks")
+    }
+
+    /// Load the git→panproto OID mapping from the marks file.
+    /// Returns an empty map if the file doesn't exist or is corrupt.
+    pub fn load_import_marks(
+        &self,
+        did: &str,
+        name: &str,
+    ) -> HashMap<git2::Oid, ObjectId> {
+        let path = self.marks_path(did, name);
+        let bytes = match std::fs::read(&path) {
+            Ok(b) => b,
+            Err(_) => return HashMap::new(),
+        };
+        let entries: Vec<(String, String)> = match serde_json::from_slice(&bytes) {
+            Ok(v) => v,
+            Err(_) => return HashMap::new(),
+        };
+        let mut map = HashMap::with_capacity(entries.len());
+        for (git_hex, pp_hex) in entries {
+            let git_oid = match git2::Oid::from_str(&git_hex) {
+                Ok(o) => o,
+                Err(_) => continue,
+            };
+            let pp_id = match pp_hex.parse::<ObjectId>() {
+                Ok(id) => id,
+                Err(_) => continue,
+            };
+            map.insert(git_oid, pp_id);
+        }
+        map
+    }
+
+    /// Persist the git→panproto OID mapping to the marks file.
+    /// Merges new entries with existing ones.
+    pub fn save_import_marks(
+        &self,
+        did: &str,
+        name: &str,
+        new_entries: &[(git2::Oid, ObjectId)],
+    ) {
+        let mut map = self.load_import_marks(did, name);
+        for (git_oid, pp_id) in new_entries {
+            map.insert(*git_oid, *pp_id);
+        }
+        let entries: Vec<(String, String)> = map
+            .into_iter()
+            .map(|(g, p)| (g.to_string(), p.to_string()))
+            .collect();
+        let path = self.marks_path(did, name);
+        if let Ok(json) = serde_json::to_vec(&entries) {
+            let _ = std::fs::write(&path, json);
+        }
     }
 }

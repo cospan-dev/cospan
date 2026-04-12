@@ -163,6 +163,9 @@ fn value_to_json(v: &panproto_inst::value::Value) -> serde_json::Value {
                 .collect();
             serde_json::Value::Object(m)
         }
+        Value::List(items) => {
+            serde_json::Value::Array(items.iter().map(value_to_json).collect())
+        }
     }
 }
 

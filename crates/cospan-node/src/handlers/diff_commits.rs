@@ -1,18 +1,18 @@
 //! `GET /xrpc/dev.panproto.node.diffCommits` and cospan alias.
 //!
 //! Computes the diff between two commits in the persistent git mirror.
+//! Uses panproto-xrpc's typed response structs for wire-format
+//! compatibility with panproto clients.
 //!
 //! Returns, for each changed path:
-//!  : old/new OID
-//!  : file status (added / modified / removed / renamed)
-//!  : line-level hunks (unified diff format)
-//!  : total additions / deletions
-//!  : **structural diff**: for parseable files (currently ATProto
-//!     lexicon JSON), parses both sides into panproto `Schema` objects,
-//!     runs `panproto_check::diff` + `classify`, and attaches the
-//!     result. This is what makes Cospan a *schematic* VCS: the
-//!     frontend can show "removed vertex X, added edge Y, NSID
-//!     changed from A→B, net result: BREAKING / compatible".
+//!  - old/new OID
+//!  - file status (added / modified / removed / renamed)
+//!  - line-level hunks (unified diff format)
+//!  - total additions / deletions
+//!  - **structural diff**: for parseable files (248 tree-sitter
+//!     languages + all panproto-protocols schema formats), parses
+//!     both sides into panproto schemas, runs `panproto_check::diff`
+//!     + `classify`, and attaches the result.
 //!
 //! Query parameters:
 //!   - `did`: repo owner
@@ -26,6 +26,7 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Query, State};
+use panproto_xrpc::{DiffCommitsResult, FileDiff};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -33,6 +34,7 @@ use crate::error::NodeError;
 use crate::state::NodeState;
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DiffCommitsParams {
     pub did: String,
     pub repo: String,
@@ -44,7 +46,7 @@ pub struct DiffCommitsParams {
 pub async fn diff_commits(
     State(state): State<Arc<NodeState>>,
     Query(params): Query<DiffCommitsParams>,
-) -> Result<Json<serde_json::Value>, NodeError> {
+) -> Result<Json<DiffCommitsResult>, NodeError> {
     let store = state.store.lock().await;
     if !store.has_git_mirror(&params.did, &params.repo) {
         return Err(NodeError::RefNotFound(format!(
@@ -83,37 +85,45 @@ pub async fn diff_commits(
         .diff_tree_to_tree(Some(&from_tree), Some(&to_tree), Some(&mut diff_opts))
         .map_err(|e| NodeError::Internal(format!("diff trees: {e}")))?;
 
-    // First pass: walk deltas to build a path → file entry.
+    // First pass: walk deltas to build file entries with hunks.
     struct FileEntry {
         path: String,
         old_path: Option<String>,
         status: &'static str,
         old_oid: String,
         new_oid: String,
-        additions: u32,
-        deletions: u32,
-        hunks: Vec<HunkEntry>,
+        additions: u64,
+        deletions: u64,
+        hunks: Vec<serde_json::Value>,
         binary: bool,
     }
-    struct HunkEntry {
+    struct HunkBuilder {
         old_start: u32,
         old_lines: u32,
         new_start: u32,
         new_lines: u32,
         header: String,
-        lines: Vec<LineEntry>,
-    }
-    struct LineEntry {
-        origin: char,
-        content: String,
-        old_lineno: Option<u32>,
-        new_lineno: Option<u32>,
+        lines: Vec<serde_json::Value>,
     }
 
     let files_cell: RefCell<Vec<FileEntry>> = RefCell::new(Vec::new());
+    let hunk_cell: RefCell<Option<HunkBuilder>> = RefCell::new(None);
 
     diff.foreach(
         &mut |delta, _progress| {
+            // Flush any pending hunk from the previous file.
+            if let Some(hunk) = hunk_cell.borrow_mut().take() {
+                if let Some(last) = files_cell.borrow_mut().last_mut() {
+                    last.hunks.push(json!({
+                        "oldStart": hunk.old_start,
+                        "oldLines": hunk.old_lines,
+                        "newStart": hunk.new_start,
+                        "newLines": hunk.new_lines,
+                        "header": hunk.header,
+                        "lines": hunk.lines,
+                    }));
+                }
+            }
             let status = match delta.status() {
                 git2::Delta::Added => "added",
                 git2::Delta::Deleted => "removed",
@@ -151,143 +161,126 @@ pub async fn diff_commits(
         },
         None,
         Some(&mut |_delta, hunk| {
-            let mut files_mut = files_cell.borrow_mut();
-            if let Some(last) = files_mut.last_mut() {
-                let header = String::from_utf8_lossy(hunk.header()).into_owned();
-                last.hunks.push(HunkEntry {
-                    old_start: hunk.old_start(),
-                    old_lines: hunk.old_lines(),
-                    new_start: hunk.new_start(),
-                    new_lines: hunk.new_lines(),
-                    header,
-                    lines: Vec::new(),
-                });
+            // Flush any previous hunk.
+            if let Some(prev) = hunk_cell.borrow_mut().take() {
+                if let Some(last) = files_cell.borrow_mut().last_mut() {
+                    last.hunks.push(json!({
+                        "oldStart": prev.old_start,
+                        "oldLines": prev.old_lines,
+                        "newStart": prev.new_start,
+                        "newLines": prev.new_lines,
+                        "header": prev.header,
+                        "lines": prev.lines,
+                    }));
+                }
             }
+            *hunk_cell.borrow_mut() = Some(HunkBuilder {
+                old_start: hunk.old_start(),
+                old_lines: hunk.old_lines(),
+                new_start: hunk.new_start(),
+                new_lines: hunk.new_lines(),
+                header: String::from_utf8_lossy(hunk.header()).into_owned(),
+                lines: Vec::new(),
+            });
             true
         }),
         Some(&mut |_delta, _hunk, line| {
+            let origin = line.origin();
+            let content = String::from_utf8_lossy(line.content()).into_owned();
             let mut files_mut = files_cell.borrow_mut();
             if let Some(last_file) = files_mut.last_mut() {
-                let origin = line.origin();
-                let content = String::from_utf8_lossy(line.content()).into_owned();
                 match origin {
                     '+' => last_file.additions += 1,
                     '-' => last_file.deletions += 1,
                     _ => {}
                 }
-                if let Some(last_hunk) = last_file.hunks.last_mut() {
-                    last_hunk.lines.push(LineEntry {
-                        origin,
-                        content,
-                        old_lineno: line.old_lineno(),
-                        new_lineno: line.new_lineno(),
-                    });
-                }
+            }
+            if let Some(ref mut hunk) = *hunk_cell.borrow_mut() {
+                hunk.lines.push(json!({
+                    "origin": origin.to_string(),
+                    "content": content,
+                    "oldLineno": line.old_lineno(),
+                    "newLineno": line.new_lineno(),
+                }));
             }
             true
         }),
     )
     .map_err(|e| NodeError::Internal(format!("diff.foreach: {e}")))?;
 
-    let files = files_cell.into_inner();
-
-    // Totals
-    let total_additions: u32 = files.iter().map(|f| f.additions).sum();
-    let total_deletions: u32 = files.iter().map(|f| f.deletions).sum();
-
-    // Pass 2: panproto structural diff per file.
-    //
-    // For each changed file, load the old and new blob contents from
-    // the git mirror and feed them to the panproto parser registry.
-    // Every file type the workspace can parse (248 languages via
-    // tree-sitter + all panproto-protocols schema formats) gets a
-    // vertex/edge-level diff with a compatibility verdict attached.
-    let registry = panproto_parse::ParserRegistry::new();
-    let mut structural_results: Vec<Option<serde_json::Value>> = Vec::with_capacity(files.len());
-    for f in &files {
-        if f.binary {
-            structural_results.push(None);
-            continue;
+    // Flush final hunk.
+    if let Some(hunk) = hunk_cell.borrow_mut().take() {
+        if let Some(last) = files_cell.borrow_mut().last_mut() {
+            last.hunks.push(json!({
+                "oldStart": hunk.old_start,
+                "oldLines": hunk.old_lines,
+                "newStart": hunk.new_start,
+                "newLines": hunk.new_lines,
+                "header": hunk.header,
+                "lines": hunk.lines,
+            }));
         }
-        let old_bytes = if f.status != "added" {
-            load_blob(&mirror, &f.old_oid)
-        } else {
-            None
-        };
-        let new_bytes = if f.status != "removed" {
-            // For renames, libgit2 puts the new path in `f.path`; for
-            // everything else `f.path` is also the new path.
-            load_blob(&mirror, &f.new_oid)
-        } else {
-            None
-        };
-        let structural = super::structural::try_structural_diff(
-            &registry,
-            &f.path,
-            old_bytes.as_deref(),
-            new_bytes.as_deref(),
-        );
-        structural_results.push(structural.map(|s| super::structural::structural_diff_to_json(&s)));
     }
 
-    let files_json: Vec<serde_json::Value> = files
+    let entries = files_cell.into_inner();
+
+    // Totals
+    let total_additions: u64 = entries.iter().map(|f| f.additions).sum();
+    let total_deletions: u64 = entries.iter().map(|f| f.deletions).sum();
+
+    // Pass 2: panproto structural diff per file.
+    let registry = panproto_parse::ParserRegistry::new();
+    let files: Vec<FileDiff> = entries
         .iter()
-        .zip(structural_results.into_iter())
-        .map(|(f, structural_json)| {
-            let hunks_json: Vec<serde_json::Value> = f
-                .hunks
-                .iter()
-                .map(|h| {
-                    let lines_json: Vec<serde_json::Value> = h
-                        .lines
-                        .iter()
-                        .map(|l| {
-                            json!({
-                                "origin": l.origin.to_string(),
-                                "content": l.content,
-                                "oldLineno": l.old_lineno,
-                                "newLineno": l.new_lineno,
-                            })
-                        })
-                        .collect();
-                    json!({
-                        "oldStart": h.old_start,
-                        "oldLines": h.old_lines,
-                        "newStart": h.new_start,
-                        "newLines": h.new_lines,
-                        "header": h.header,
-                        "lines": lines_json,
-                    })
-                })
-                .collect();
-            json!({
-                "path": f.path,
-                "oldPath": f.old_path,
-                "status": f.status,
-                "oldOid": f.old_oid,
-                "newOid": f.new_oid,
-                "additions": f.additions,
-                "deletions": f.deletions,
-                "binary": f.binary,
-                "hunks": hunks_json,
-                "structuralDiff": structural_json,
-            })
+        .map(|f| {
+            let structural_diff = if f.binary {
+                None
+            } else {
+                let old_bytes = if f.status != "added" {
+                    load_blob(&mirror, &f.old_oid)
+                } else {
+                    None
+                };
+                let new_bytes = if f.status != "removed" {
+                    load_blob(&mirror, &f.new_oid)
+                } else {
+                    None
+                };
+                super::structural::try_structural_diff(
+                    &registry,
+                    &f.path,
+                    old_bytes.as_deref(),
+                    new_bytes.as_deref(),
+                )
+                .map(|s| super::structural::structural_diff_to_json(&s))
+            };
+
+            FileDiff {
+                path: f.path.clone(),
+                old_path: f.old_path.clone(),
+                status: f.status.to_string(),
+                old_oid: Some(f.old_oid.clone()),
+                new_oid: Some(f.new_oid.clone()),
+                additions: f.additions,
+                deletions: f.deletions,
+                binary: f.binary,
+                hunks: f.hunks.clone(),
+                structural_diff,
+            }
         })
         .collect();
 
-    Ok(Json(json!({
-        "from": params.from,
-        "to": params.to,
-        "files": files_json,
-        "totalAdditions": total_additions,
-        "totalDeletions": total_deletions,
-        "fileCount": files.len(),
-    })))
+    Ok(Json(DiffCommitsResult {
+        from: params.from,
+        to: params.to,
+        file_count: files.len() as u64,
+        files,
+        total_additions,
+        total_deletions,
+    }))
 }
 
-/// Load a blob's raw contents from the git mirror, if it exists. The
-/// OID may be the zero OID for added/removed files: in that case the
-/// caller should pass `None` for that side.
+/// Load a blob's raw contents from the git mirror, if it exists.
 fn load_blob(mirror: &git2::Repository, oid_str: &str) -> Option<Vec<u8>> {
     let zero = "0".repeat(40);
     if oid_str == zero || oid_str.is_empty() {
