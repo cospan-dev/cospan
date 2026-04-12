@@ -8,8 +8,8 @@
 	let { data } = $props();
 
 	let basePath = $derived(`/${data.did}/${data.repo}`);
-	let sourceLabel = $derived(data.pull.sourceRef.replace('refs/heads/', ''));
-	let targetLabel = $derived(data.pull.targetRef.replace('refs/heads/', ''));
+	let sourceLabel = $derived(data.pull.sourceRef?.replace('refs/heads/', '') ?? '');
+	let targetLabel = $derived(data.pull.targetRef?.replace('refs/heads/', '') ?? '');
 
 	const repoLayout = getContext<any>('repoLayout');
 	$effect(() => {
@@ -51,7 +51,7 @@
 
 <!-- Structural compatibility verdict -->
 <div class="mb-4">
-	<CompatibilityBadge comparison={data.branchComparison} />
+	<CompatibilityBadge comparison={data.branchComparison} dependents={data.dependents ?? []} />
 </div>
 
 {#if data.pull.body}

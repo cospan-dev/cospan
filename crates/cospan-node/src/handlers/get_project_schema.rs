@@ -100,14 +100,35 @@ pub async fn get_project_schema(
             total_edges += ec;
             parsed_count += 1;
 
-            // Extract top-level named elements (non-anonymous, non-file-path vertices)
+            // Extract top-level named elements. A "top-level" element is a
+            // vertex whose humanized form is a simple name (no "in" clause),
+            // meaning it sits at the outermost scope of the file. We also
+            // extract the scope name from nested elements as a fallback.
             let mut top_names: Vec<String> = Vec::new();
+            let mut seen_names = std::collections::HashSet::new();
             for vid in schema.vertices.keys() {
                 let vid_str: &str = vid;
-                let name = humanize_vertex(vid_str);
-                // Only keep simple top-level names (no "in" = top scope)
-                if !name.contains(" in ") && name.starts_with('`') && name.ends_with('`') {
-                    top_names.push(name[1..name.len() - 1].to_string());
+                // Skip purely anonymous IDs (all $N segments)
+                if vid_str.split("::").all(|s| s.starts_with('$') || s.contains('/') || s.contains('.')) {
+                    continue;
+                }
+                let human = humanize_vertex(vid_str);
+                if human == vid_str {
+                    // humanize_vertex returned the raw ID: fully anonymous
+                    continue;
+                }
+                // Extract the name between backticks
+                if let Some(start) = human.find('`') {
+                    if let Some(end) = human[start + 1..].find('`') {
+                        let extracted = &human[start + 1..start + 1 + end];
+                        if !extracted.is_empty()
+                            && !extracted.starts_with('$')
+                            && !human.contains(" in ")
+                            && seen_names.insert(extracted.to_string())
+                        {
+                            top_names.push(extracted.to_string());
+                        }
+                    }
                 }
             }
             top_names.sort();

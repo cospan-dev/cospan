@@ -7,13 +7,6 @@
 		fileSchema: FileSchemaResponse | null;
 	} = $props();
 
-	// Group vertices by kind
-	interface KindGroup {
-		kind: string;
-		icon: string;
-		items: { name: string; humanLabel: string }[];
-	}
-
 	function kindIcon(kind: string): string {
 		const lower = kind.toLowerCase();
 		if (lower.includes('function') || lower.includes('method')) return 'f';
@@ -25,7 +18,7 @@
 		return '.';
 	}
 
-	let groups = $derived<KindGroup[]>(() => {
+	let groups = $derived.by(() => {
 		if (!fileSchema || fileSchema.vertices.length === 0) return [];
 		const map = new Map<string, { name: string; humanLabel: string }[]>();
 		for (const v of fileSchema.vertices) {
@@ -80,7 +73,7 @@
 
 		<!-- Schema outline grouped by kind -->
 		<div class="max-h-[60vh] space-y-2 overflow-y-auto">
-			{#each groups() as group (group.kind)}
+			{#each groups as group (group.kind)}
 				<div>
 					<button
 						type="button"

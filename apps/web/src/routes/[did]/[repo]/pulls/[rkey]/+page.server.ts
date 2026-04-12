@@ -5,6 +5,7 @@ import {
 	compareBranchSchemas,
 	type BranchComparisonResponse,
 } from '$lib/api/schema.js';
+import { listDependents, type DependencyEntry } from '$lib/api/search.js';
 
 export const load: PageServerLoad = async ({ params }) => {
 	try {
@@ -15,16 +16,29 @@ export const load: PageServerLoad = async ({ params }) => {
 
 		// Structural comparison between source and target branches
 		let branchComparison: BranchComparisonResponse | null = null;
+		let dependents: DependencyEntry[] = [];
+
 		if (pull.sourceRef && pull.targetRef) {
-			try {
-				branchComparison = await compareBranchSchemas({
+			// Fetch comparison and dependents in parallel
+			const results = await Promise.allSettled([
+				compareBranchSchemas({
 					did: params.did,
 					repo: params.repo,
 					base: pull.targetRef.replace('refs/heads/', ''),
 					head: pull.sourceRef.replace('refs/heads/', ''),
-				});
-			} catch {
-				// Node unreachable; badge won't appear
+				}),
+				listDependents({
+					did: params.did,
+					repo: params.repo,
+					limit: 20,
+				}),
+			]);
+
+			if (results[0].status === 'fulfilled') {
+				branchComparison = results[0].value;
+			}
+			if (results[1].status === 'fulfilled') {
+				dependents = results[1].value.dependencies;
 			}
 		}
 
@@ -34,6 +48,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			pull,
 			comments,
 			branchComparison,
+			dependents,
 		};
 	} catch (err) {
 		console.error(`Failed to load pull ${params.did}/${params.repo}/pulls/${params.rkey}:`, err);

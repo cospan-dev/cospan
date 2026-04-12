@@ -1,15 +1,19 @@
 <script lang="ts">
 	import type { BranchComparisonResponse } from '$lib/api/schema.js';
+	import type { DependencyEntry } from '$lib/api/search.js';
 
 	let {
 		comparison,
+		dependents = [],
 		loading = false,
 	}: {
 		comparison: BranchComparisonResponse | null;
+		dependents?: DependencyEntry[];
 		loading?: boolean;
 	} = $props();
 
 	let expanded = $state(false);
+	let impactExpanded = $state(false);
 </script>
 
 {#if loading}
@@ -73,6 +77,41 @@
 				{#if comparison.breakingChanges.length > 10}
 					<div class="text-xs text-text-muted">
 						... and {comparison.breakingChanges.length - 10} more
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Downstream impact (when breaking changes exist and dependents are known) -->
+		{#if !comparison.compatible && dependents.length > 0}
+			<div class="mt-3 border-t border-red-500/20 pt-3">
+				<button
+					type="button"
+					class="flex w-full items-center gap-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+					onclick={() => (impactExpanded = !impactExpanded)}
+				>
+					<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+					</svg>
+					Downstream impact: {dependents.length} dependent {dependents.length === 1 ? 'repo' : 'repos'} may be affected
+					<svg
+						class="ml-auto h-3 w-3 transition-transform {impactExpanded ? 'rotate-90' : ''}"
+						fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+					</svg>
+				</button>
+				{#if impactExpanded}
+					<div class="mt-2 space-y-1">
+						{#each dependents as dep (dep.did + '/' + dep.repo)}
+							<a
+								href="/{dep.did}/{dep.repo}"
+								class="flex items-center gap-2 rounded-md px-2 py-1 text-sm text-text-secondary hover:bg-surface-2 transition-colors"
+							>
+								<span class="font-mono text-xs text-accent">{dep.repo}</span>
+								<span class="text-[10px] text-text-muted">{dep.did}</span>
+							</a>
+						{/each}
 					</div>
 				{/if}
 			</div>
