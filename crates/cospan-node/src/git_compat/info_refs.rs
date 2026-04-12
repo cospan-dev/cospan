@@ -94,7 +94,7 @@ pub async fn git_info_refs(
             crate::auth::push_auth::PushAuth::NoCredentials => {
                 return (
                     StatusCode::UNAUTHORIZED,
-                    [(header::CONTENT_TYPE, "text/plain".to_owned())],
+                    [(header::WWW_AUTHENTICATE, "Basic realm=\"cospan-node\"".to_owned())],
                     b"Authentication required for push".to_vec(),
                 );
             }
