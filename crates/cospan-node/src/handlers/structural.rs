@@ -209,7 +209,7 @@ fn detect_json_protocol(json: &Value) -> Option<(Schema, String)> {
 /// the diff. Protocols that panproto-protocols exposes via a zero-arg
 /// `protocol()` function work here; anything else falls through to a
 /// conservative classification.
-fn resolve_protocol(name: &str) -> Option<Protocol> {
+pub(crate) fn resolve_protocol(name: &str) -> Option<Protocol> {
     // Lexicon is the most common case for Cospan's own repo, and the
     // atproto module re-exports the protocol constructor.
     if name == "atproto-lexicon" || name == "dev.panproto.atproto-lexicon" {

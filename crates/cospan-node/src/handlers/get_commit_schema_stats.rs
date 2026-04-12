@@ -1,13 +1,17 @@
 //! `GET /xrpc/dev.panproto.node.getCommitSchemaStats`
 //!
-//! For a range of commits, returns per-commit schema statistics:
-//! total vertex/edge counts and breaking/non-breaking change counts
-//! vs the parent commit. Powers the schema evolution sparkline.
+//! For a range of commits, returns per-commit schema statistics by
+//! reading the already-imported schemas from the panproto-vcs store.
+//! Each commit's schema was parsed and stored during git push via
+//! `import_git_repo_incremental`, so this is a cheap read operation
+//! (no re-parsing). Breaking/non-breaking change counts come from
+//! diffing adjacent schemas via `panproto_check::diff` + `classify`.
 
 use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Query, State};
+use panproto_core::vcs::{Object, Store};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -32,17 +36,31 @@ pub async fn get_commit_schema_stats(
 ) -> Result<Json<Value>, NodeError> {
     let limit = params.limit.unwrap_or(30).min(100);
 
-    let store = state.store.lock().await;
-    if !store.has_git_mirror(&params.did, &params.repo) {
+    let store_guard = state.store.lock().await;
+    if !store_guard.has_git_mirror(&params.did, &params.repo) {
         return Err(NodeError::RefNotFound(format!(
             "repo {}/{} not found",
             params.did, params.repo
         )));
     }
-    let mirror = store
+    let mirror = store_guard
         .open_or_init_git_mirror(&params.did, &params.repo)
         .map_err(|e| NodeError::Internal(format!("open mirror: {e}")))?;
-    drop(store);
+
+    // Open the panproto-vcs store where imported schemas live.
+    let vcs_store = match store_guard.open(&params.did, &params.repo) {
+        Ok(s) => s,
+        Err(_) => {
+            // VCS store not yet initialized (no push has happened).
+            // Fall back to empty stats.
+            drop(store_guard);
+            return Ok(Json(json!({ "commits": [] })));
+        }
+    };
+
+    // Load the import marks to map git OIDs to panproto-vcs ObjectIds.
+    let marks = store_guard.load_import_marks(&params.did, &params.repo);
+    drop(store_guard);
 
     let start_oid = match params.ref_name.as_deref() {
         Some(name) => resolve_ref(&mirror, name)?,
@@ -57,40 +75,67 @@ pub async fn get_commit_schema_stats(
     walk.push(start_oid)
         .map_err(|e| NodeError::Internal(format!("push start: {e}")))?;
 
-    let registry = panproto_parse::ParserRegistry::new();
     let mut commits: Vec<Value> = Vec::new();
+    let mut prev_schema: Option<panproto_schema::Schema> = None;
 
     for oid_result in walk.take(limit) {
         let oid = match oid_result {
             Ok(o) => o,
             Err(_) => break,
         };
-        let commit = match mirror.find_commit(oid) {
+        let git_commit = match mirror.find_commit(oid) {
             Ok(c) => c,
             Err(_) => continue,
         };
 
-        let summary = commit.summary().unwrap_or_default().to_string();
-        let timestamp = u64::try_from(commit.time().seconds()).unwrap_or(0);
+        let summary = git_commit.summary().unwrap_or_default().to_string();
+        let timestamp = u64::try_from(git_commit.time().seconds()).unwrap_or(0);
 
-        // Count total vertices by walking the tree
-        let tree = match commit.tree() {
-            Ok(t) => t,
-            Err(_) => continue,
-        };
-        let (total_vc, total_ec, parsed_fc) =
-            count_tree_schema_stats(&mirror, &registry, &tree);
+        // Look up the panproto-vcs commit via the import marks.
+        let (total_vc, total_ec, breaking, non_breaking) =
+            if let Some(pp_id) = marks.get(&oid) {
+                match vcs_store.get(pp_id) {
+                    Ok(Object::Commit(pp_commit)) => {
+                        // Read the schema stored at this commit.
+                        let schema = match vcs_store.get(&pp_commit.schema_id) {
+                            Ok(Object::Schema(s)) => Some(*s),
+                            _ => None,
+                        };
 
-        // Diff against first parent for breaking/non-breaking counts
-        let (breaking, non_breaking) = if commit.parent_count() > 0 {
-            if let Ok(parent) = commit.parent(0) {
-                diff_commit_pair(&mirror, &registry, &parent, &commit)
+                        let vc = schema.as_ref().map_or(0, |s| s.vertices.len());
+                        let ec = schema.as_ref().map_or(0, |s| s.edges.len());
+
+                        // Diff against the previous commit's schema for
+                        // breaking/non-breaking classification.
+                        let (b, nb) = match (&schema, &prev_schema) {
+                            (Some(curr), Some(prev)) => {
+                                let raw_diff = panproto_check::diff(prev, curr);
+                                let protocol = super::structural::resolve_protocol(
+                                    &curr.protocol,
+                                );
+                                match protocol {
+                                    Some(p) => {
+                                        let report =
+                                            panproto_check::classify(&raw_diff, &p);
+                                        (report.breaking.len(), report.non_breaking.len())
+                                    }
+                                    None => (0, 0),
+                                }
+                            }
+                            _ => (0, 0),
+                        };
+
+                        if let Some(s) = schema {
+                            prev_schema = Some(s);
+                        }
+
+                        (vc, ec, b, nb)
+                    }
+                    _ => (0, 0, 0, 0),
+                }
             } else {
-                (0, 0)
-            }
-        } else {
-            (0, 0)
-        };
+                (0, 0, 0, 0)
+            };
 
         commits.push(json!({
             "oid": oid.to_string(),
@@ -98,120 +143,10 @@ pub async fn get_commit_schema_stats(
             "summary": summary,
             "totalVertexCount": total_vc,
             "totalEdgeCount": total_ec,
-            "parsedFileCount": parsed_fc,
             "breakingChangeCount": breaking,
             "nonBreakingChangeCount": non_breaking,
         }));
     }
 
     Ok(Json(json!({ "commits": commits })))
-}
-
-/// Count total vertices, edges, and parsed files in a commit tree.
-fn count_tree_schema_stats(
-    mirror: &git2::Repository,
-    registry: &panproto_parse::ParserRegistry,
-    tree: &git2::Tree<'_>,
-) -> (usize, usize, usize) {
-    let mut total_vc = 0usize;
-    let mut total_ec = 0usize;
-    let mut parsed_fc = 0usize;
-
-    let mut blobs: Vec<(String, git2::Oid)> = Vec::new();
-    let _ = tree.walk(git2::TreeWalkMode::PreOrder, |dir, entry| {
-        if entry.kind() == Some(git2::ObjectType::Blob) {
-            let name = entry.name().unwrap_or("");
-            let path = if dir.is_empty() {
-                name.to_string()
-            } else {
-                format!("{dir}{name}")
-            };
-            blobs.push((path, entry.id()));
-        }
-        git2::TreeWalkResult::Ok
-    });
-
-    // Only parse up to 200 files to keep latency bounded
-    for (path, blob_oid) in blobs.iter().take(200) {
-        let blob = match mirror.find_blob(*blob_oid) {
-            Ok(b) => b,
-            Err(_) => continue,
-        };
-        if let Some((schema, _)) =
-            super::structural::parse_any(registry, path, blob.content())
-        {
-            total_vc += schema.vertices.len();
-            total_ec += schema.edges.len();
-            parsed_fc += 1;
-        }
-    }
-
-    (total_vc, total_ec, parsed_fc)
-}
-
-/// Diff two commits and return (breaking_count, non_breaking_count).
-fn diff_commit_pair(
-    mirror: &git2::Repository,
-    registry: &panproto_parse::ParserRegistry,
-    parent: &git2::Commit<'_>,
-    child: &git2::Commit<'_>,
-) -> (usize, usize) {
-    let parent_tree = match parent.tree() {
-        Ok(t) => t,
-        Err(_) => return (0, 0),
-    };
-    let child_tree = match child.tree() {
-        Ok(t) => t,
-        Err(_) => return (0, 0),
-    };
-
-    let diff = match mirror.diff_tree_to_tree(
-        Some(&parent_tree),
-        Some(&child_tree),
-        None,
-    ) {
-        Ok(d) => d,
-        Err(_) => return (0, 0),
-    };
-
-    let mut breaking = 0usize;
-    let mut non_breaking = 0usize;
-
-    for delta_idx in 0..diff.deltas().len() {
-        let delta = match diff.get_delta(delta_idx) {
-            Some(d) => d,
-            None => continue,
-        };
-        let new_file = delta.new_file();
-        let old_file = delta.old_file();
-        let path = new_file
-            .path()
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_default();
-
-        let old_bytes = load_blob(mirror, old_file.id());
-        let new_bytes = load_blob(mirror, new_file.id());
-
-        if let Some(sd) = super::structural::try_structural_diff(
-            registry,
-            &path,
-            old_bytes.as_deref(),
-            new_bytes.as_deref(),
-        ) {
-            breaking += sd.report.breaking.len();
-            non_breaking += sd.report.non_breaking.len();
-        }
-    }
-
-    (breaking, non_breaking)
-}
-
-fn load_blob(mirror: &git2::Repository, oid: git2::Oid) -> Option<Vec<u8>> {
-    if oid.is_zero() {
-        return None;
-    }
-    mirror
-        .find_blob(oid)
-        .ok()
-        .map(|b| b.content().to_vec())
 }
