@@ -160,6 +160,26 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/xrpc/dev.cospan.node.proxy.diffCommits",
             get(node_proxy::proxy_diff_commits),
         )
+        .route(
+            "/xrpc/dev.panproto.node.proxy.getProjectSchema",
+            get(node_proxy::proxy_get_project_schema),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.proxy.getCommitSchemaStats",
+            get(node_proxy::proxy_get_commit_schema_stats),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.proxy.getFileSchema",
+            get(node_proxy::proxy_get_file_schema),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.proxy.compareBranchSchemas",
+            get(node_proxy::proxy_compare_branch_schemas),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.proxy.getDependencyGraph",
+            get(node_proxy::proxy_get_dependency_graph),
+        )
         // --- Procedures (POST) ---
         .route(
             "/xrpc/dev.cospan.feed.star.toggle",

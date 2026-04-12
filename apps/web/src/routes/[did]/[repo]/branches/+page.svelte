@@ -2,6 +2,7 @@
 	import { getContext } from 'svelte';
 	import BackLink from '$lib/components/shared/BackLink.svelte';
 	import EmptyState from '$lib/components/shared/EmptyState.svelte';
+	import BranchSchemaRow from '$lib/components/repo/BranchSchemaRow.svelte';
 
 	let { data } = $props();
 
@@ -12,10 +13,6 @@
 		repoLayout?.setExtraCrumbs([{ label: 'Branches' }]);
 		return () => repoLayout?.setExtraCrumbs([]);
 	});
-
-	function truncateHash(hash: string): string {
-		return hash.slice(0, 10);
-	}
 </script>
 
 <svelte:head>
@@ -32,24 +29,13 @@
 	/>
 {:else}
 	<div class="rounded-lg border border-border bg-surface-1">
-		<ul class="divide-y divide-border">
+		<ul>
 			{#each data.branches as branch (branch.name)}
-				<li class="flex items-center justify-between gap-4 px-4 py-3">
-					<div class="flex items-center gap-3 min-w-0">
-						<span class="rounded bg-surface-2 px-2 py-0.5 font-mono text-xs text-accent">
-							{branch.name}
-						</span>
-					</div>
-					<div class="flex items-center gap-3 shrink-0">
-						<a
-							href="{basePath}/commit/{branch.target}"
-							class="font-mono text-xs text-text-secondary transition-colors hover:text-accent"
-							title={branch.target}
-						>
-							{truncateHash(branch.target)}
-						</a>
-					</div>
-				</li>
+				<BranchSchemaRow
+					{branch}
+					comparison={data.comparisons[branch.name] ?? null}
+					{basePath}
+				/>
 			{/each}
 		</ul>
 	</div>

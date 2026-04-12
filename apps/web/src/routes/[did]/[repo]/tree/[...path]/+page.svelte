@@ -2,6 +2,7 @@
 	import { getContext } from 'svelte';
 	import FileTree from '$lib/components/repo/FileTree.svelte';
 	import CodeView from '$lib/components/repo/CodeView.svelte';
+	import FileSchemaSidebar from '$lib/components/repo/FileSchemaSidebar.svelte';
 	import BackLink from '$lib/components/shared/BackLink.svelte';
 
 	let { data } = $props();
@@ -45,12 +46,21 @@
 
 <!-- Content -->
 {#if data.mode === 'blob' && data.object}
-	<CodeView
-		code={data.object.code}
-		language={data.object.language}
-		filePath={data.path}
-		highlightedHtml={data.object.highlightedHtml}
-	/>
+	<div class="flex items-start gap-4">
+		<div class="min-w-0 flex-1">
+			<CodeView
+				code={data.object.code}
+				language={data.object.language}
+				filePath={data.path}
+				highlightedHtml={data.object.highlightedHtml}
+			/>
+		</div>
+		{#if data.fileSchema}
+			<div class="hidden w-64 shrink-0 lg:block" style="position: sticky; top: 1rem;">
+				<FileSchemaSidebar fileSchema={data.fileSchema} />
+			</div>
+		{/if}
+	</div>
 {:else}
 	<FileTree refs={data.refs ?? []} {basePath} />
 {/if}

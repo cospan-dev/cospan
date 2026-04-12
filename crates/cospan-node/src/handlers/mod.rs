@@ -1,6 +1,11 @@
+mod compare_branch_schemas;
 mod diff_commits;
+mod get_commit_schema_stats;
+mod get_dependency_graph;
+mod get_file_schema;
 mod get_head;
 mod get_object;
+mod get_project_schema;
 mod get_ref;
 mod get_repo_info;
 mod list_commits;
@@ -10,9 +15,14 @@ mod put_object;
 mod set_ref;
 pub(crate) mod structural;
 
+pub use compare_branch_schemas::compare_branch_schemas;
 pub use diff_commits::diff_commits;
+pub use get_commit_schema_stats::get_commit_schema_stats;
+pub use get_dependency_graph::get_dependency_graph;
+pub use get_file_schema::get_file_schema;
 pub use get_head::get_head;
 pub use get_object::get_object;
+pub use get_project_schema::get_project_schema;
 pub use get_ref::get_ref;
 pub use get_repo_info::get_repo_info;
 pub use list_commits::list_commits;

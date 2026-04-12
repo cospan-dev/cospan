@@ -32,6 +32,7 @@
 			{ id: 'tags', label: 'Tags', href: `${basePath}/tags`, badge: 0 },
 			{ id: 'releases', label: 'Releases', href: `${basePath}/releases`, badge: 0 },
 			{ id: 'compare', label: 'Compare', href: `${basePath}/compare`, badge: 0 },
+			{ id: 'graph', label: 'Graph', href: `${basePath}/graph`, badge: 0 },
 			...(isOwner ? [{ id: 'settings', label: 'Settings', href: `${basePath}/settings`, badge: 0 }] : []),
 		];
 	});

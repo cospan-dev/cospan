@@ -136,6 +136,168 @@ pub async fn proxy_diff_commits(
     Ok(Json(result))
 }
 
+// ─── Schema intelligence proxies ───────────────────────────────────
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSchemaParams {
+    pub did: String,
+    pub repo: String,
+    pub commit: Option<String>,
+    pub max_files: Option<i64>,
+}
+
+/// GET /xrpc/dev.panproto.node.proxy.getProjectSchema
+pub async fn proxy_get_project_schema(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ProjectSchemaParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut extra: Vec<(&str, String)> = Vec::new();
+    if let Some(ref c) = params.commit {
+        extra.push(("commit", c.clone()));
+    }
+    if let Some(m) = params.max_files {
+        extra.push(("maxFiles", m.to_string()));
+    }
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.panproto.node.getProjectSchema",
+        &extra,
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+    Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitSchemaStatsParams {
+    pub did: String,
+    pub repo: String,
+    #[serde(rename = "ref")]
+    pub ref_name: Option<String>,
+    pub limit: Option<i64>,
+}
+
+/// GET /xrpc/dev.panproto.node.proxy.getCommitSchemaStats
+pub async fn proxy_get_commit_schema_stats(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<CommitSchemaStatsParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut extra: Vec<(&str, String)> = Vec::new();
+    if let Some(ref r) = params.ref_name {
+        extra.push(("ref", r.clone()));
+    }
+    if let Some(l) = params.limit {
+        extra.push(("limit", l.to_string()));
+    }
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.panproto.node.getCommitSchemaStats",
+        &extra,
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+    Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileSchemaParams {
+    pub did: String,
+    pub repo: String,
+    pub commit: String,
+    pub path: String,
+}
+
+/// GET /xrpc/dev.panproto.node.proxy.getFileSchema
+pub async fn proxy_get_file_schema(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<FileSchemaParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let extra: Vec<(&str, String)> = vec![
+        ("commit", params.commit.clone()),
+        ("path", params.path.clone()),
+    ];
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.panproto.node.getFileSchema",
+        &extra,
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+    Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompareBranchSchemasParams {
+    pub did: String,
+    pub repo: String,
+    pub base: String,
+    pub head: String,
+}
+
+/// GET /xrpc/dev.panproto.node.proxy.compareBranchSchemas
+pub async fn proxy_compare_branch_schemas(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<CompareBranchSchemasParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let extra: Vec<(&str, String)> = vec![
+        ("base", params.base.clone()),
+        ("head", params.head.clone()),
+    ];
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.panproto.node.compareBranchSchemas",
+        &extra,
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+    Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DependencyGraphParams {
+    pub did: String,
+    pub repo: String,
+    pub commit: Option<String>,
+    pub max_files: Option<i64>,
+}
+
+/// GET /xrpc/dev.panproto.node.proxy.getDependencyGraph
+pub async fn proxy_get_dependency_graph(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<DependencyGraphParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut extra: Vec<(&str, String)> = Vec::new();
+    if let Some(ref c) = params.commit {
+        extra.push(("commit", c.clone()));
+    }
+    if let Some(m) = params.max_files {
+        extra.push(("maxFiles", m.to_string()));
+    }
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.panproto.node.getDependencyGraph",
+        &extra,
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+    Ok(Json(result))
+}
+
 /// GET /xrpc/dev.cospan.node.proxy.getObject
 pub async fn proxy_get_object(
     State(state): State<Arc<AppState>>,

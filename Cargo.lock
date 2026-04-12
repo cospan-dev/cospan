@@ -618,6 +618,7 @@ dependencies = [
  "panproto-git",
  "panproto-lens",
  "panproto-parse",
+ "panproto-project",
  "panproto-protocols",
  "panproto-schema",
  "panproto-vcs",

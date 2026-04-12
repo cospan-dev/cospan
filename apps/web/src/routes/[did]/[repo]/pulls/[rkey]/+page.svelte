@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import StateBadge from '$lib/components/shared/StateBadge.svelte';
+	import CompatibilityBadge from '$lib/components/repo/CompatibilityBadge.svelte';
 	import BackLink from '$lib/components/shared/BackLink.svelte';
 	import { timeAgo } from '$lib/utils/time.js';
 
@@ -46,6 +47,11 @@
 			{targetLabel}
 		</span>
 	</div>
+</div>
+
+<!-- Structural compatibility verdict -->
+<div class="mb-4">
+	<CompatibilityBadge comparison={data.branchComparison} />
 </div>
 
 {#if data.pull.body}

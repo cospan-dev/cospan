@@ -31,6 +31,26 @@ pub fn build(state: Arc<NodeState>) -> Router {
         .route(
             "/xrpc/dev.cospan.node.getRepoInfo",
             get(handlers::get_repo_info),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.getProjectSchema",
+            get(handlers::get_project_schema),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.getFileSchema",
+            get(handlers::get_file_schema),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.getCommitSchemaStats",
+            get(handlers::get_commit_schema_stats),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.compareBranchSchemas",
+            get(handlers::compare_branch_schemas),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.getDependencyGraph",
+            get(handlers::get_dependency_graph),
         );
 
     let git = git_compat::git_routes();

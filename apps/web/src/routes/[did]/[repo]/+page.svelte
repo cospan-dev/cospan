@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import CommitList from '$lib/components/repo/CommitList.svelte';
 	import CommitGraph from '$lib/components/repo/CommitGraph.svelte';
+	import SchemaHealthCard from '$lib/components/repo/SchemaHealthCard.svelte';
+	import SchemaSparkline from '$lib/components/repo/SchemaSparkline.svelte';
 	import StarButton from '$lib/components/shared/StarButton.svelte';
 	import ForkButton from '$lib/components/shared/ForkButton.svelte';
 	import { getAuth } from '$lib/stores/auth.svelte';
@@ -94,22 +96,27 @@
 		{/if}
 	</div>
 
-	<!-- Schema Health card -->
-	{#if breakingChangeCount > 0 || lensQuality !== null}
-		<div class="mb-6 rounded-lg border border-border bg-surface-0 p-4">
-			<h3 class="mb-2 text-xs font-medium uppercase tracking-wider text-text-muted">Schema Health</h3>
-			<div class="flex flex-wrap items-center gap-4 text-sm">
-				{#if lensQuality !== null}
-					<span class="text-text-secondary">
-						Lens quality: <span class="font-mono font-medium text-text-primary">{(lensQuality * 100).toFixed(0)}%</span>
-					</span>
-				{/if}
-				{#if breakingChangeCount > 0}
-					<span class="text-danger font-medium">
-						{breakingChangeCount} breaking {breakingChangeCount === 1 ? 'change' : 'changes'}
-					</span>
-				{/if}
-			</div>
+	<!-- Schema intelligence: project overview + evolution sparkline -->
+	<SchemaHealthCard
+		projectSchema={data.projectSchema}
+		schemaStats={data.schemaStats}
+	/>
+
+	{#if (data.schemaStats?.commits?.length ?? 0) > 1}
+		<div class="mb-4 rounded-lg border border-border bg-surface-1 px-4 py-3">
+			<h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
+				Schema Evolution
+			</h3>
+			<SchemaSparkline stats={data.schemaStats.commits} />
+		</div>
+	{/if}
+
+	<!-- Legacy lens quality / breaking changes from firehose ref updates -->
+	{#if lensQuality !== null}
+		<div class="mb-4 flex items-center gap-4 text-sm text-text-secondary">
+			<span>
+				Lens quality: <span class="font-mono font-medium text-text-primary">{(lensQuality * 100).toFixed(0)}%</span>
+			</span>
 		</div>
 	{/if}
 

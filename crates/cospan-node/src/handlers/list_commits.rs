@@ -113,7 +113,7 @@ pub async fn list_commits(
 
 /// Resolve a ref name to its target OID. Accepts short names like
 /// "main" as well as fully-qualified "refs/heads/main".
-fn resolve_ref(mirror: &git2::Repository, name: &str) -> Result<git2::Oid, NodeError> {
+pub(crate) fn resolve_ref(mirror: &git2::Repository, name: &str) -> Result<git2::Oid, NodeError> {
     // Try fully qualified first.
     if let Ok(r) = mirror.find_reference(name) {
         if let Some(oid) = r.target() {
@@ -149,7 +149,7 @@ fn resolve_ref(mirror: &git2::Repository, name: &str) -> Result<git2::Oid, NodeE
 
 /// Pick a sensible default start point: HEAD if set, else the first
 /// branch found in the mirror.
-fn resolve_default(mirror: &git2::Repository) -> Result<git2::Oid, NodeError> {
+pub(crate) fn resolve_default(mirror: &git2::Repository) -> Result<git2::Oid, NodeError> {
     if let Ok(head) = mirror.head() {
         if let Some(oid) = head.target() {
             return Ok(oid);

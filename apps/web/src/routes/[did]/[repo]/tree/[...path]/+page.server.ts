@@ -1,6 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { getRepo } from '$lib/api/repo.js';
 import { listRefs, getObject } from '$lib/api/node.js';
+import { getFileSchema, type FileSchemaResponse } from '$lib/api/schema.js';
 import { createHighlighter } from 'shiki';
 import type { NodeRef, NodeObject } from '$lib/api/node.js';
 
@@ -99,6 +100,7 @@ interface TreePageData {
 		language: string;
 		highlightedHtml: string;
 	};
+	fileSchema?: FileSchemaResponse | null;
 	error?: string;
 }
 
@@ -159,6 +161,19 @@ export const load: PageServerLoad = async ({ params }): Promise<TreePageData> =>
 				highlightedHtml = `<pre><code>${escapeHtml(obj.data)}</code></pre>`;
 			}
 
+			// Fetch file schema in parallel (best-effort)
+			let fileSchema: FileSchemaResponse | null = null;
+			try {
+				fileSchema = await getFileSchema({
+					did: params.did,
+					repo: params.repo,
+					commit: 'HEAD',
+					path,
+				});
+			} catch {
+				// Schema unavailable; sidebar won't appear
+			}
+
 			return {
 				repo,
 				path,
@@ -167,7 +182,8 @@ export const load: PageServerLoad = async ({ params }): Promise<TreePageData> =>
 					code: obj.data,
 					language,
 					highlightedHtml
-				}
+				},
+				fileSchema,
 			};
 		} catch (e) {
 			// If object fetch fails, fall back to tree view for this path

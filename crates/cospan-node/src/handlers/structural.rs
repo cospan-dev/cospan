@@ -103,7 +103,7 @@ pub fn try_structural_diff(
 
 /// Parse a file via panproto, trying every entry point we know about.
 /// Returns the first successful `(Schema, protocol_name)`.
-fn parse_any(
+pub(crate) fn parse_any(
     registry: &ParserRegistry,
     path: &str,
     bytes: &[u8],
@@ -251,6 +251,76 @@ fn empty_like(schema: &Schema) -> Schema {
     empty
 }
 
+// ─── Vertex ID humanization ────────────────────────────────────────
+//
+// Raw panproto vertex IDs look like "src/auth.ts::User::email" or
+// "dev.cospan.repo:body.protocol". Developers want to see
+// "field `email` in `User`" or "field `protocol` in `body`".
+
+/// Extract the nearest named scope and leaf name from a vertex ID.
+///
+/// Returns `(scope, leaf)` where both may be None if the ID is
+/// entirely anonymous ($N segments only).
+fn split_vertex_id(id: &str) -> (Option<&str>, Option<&str>) {
+    // Tree-sitter style: "src/auth.ts::User::email" or "src/auth.ts::User::$7::$2"
+    if id.contains("::") {
+        let segments: Vec<&str> = id.split("::").collect();
+        // Collect named (non-$N, non-file-path) segments
+        let named: Vec<&str> = segments
+            .iter()
+            .filter(|s| {
+                !s.starts_with('$')
+                    && !s.is_empty()
+                    && !s.contains('/')
+                    && !s.contains('.')
+            })
+            .copied()
+            .collect();
+        return match named.len() {
+            0 => (None, None),
+            1 => (None, Some(named[0])),
+            n => (Some(named[n - 2]), Some(named[n - 1])),
+        };
+    }
+    // Lexicon style: "dev.cospan.repo:body.protocol"
+    if let Some(colon_pos) = id.rfind(':') {
+        let after = &id[colon_pos + 1..];
+        let parts: Vec<&str> = after.split('.').filter(|s| !s.is_empty()).collect();
+        return match parts.len() {
+            0 => (None, None),
+            1 => (None, Some(parts[0])),
+            n => (Some(parts[n - 2]), Some(parts[n - 1])),
+        };
+    }
+    // Bare name
+    (None, Some(id))
+}
+
+/// Convert a raw vertex ID into a human-readable label.
+///
+/// Examples:
+///   "src/auth.ts::User::email" -> "field `email` in `User`"
+///   "src/auth.ts::User"        -> "`User`"
+///   "dev.cospan.repo:body.protocol" -> "field `protocol` in `body`"
+pub fn humanize_vertex(id: &str) -> String {
+    let (scope, leaf) = split_vertex_id(id);
+    match (scope, leaf) {
+        (Some(s), Some(l)) if s != l => format!("`{l}` in `{s}`"),
+        (_, Some(name)) => format!("`{name}`"),
+        _ => id.to_string(),
+    }
+}
+
+/// Human-readable label for an edge between two vertices.
+fn humanize_edge(src: &str, tgt: &str, name: &Option<String>) -> String {
+    let src_h = humanize_vertex(src);
+    let tgt_h = humanize_vertex(tgt);
+    match name {
+        Some(n) if !n.starts_with('$') => format!("{src_h} -> {tgt_h} (via `{n}`)"),
+        _ => format!("{src_h} -> {tgt_h}"),
+    }
+}
+
 // ─── JSON serialization ────────────────────────────────────────────
 
 pub fn structural_diff_to_json(diff: &StructuralDiff) -> Value {
@@ -296,30 +366,27 @@ fn breaking_json(b: &BreakingChange) -> Value {
     match b {
         BreakingChange::RemovedVertex { vertex_id } => json!({
             "kind": "RemovedVertex",
-            "label": format!("Removed {vertex_id}"),
+            "label": format!("Removed {}", humanize_vertex(vertex_id)),
             "vertexId": vertex_id,
         }),
         BreakingChange::RemovedEdge { src, tgt, kind, name } => json!({
             "kind": "RemovedEdge",
-            "label": match name {
-                Some(n) => format!("Removed edge {src} → {tgt} ({kind} {n})"),
-                None => format!("Removed edge {src} → {tgt} ({kind})"),
-            },
+            "label": format!("Removed edge {}", humanize_edge(src, tgt, name)),
             "src": src, "tgt": tgt, "edgeKind": kind, "name": name,
         }),
         BreakingChange::KindChanged { vertex_id, old_kind, new_kind } => json!({
             "kind": "KindChanged",
-            "label": format!("{vertex_id}: {old_kind} → {new_kind}"),
+            "label": format!("{}: kind changed ({old_kind} -> {new_kind})", humanize_vertex(vertex_id)),
             "vertexId": vertex_id, "oldKind": old_kind, "newKind": new_kind,
         }),
         BreakingChange::ConstraintTightened { vertex_id, sort, old_value, new_value } => json!({
             "kind": "ConstraintTightened",
-            "label": format!("{vertex_id}: {sort} tightened ({old_value} → {new_value})"),
+            "label": format!("{}: {sort} tightened ({old_value} -> {new_value})", humanize_vertex(vertex_id)),
             "vertexId": vertex_id, "sort": sort, "oldValue": old_value, "newValue": new_value,
         }),
         BreakingChange::ConstraintAdded { vertex_id, sort, value } => json!({
             "kind": "ConstraintAdded",
-            "label": format!("{vertex_id}: added constraint {sort} = {value}"),
+            "label": format!("{}: added constraint {sort} = {value}", humanize_vertex(vertex_id)),
             "vertexId": vertex_id, "sort": sort, "value": value,
         }),
         other => json!({
@@ -333,25 +400,22 @@ fn non_breaking_json(nb: &NonBreakingChange) -> Value {
     match nb {
         NonBreakingChange::AddedVertex { vertex_id } => json!({
             "kind": "AddedVertex",
-            "label": format!("Added {vertex_id}"),
+            "label": format!("Added {}", humanize_vertex(vertex_id)),
             "vertexId": vertex_id,
         }),
         NonBreakingChange::AddedEdge { src, tgt, kind, name } => json!({
             "kind": "AddedEdge",
-            "label": match name {
-                Some(n) => format!("Added edge {src} → {tgt} ({kind} {n})"),
-                None => format!("Added edge {src} → {tgt} ({kind})"),
-            },
+            "label": format!("Added edge {}", humanize_edge(src, tgt, name)),
             "src": src, "tgt": tgt, "edgeKind": kind, "name": name,
         }),
         NonBreakingChange::ConstraintRelaxed { vertex_id, sort, old_value, new_value } => json!({
             "kind": "ConstraintRelaxed",
-            "label": format!("{vertex_id}: {sort} relaxed ({old_value} → {new_value})"),
+            "label": format!("{}: {sort} relaxed ({old_value} -> {new_value})", humanize_vertex(vertex_id)),
             "vertexId": vertex_id, "sort": sort, "oldValue": old_value, "newValue": new_value,
         }),
         NonBreakingChange::ConstraintRemoved { vertex_id, sort } => json!({
             "kind": "ConstraintRemoved",
-            "label": format!("{vertex_id}: removed constraint {sort}"),
+            "label": format!("{}: removed constraint {sort}", humanize_vertex(vertex_id)),
             "vertexId": vertex_id, "sort": sort,
         }),
         other => json!({
