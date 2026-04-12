@@ -206,21 +206,41 @@ fn detect_json_protocol(json: &Value) -> Option<(Schema, String)> {
 }
 
 /// Recover a `Protocol` definition from its name so we can classify
-/// the diff. Protocols that panproto-protocols exposes via a zero-arg
-/// `protocol()` function work here; anything else falls through to a
-/// conservative classification.
+/// the diff. For protocols in panproto-protocols, returns the
+/// explicit protocol. For tree-sitter-derived languages, constructs
+/// a protocol from the extracted theory metadata so that all grammar
+/// edges are classified as governed (removals are breaking).
 pub(crate) fn resolve_protocol(name: &str) -> Option<Protocol> {
-    // Lexicon is the most common case for Cospan's own repo, and the
-    // atproto module re-exports the protocol constructor.
+    // Lexicon is the most common case for Cospan's own repo.
     if name == "atproto-lexicon" || name == "dev.panproto.atproto-lexicon" {
         return Some(atproto::protocol());
     }
     if name == "raw-file" || name == "raw_file" {
         return Some(panproto_protocols::raw_file::protocol());
     }
-    // Tree-sitter-derived schemas carry their own theory; the
-    // classifier handles those via the generic protocol encoded in the
-    // schema. Until that pipe is plumbed, fall back to None.
+    // For tree-sitter languages: build a protocol from the grammar's
+    // theory metadata. This makes all named edge kinds governed, so
+    // removing a field/method/parameter is classified as breaking.
+    let registry = panproto_parse::ParserRegistry::new();
+    if let Some(meta) = registry.theory_meta(name) {
+        let edge_rules: Vec<panproto_schema::EdgeRule> = meta
+            .edge_kinds
+            .iter()
+            .map(|ek| panproto_schema::EdgeRule {
+                edge_kind: ek.clone(),
+                src_kinds: vec![],
+                tgt_kinds: vec![],
+            })
+            .collect();
+        return Some(Protocol {
+            name: name.to_string(),
+            edge_rules,
+            obj_kinds: meta.vertex_kinds.clone(),
+            has_order: !meta.ordered_fields.is_empty(),
+            has_coproducts: !meta.supertypes.is_empty(),
+            ..Protocol::default()
+        });
+    }
     None
 }
 
