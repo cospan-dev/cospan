@@ -73,7 +73,15 @@ function getHighlighter() {
 				'xml',
 				'c',
 				'cpp',
-				'java'
+				'java',
+				'kotlin',
+				'swift',
+				'ruby',
+				'php',
+				'zig',
+				'graphql',
+				'proto',
+				'svelte',
 			]
 		});
 	}
