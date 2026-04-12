@@ -344,33 +344,104 @@ fn humanize_edge(src: &str, tgt: &str, name: &Option<String>) -> String {
 // ─── JSON serialization ────────────────────────────────────────────
 
 pub fn structural_diff_to_json(diff: &StructuralDiff) -> Value {
+    // Filter out changes that reference only anonymous vertices ($N IDs).
+    // These are tree-sitter internal AST nodes (syntax tokens, punctuation)
+    // that carry no semantic meaning for developers.
+    let breaking: Vec<Value> = diff
+        .report
+        .breaking
+        .iter()
+        .filter(|b| !is_anonymous_change_breaking(b))
+        .map(breaking_json)
+        .collect();
+    let non_breaking: Vec<Value> = diff
+        .report
+        .non_breaking
+        .iter()
+        .filter(|nb| !is_anonymous_change_non_breaking(nb))
+        .map(non_breaking_json)
+        .collect();
+
+    // Filter raw vertex lists to only named vertices
+    let added_vertices: Vec<&String> = diff.raw_diff.added_vertices.iter().filter(|v| has_named_segment(v)).collect();
+    let removed_vertices: Vec<&String> = diff.raw_diff.removed_vertices.iter().filter(|v| has_named_segment(v)).collect();
+
+    let compatible = breaking.is_empty();
+
     json!({
         "protocol": diff.protocol,
-        "compatible": diff.report.compatible,
-        "verdict": if diff.report.compatible { "compatible" } else { "breaking" },
-        "breakingCount": diff.report.breaking.len(),
-        "nonBreakingCount": diff.report.non_breaking.len(),
+        "compatible": compatible,
+        "verdict": if compatible { "compatible" } else { "breaking" },
+        "breakingCount": breaking.len(),
+        "nonBreakingCount": non_breaking.len(),
         "oldVertexCount": diff.old_vertex_count,
         "newVertexCount": diff.new_vertex_count,
         "oldEdgeCount": diff.old_edge_count,
         "newEdgeCount": diff.new_edge_count,
-        "addedVertices": diff.raw_diff.added_vertices,
-        "removedVertices": diff.raw_diff.removed_vertices,
-        "kindChanges": diff.raw_diff.kind_changes.iter().map(|kc| json!({
-            "vertexId": kc.vertex_id,
-            "oldKind": kc.old_kind,
-            "newKind": kc.new_kind,
-        })).collect::<Vec<_>>(),
-        "addedEdges": diff.raw_diff.added_edges.iter().map(edge_json).collect::<Vec<_>>(),
-        "removedEdges": diff.raw_diff.removed_edges.iter().map(edge_json).collect::<Vec<_>>(),
+        "addedVertices": added_vertices,
+        "removedVertices": removed_vertices,
+        "kindChanges": diff.raw_diff.kind_changes.iter()
+            .filter(|kc| has_named_segment(&kc.vertex_id))
+            .map(|kc| json!({
+                "vertexId": kc.vertex_id,
+                "oldKind": kc.old_kind,
+                "newKind": kc.new_kind,
+            })).collect::<Vec<_>>(),
+        "addedEdges": diff.raw_diff.added_edges.iter()
+            .filter(|e| has_named_segment(&e.src) || has_named_segment(&e.tgt))
+            .map(edge_json).collect::<Vec<_>>(),
+        "removedEdges": diff.raw_diff.removed_edges.iter()
+            .filter(|e| has_named_segment(&e.src) || has_named_segment(&e.tgt))
+            .map(edge_json).collect::<Vec<_>>(),
         "addedNsids": diff.raw_diff.added_nsids,
         "removedNsids": diff.raw_diff.removed_nsids,
         "changedNsids": diff.raw_diff.changed_nsids.iter().map(|(v, o, n)| json!({
             "vertexId": v, "oldNsid": o, "newNsid": n
         })).collect::<Vec<_>>(),
-        "breakingChanges": diff.report.breaking.iter().map(breaking_json).collect::<Vec<_>>(),
-        "nonBreakingChanges": diff.report.non_breaking.iter().map(non_breaking_json).collect::<Vec<_>>(),
+        "breakingChanges": breaking,
+        "nonBreakingChanges": non_breaking,
     })
+}
+
+/// Check if a vertex ID has at least one named (non-$N, non-file-path) segment.
+fn has_named_segment(id: &str) -> bool {
+    if id.contains("::") {
+        id.split("::").any(|s| {
+            !s.starts_with('$') && !s.is_empty() && !s.contains('/') && !s.contains('.')
+        })
+    } else if id.contains(':') {
+        // Lexicon-style IDs are always named
+        true
+    } else {
+        !id.starts_with('$') && !id.is_empty()
+    }
+}
+
+/// Check if a breaking change references only anonymous vertices.
+fn is_anonymous_change_breaking(b: &BreakingChange) -> bool {
+    match b {
+        BreakingChange::RemovedVertex { vertex_id } => !has_named_segment(vertex_id),
+        BreakingChange::RemovedEdge { src, tgt, .. } => {
+            !has_named_segment(src) && !has_named_segment(tgt)
+        }
+        BreakingChange::KindChanged { vertex_id, .. } => !has_named_segment(vertex_id),
+        BreakingChange::ConstraintTightened { vertex_id, .. } => !has_named_segment(vertex_id),
+        BreakingChange::ConstraintAdded { vertex_id, .. } => !has_named_segment(vertex_id),
+        _ => false, // keep other change types
+    }
+}
+
+/// Check if a non-breaking change references only anonymous vertices.
+fn is_anonymous_change_non_breaking(nb: &NonBreakingChange) -> bool {
+    match nb {
+        NonBreakingChange::AddedVertex { vertex_id } => !has_named_segment(vertex_id),
+        NonBreakingChange::AddedEdge { src, tgt, .. } => {
+            !has_named_segment(src) && !has_named_segment(tgt)
+        }
+        NonBreakingChange::ConstraintRelaxed { vertex_id, .. } => !has_named_segment(vertex_id),
+        NonBreakingChange::ConstraintRemoved { vertex_id, .. } => !has_named_segment(vertex_id),
+        _ => false,
+    }
 }
 
 fn edge_json(e: &panproto_schema::Edge) -> Value {
