@@ -51,16 +51,16 @@ pub async fn proxy_list_refs(
     State(state): State<Arc<AppState>>,
     Query(params): Query<RepoParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let refs = node_proxy::list_refs(&state, &params.did, &params.repo)
-        .await
-        .map_err(AppError::NotFound)?;
-
-    let refs_json: Vec<serde_json::Value> = refs
-        .into_iter()
-        .map(|(name, id)| serde_json::json!({ "ref": name, "target": id.to_string() }))
-        .collect();
-
-    Ok(Json(serde_json::json!({ "refs": refs_json })))
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.cospan.node.listRefs",
+        &[],
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+    Ok(Json(result))
 }
 
 /// GET /xrpc/dev.cospan.node.proxy.getHead
