@@ -99,10 +99,7 @@ services:
     image: ghcr.io/bluesky-social/indigo/tap:latest
     container_name: cospan-tap
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
+    cpus: 0.25
     environment:
       TAP_DATABASE_URL: postgres://cospan:${POSTGRES_PASSWORD}@db:5432/tap
       TAP_BIND: ":2480"
@@ -111,8 +108,8 @@ services:
       TAP_RELAY_URL: https://relay1.us-east.bsky.network
       TAP_DISABLE_ACKS: "true"
       TAP_LOG_LEVEL: info
-      TAP_RESYNC_PARALLELISM: "3"
-      TAP_FIREHOSE_PARALLELISM: "10"
+      TAP_RESYNC_PARALLELISM: "1"
+      TAP_FIREHOSE_PARALLELISM: "2"
     depends_on:
       db:
         condition: service_healthy
@@ -131,10 +128,7 @@ services:
     image: ghcr.io/bluesky-social/indigo/tap:latest
     container_name: cospan-tap-knots
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
+    cpus: 0.25
     environment:
       TAP_DATABASE_URL: postgres://cospan:${POSTGRES_PASSWORD}@db:5432/tap_knots
       TAP_BIND: ":2480"
@@ -143,8 +137,8 @@ services:
       TAP_RELAY_URL: https://relay1.us-east.bsky.network
       TAP_DISABLE_ACKS: "true"
       TAP_LOG_LEVEL: info
-      TAP_RESYNC_PARALLELISM: "3"
-      TAP_FIREHOSE_PARALLELISM: "10"
+      TAP_RESYNC_PARALLELISM: "1"
+      TAP_FIREHOSE_PARALLELISM: "2"
     depends_on:
       db:
         condition: service_healthy
