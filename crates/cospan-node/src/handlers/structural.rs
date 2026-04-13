@@ -28,6 +28,7 @@
 //! panproto and forwards the result.
 
 use panproto_check::{BreakingChange, CompatReport, NonBreakingChange, SchemaDiff};
+use panproto_check::scope::{report_by_scope, report_scope_json};
 use panproto_parse::ParserRegistry;
 use panproto_protocols::web_document::atproto;
 use panproto_schema::{Protocol, Schema};
@@ -42,6 +43,8 @@ pub struct StructuralDiff {
     pub protocol: String,
     pub report: CompatReport,
     pub raw_diff: SchemaDiff,
+    pub old_schema: Schema,
+    pub new_schema: Schema,
     pub old_vertex_count: usize,
     pub new_vertex_count: usize,
     pub old_edge_count: usize,
@@ -98,6 +101,8 @@ pub fn try_structural_diff(
         new_vertex_count: new_schema.vertices.len(),
         old_edge_count: old_schema.edges.len(),
         new_edge_count: new_schema.edges.len(),
+        old_schema,
+        new_schema,
     })
 }
 
@@ -343,7 +348,20 @@ fn humanize_edge(src: &str, tgt: &str, name: &Option<String>) -> String {
 
 // ─── JSON serialization ────────────────────────────────────────────
 
-pub fn structural_diff_to_json(diff: &StructuralDiff) -> Value {
+pub fn structural_diff_to_json(
+    diff: &StructuralDiff,
+    old_bytes: Option<&[u8]>,
+    new_bytes: Option<&[u8]>,
+) -> Value {
+    // Compute scope-level report via panproto_check::scope.
+    let scope_report = report_by_scope(
+        &diff.raw_diff,
+        &diff.old_schema,
+        &diff.new_schema,
+        old_bytes,
+        new_bytes,
+    );
+    let scope_json = report_scope_json(&scope_report);
     // Filter out changes that reference only anonymous vertices ($N IDs).
     // These are tree-sitter internal AST nodes (syntax tokens, punctuation)
     // that carry no semantic meaning for developers.
@@ -400,6 +418,8 @@ pub fn structural_diff_to_json(diff: &StructuralDiff) -> Value {
         })).collect::<Vec<_>>(),
         "breakingChanges": breaking,
         "nonBreakingChanges": non_breaking,
+        "scopeChanges": scope_json["scopes"],
+        "namedElements": scope_json["named_elements"],
     })
 }
 

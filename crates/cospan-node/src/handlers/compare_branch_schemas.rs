@@ -111,7 +111,11 @@ pub async fn compare_branch_schemas(
             head_vertex_total += sd.new_vertex_count;
 
             // Collect individual changes (cap at 50 total for wire size)
-            let sd_json = super::structural::structural_diff_to_json(&sd);
+            let sd_json = super::structural::structural_diff_to_json(
+                &sd,
+                old_bytes.as_deref(),
+                new_bytes.as_deref(),
+            );
             if let Some(bc) = sd_json["breakingChanges"].as_array() {
                 for c in bc {
                     if breaking_changes.len() < 50 {

@@ -2492,9 +2492,10 @@ dependencies = [
 
 [[package]]
 name = "panproto-check"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
+ "memchr",
  "panproto-gat",
  "panproto-lens",
  "panproto-mig",
@@ -2507,8 +2508,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-core"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "panproto-check",
  "panproto-gat",
@@ -2523,8 +2524,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-expr"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "rustc-hash",
  "serde",
@@ -2533,8 +2534,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-expr-parser"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "chumsky",
  "logos 0.16.1",
@@ -2543,8 +2544,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-gat"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "panproto-expr",
  "rustc-hash",
@@ -2554,8 +2555,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-git"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "git2",
  "miette",
@@ -2572,8 +2573,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-grammars"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "cc",
  "serde",
@@ -2584,8 +2585,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-inst"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "bumpalo",
  "panproto-expr",
@@ -2600,8 +2601,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-io"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "bumpalo",
  "memchr",
@@ -2623,8 +2624,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-lens"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "panproto-expr",
  "panproto-gat",
@@ -2640,8 +2641,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-lens-dsl"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "miette",
  "nickel-lang",
@@ -2659,8 +2660,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-mig"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "panproto-expr",
  "panproto-gat",
@@ -2673,8 +2674,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-parse"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "memchr",
  "miette",
@@ -2692,8 +2693,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-project"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "blake3",
  "globset",
@@ -2712,8 +2713,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-protocols"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "blake3",
  "panproto-gat",
@@ -2727,8 +2728,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-schema"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "panproto-expr",
  "panproto-gat",
@@ -2740,8 +2741,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-vcs"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "blake3",
  "panproto-check",
@@ -2761,8 +2762,8 @@ dependencies = [
 
 [[package]]
 name = "panproto-xrpc"
-version = "0.28.0"
-source = "git+https://github.com/panproto/panproto.git?tag=v0.28.0#4db61dee8a553b6abd0905408b116d175f394a44"
+version = "0.30.0"
+source = "git+https://github.com/panproto/panproto.git?tag=v0.30.0#bab395e7ccd7af2375d5d505f0ac70e81060b8a9"
 dependencies = [
  "hex",
  "miette",

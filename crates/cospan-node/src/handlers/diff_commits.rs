@@ -252,7 +252,11 @@ pub async fn diff_commits(
                     old_bytes.as_deref(),
                     new_bytes.as_deref(),
                 )
-                .map(|s| super::structural::structural_diff_to_json(&s))
+                .map(|s| super::structural::structural_diff_to_json(
+                    &s,
+                    old_bytes.as_deref(),
+                    new_bytes.as_deref(),
+                ))
             };
 
             FileDiff {

@@ -19,7 +19,6 @@
 		openPaths = next;
 	}
 
-	type FileStatus = 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'typechange';
 	function statusBadge(status: string): { bg: string; fg: string; label: string } {
 		const map: Record<string, { bg: string; fg: string; label: string }> = {
 			added:      { bg: 'bg-emerald-500/15', fg: 'text-emerald-400', label: 'added' },
@@ -48,24 +47,36 @@
 		return s.replace(/\n$/, '');
 	}
 
-	// Structural diff types
+	// TODO: replace with generated types from dev.panproto.node.diffCommits lexicon
+	interface ScopeChange {
+		scope_id: string;
+		scope_name: string;
+		kind: 'Added' | 'Removed' | 'SignatureChanged' | 'BodyModified';
+		summary: string;
+		anonymous_added: number;
+		anonymous_removed: number;
+		start_line: number | null;
+		end_line: number | null;
+	}
+
+	interface NamedElement {
+		id: string;
+		name: string;
+		kind: string;
+		status: 'Unchanged' | 'BodyModified' | 'SignatureChanged' | 'Added' | 'Removed';
+		start_line: number | null;
+	}
+
 	interface StructuralDiffData {
 		protocol: string;
 		compatible: boolean;
 		verdict: string;
 		breakingCount: number;
 		nonBreakingCount: number;
-		oldVertexCount: number;
-		newVertexCount: number;
-		oldEdgeCount: number;
-		newEdgeCount: number;
-		addedVertices: string[];
-		removedVertices: string[];
-		kindChanges: { vertexId: string; oldKind: string; newKind: string }[];
-		addedEdges: { src: string; tgt: string; kind: string; name: string | null }[];
-		removedEdges: { src: string; tgt: string; kind: string; name: string | null }[];
 		breakingChanges: { kind: string; label: string }[];
 		nonBreakingChanges: { kind: string; label: string }[];
+		scopeChanges?: ScopeChange[];
+		namedElements?: NamedElement[];
 	}
 
 	function hasStructuralDiff(f: DiffFile): boolean {
@@ -75,195 +86,50 @@
 		return (f as any).structuralDiff ?? null;
 	}
 
-	// ── Vertex ID parsing ──────────────────────────────────────────
-	// IDs look like "src/repo.ts::Repo::$2::$34" or "dev.cospan.repo:body.name"
-	// Extract the nearest NAMED ancestor (non-$N component) for grouping.
-
-	interface VertexGroup {
-		scope: string;       // "Repo", "createRepo", "forkRepo", etc.
-		scopeKind: string;   // icon for the scope
-		items: string[];     // leaf vertex IDs in this group
+	// Match diff hunks to a scope by line range overlap.
+	function getHunksForScope(hunks: DiffFile['hunks'], scope: ScopeChange): DiffFile['hunks'][0][] {
+		if (scope.start_line == null || scope.end_line == null) {
+			// Fallback: match by scope name in hunk header or line content
+			return hunks.filter(h =>
+				h.header.includes(scope.scope_name) ||
+				h.lines.some(l => l.content.includes(scope.scope_name))
+			);
+		}
+		return hunks.filter(h => {
+			const hunkEnd = h.newStart + h.newLines;
+			return h.newStart <= scope.end_line! && hunkEnd >= scope.start_line!;
+		});
 	}
 
-	function groupVertices(ids: string[], filePath: string): VertexGroup[] {
-		const groups = new Map<string, string[]>();
-		for (const id of ids) {
-			const scope = extractScope(id, filePath);
-			if (!groups.has(scope)) groups.set(scope, []);
-			groups.get(scope)!.push(id);
+	// Scope change kind indicator
+	function scopeKindIndicator(kind: string): { symbol: string; color: string } {
+		switch (kind) {
+			case 'Added': return { symbol: '+', color: 'text-emerald-400' };
+			case 'Removed': return { symbol: '−', color: 'text-red-400' };
+			case 'SignatureChanged': return { symbol: '~', color: 'text-red-300' };
+			case 'BodyModified': return { symbol: '~', color: 'text-amber-400' };
+			default: return { symbol: '?', color: 'text-text-muted' };
 		}
-		// Merge anonymous scopes ($N) into their nearest named parent
-		// or into "(other)" if no parent is found
-		const named = new Map<string, string[]>();
-		for (const [scope, items] of groups) {
-			if (scope.startsWith('$') || scope === '') {
-				const key = '(other)';
-				if (!named.has(key)) named.set(key, []);
-				named.get(key)!.push(...items);
-			} else {
-				if (!named.has(scope)) named.set(scope, []);
-				named.get(scope)!.push(...items);
-			}
-		}
-		return Array.from(named.entries())
-			.filter(([_, items]) => items.length > 0)
-			.map(([scope, items]) => ({
-				scope,
-				scopeKind: guessScopeKind(scope),
-				items,
-			}))
-			.sort((a, b) => b.items.length - a.items.length);
 	}
 
-	function extractScope(id: string, filePath: string): string {
-		// Strip the file path prefix
-		let path = id;
-		if (path.startsWith(filePath + '::')) {
-			path = path.slice(filePath.length + 2);
+	function elementStatusColor(status: string): string {
+		switch (status) {
+			case 'Added': return 'text-emerald-400';
+			case 'Removed': return 'text-red-400';
+			case 'SignatureChanged': return 'text-red-300';
+			case 'BodyModified': return 'text-amber-400';
+			default: return 'text-text-muted';
 		}
-		// For schema-level IDs like "dev.cospan.repo:body.name"
-		if (path.includes(':')) {
-			const parts = path.split(':');
-			// Find the first meaningful named segment
-			for (const p of parts) {
-				const name = p.split('.').find(s => s && !s.startsWith('$'));
-				if (name && name !== 'body') return name;
-			}
-			return parts[0] || path;
-		}
-		// For tree-sitter IDs like "Repo::$2::$34"
-		const segments = path.split('::');
-		// Walk from left, return the last named (non-$N) segment
-		let lastNamed = '(module)';
-		for (const seg of segments) {
-			if (!seg.startsWith('$')) {
-				lastNamed = seg;
-			}
-		}
-		return lastNamed;
 	}
 
-	function guessScopeKind(scope: string): string {
-		const lower = scope.toLowerCase();
-		if (lower === '(module)' || lower === 'module') return '📦';
-		if (lower.startsWith('i') && scope[0] === scope[0].toUpperCase()) return '□'; // Interface/class
-		if (scope[0] === scope[0].toUpperCase()) return '□'; // PascalCase = type/class
-		return 'ƒ'; // lowercase = function
-	}
-
-	interface KindChangeGroup {
-		scope: string;
-		changes: { vertexId: string; oldKind: string; newKind: string }[];
-	}
-
-	function groupKindChanges(changes: { vertexId: string; oldKind: string; newKind: string }[]): KindChangeGroup[] {
-		const groups = new Map<string, { vertexId: string; oldKind: string; newKind: string }[]>();
-		for (const kc of changes) {
-			const scope = shortVertex(kc.vertexId);
-			if (!groups.has(scope)) groups.set(scope, []);
-			groups.get(scope)!.push(kc);
+	function elementStatusLabel(status: string): string {
+		switch (status) {
+			case 'Added': return 'added';
+			case 'Removed': return 'removed';
+			case 'SignatureChanged': return 'sig changed';
+			case 'BodyModified': return 'modified';
+			default: return '';
 		}
-		return Array.from(groups.entries())
-			.map(([scope, items]) => ({ scope, changes: items }))
-			.sort((a, b) => b.changes.length - a.changes.length);
-	}
-
-	// Extract search terms from a change entry to find matching code lines.
-	// A change like { vertexId: "dev.cospan.repo:body.protocol", kind: "RemovedVertex" }
-	// produces search terms ["protocol"] so we can find the line in the diff.
-	function extractSearchTerms(change: { label: string; kind: string; vertexId?: string; src?: string; tgt?: string; name?: string }): string[] {
-		const terms: string[] = [];
-		// Extract the leaf name from vertexId
-		if (change.vertexId) {
-			const leaf = extractLeafName(change.vertexId);
-			if (leaf && !leaf.startsWith('$')) terms.push(leaf);
-		}
-		// Edge name
-		if (change.name && !change.name.startsWith('$')) terms.push(change.name);
-		// Extract names from src/tgt
-		if (change.src) {
-			const s = extractLeafName(change.src);
-			if (s && !s.startsWith('$')) terms.push(s);
-		}
-		if (change.tgt) {
-			const t = extractLeafName(change.tgt);
-			if (t && !t.startsWith('$')) terms.push(t);
-		}
-		// Deduplicate
-		return [...new Set(terms)];
-	}
-
-	// Find diff lines that match any of the search terms.
-	// Returns matching lines plus 1 line of context on each side.
-	function findMatchingLines(
-		hunks: DiffFile['hunks'],
-		terms: string[]
-	): DiffFile['hunks'][0]['lines'] {
-		if (terms.length === 0) return [];
-		const result: DiffFile['hunks'][0]['lines'] = [];
-		for (const hunk of hunks) {
-			for (let i = 0; i < hunk.lines.length; i++) {
-				const line = hunk.lines[i];
-				if (terms.some(t => line.content.includes(t))) {
-					// Add context: 1 line before and after
-					if (i > 0 && !result.includes(hunk.lines[i - 1])) {
-						result.push(hunk.lines[i - 1]);
-					}
-					if (!result.includes(line)) {
-						result.push(line);
-					}
-					if (i + 1 < hunk.lines.length && !result.includes(hunk.lines[i + 1])) {
-						result.push(hunk.lines[i + 1]);
-					}
-				}
-			}
-		}
-		return result.slice(0, 20); // Cap at 20 lines
-	}
-
-	function shortVertex(v: string): string {
-		const parts = v.split('::');
-		for (let i = parts.length - 1; i >= 0; i--) {
-			if (!parts[i].startsWith('$')) return parts[i];
-		}
-		return parts[parts.length - 1] || v;
-	}
-
-	// Extract a meaningful relative path from a vertex ID, relative to its scope.
-	// "src/repo.ts::createRepo::$13::$0" with scope "createRepo" → "$13.$0" (internal)
-	// "dev.cospan.repo:body.description" → "description"
-	function extractLeafName(v: string): string {
-		if (v.includes(':') && !v.includes('::')) {
-			const parts = v.split('.');
-			const last = parts[parts.length - 1];
-			return last.startsWith('$') ? v.split(':').pop() ?? v : last;
-		}
-		const parts = v.split('::');
-		for (let i = parts.length - 1; i >= 0; i--) {
-			if (!parts[i].startsWith('$') && parts[i] !== '') return parts[i];
-		}
-		return parts[parts.length - 1] || v;
-	}
-
-	// Deduplicate and summarize a list of vertex IDs within a scope.
-	// Returns unique named items + a count of anonymous ones.
-	function summarizeNodes(items: string[]): { named: string[]; anonymousCount: number } {
-		const seen = new Set<string>();
-		const named: string[] = [];
-		let anonymousCount = 0;
-		for (const id of items) {
-			const name = extractLeafName(id);
-			if (name.startsWith('$')) {
-				anonymousCount++;
-			} else if (!seen.has(name)) {
-				seen.add(name);
-				named.push(name);
-			} else {
-				// Duplicate named - count as internal
-				anonymousCount++;
-			}
-		}
-		return { named, anonymousCount };
 	}
 </script>
 
@@ -281,7 +147,7 @@
 			<span class="font-mono">+{diff.totalAdditions}</span>
 		</span>
 		<span class="flex items-center gap-1 text-red-400">
-			<span class="font-mono">−{diff.totalDeletions}</span>
+			<span class="font-mono">-{diff.totalDeletions}</span>
 		</span>
 	</div>
 
@@ -294,7 +160,6 @@
 			{@const isBinary = file.binary}
 			<div class="overflow-hidden rounded-lg border border-border bg-surface-1">
 				{#if isBinary}
-					<!-- Binary file: non-expandable, minimal display -->
 					<div class="flex items-center gap-3 px-4 py-3">
 						<span class="rounded px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider {badge.bg} {badge.fg}">
 							{badge.label}
@@ -322,7 +187,7 @@
 					</span>
 					<code class="min-w-0 flex-1 truncate font-mono text-sm text-text-primary">
 						{#if file.oldPath && file.oldPath !== file.path}
-							<span class="text-text-muted">{file.oldPath} → </span>
+							<span class="text-text-muted">{file.oldPath} -> </span>
 						{/if}
 						{file.path}
 					</code>
@@ -336,210 +201,164 @@
 						<span class="shrink-0 font-mono text-xs text-emerald-400">+{file.additions}</span>
 					{/if}
 					{#if file.deletions > 0}
-						<span class="shrink-0 font-mono text-xs text-red-400">−{file.deletions}</span>
+						<span class="shrink-0 font-mono text-xs text-red-400">-{file.deletions}</span>
 					{/if}
 				</button>
 
-				<!-- Content when expanded -->
 				{#if isOpen}
-					<!-- Structural diff (the schema-level view) -->
 					{#if sd}
 						<div class="border-t border-border bg-surface-0 p-4">
-							<!-- Verdict banner: only show when there are classified changes -->
-							{#if sd.breakingCount > 0 || sd.nonBreakingCount > 0}
-							<div class="mb-4 flex items-center gap-3 rounded-md px-3 py-2 {sd.compatible ? 'bg-emerald-500/10' : 'bg-red-500/10'}">
-								<span class="text-lg">{sd.compatible ? '✓' : '⚠'}</span>
-								<div>
-									{#if !sd.compatible}
-										<span class="text-sm font-semibold text-red-400">Breaking changes detected</span>
-										<span class="ml-2 text-xs text-text-muted">
-											{sd.breakingCount} breaking{#if sd.nonBreakingCount > 0} · {sd.nonBreakingCount} safe{/if}
+
+							<!-- Section 1: Scope changes (primary view from panproto) -->
+							{#if sd.scopeChanges && sd.scopeChanges.length > 0}
+								<div class="mb-4 rounded-md border border-border">
+									<div class="flex items-center justify-between border-b border-border px-3 py-2">
+										<span class="text-xs font-semibold uppercase tracking-wider text-text-muted">
+											Changed program elements
 										</span>
-									{:else}
-										<span class="text-sm font-semibold text-emerald-400">No breaking changes</span>
-										<span class="ml-2 text-xs text-text-muted">
-											{sd.nonBreakingCount} safe {sd.nonBreakingCount === 1 ? 'change' : 'changes'}
-										</span>
-									{/if}
+										<span class="text-[10px] text-text-muted">{sd.protocol}</span>
+									</div>
+									{#each sd.scopeChanges as scope (scope.scope_id)}
+										{@const indicator = scopeKindIndicator(scope.kind)}
+										{@const hunks = getHunksForScope(file.hunks, scope)}
+										<details class="border-b border-border/40 last:border-0
+											{scope.kind === 'Added' ? 'bg-emerald-500/3'
+											 : scope.kind === 'Removed' ? 'bg-red-500/3'
+											 : 'bg-surface-0'}">
+											<summary class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-surface-2 transition-colors">
+												<span class="{indicator.color} font-mono text-xs w-4 text-center">{indicator.symbol}</span>
+												<span class="font-mono font-medium text-text-primary">{scope.scope_name}</span>
+												<span class="text-xs text-text-muted flex-1">{scope.summary}</span>
+												{#if scope.anonymous_added > 0 || scope.anonymous_removed > 0}
+													<span class="text-[11px] font-mono text-text-muted">
+														{#if scope.anonymous_added > 0}<span class="text-emerald-400">+{scope.anonymous_added}</span>{/if}
+														{#if scope.anonymous_removed > 0}<span class="text-red-400"> -{scope.anonymous_removed}</span>{/if}
+													</span>
+												{/if}
+												{#if scope.start_line}
+													<span class="text-[10px] text-text-muted font-mono">:{scope.start_line}</span>
+												{/if}
+											</summary>
+											<div class="border-t border-border/30">
+												{#if hunks.length > 0}
+													{#each hunks as hunk, h (h)}
+														<div class="border-t border-border/20 first:border-t-0">
+															<div class="bg-surface-2/30 px-3 py-0.5 font-mono text-[10px] text-text-muted">
+																{hunk.header.replace(/\n$/, '')}
+															</div>
+															<pre class="overflow-x-auto bg-surface-0 font-mono text-[11px] leading-[18px]">{#each hunk.lines as line, l (l)}<span class={lineClass(line.origin)}><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.oldLineno ?? ''}</span><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.newLineno ?? ''}</span><span class="inline-block w-3 select-none text-[10px]">{linePrefix(line.origin)}</span>{stripNewline(line.content)}
+</span>{/each}</pre>
+														</div>
+													{/each}
+												{:else}
+													<p class="px-3 py-2 text-[11px] text-text-muted italic">No matching code hunks</p>
+												{/if}
+											</div>
+										</details>
+									{/each}
 								</div>
-							</div>
 							{/if}
 
-							<!-- Breaking changes - open by default, each clickable to show code -->
-							{#if sd.breakingChanges.length > 0}
-								<details open class="mb-3 rounded-md border border-red-500/20">
-									<summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wider text-red-400 hover:bg-red-500/5">
-										⚠ Breaking changes ({sd.breakingCount})
+							<!-- Section 2: Full structure map (collapsed) -->
+							{#if sd.namedElements && sd.namedElements.filter(e => e.status !== 'Unchanged').length > 0}
+								{@const changed = sd.namedElements.filter(e => e.status !== 'Unchanged')}
+								{@const unchanged = sd.namedElements.filter(e => e.status === 'Unchanged')}
+								<details class="mb-4 rounded-md border border-border">
+									<summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wider text-text-muted hover:bg-surface-2">
+										All program elements ({sd.namedElements.length})
 									</summary>
-									<div class="space-y-0.5 px-2 pb-2">
-										{#each sd.breakingChanges as bc (bc.label)}
-											{@const searchTerms = extractSearchTerms(bc)}
-											{@const matchingLines = findMatchingLines(file.hunks, searchTerms)}
-											<details class="rounded-md">
-												<summary class="flex cursor-pointer items-start gap-2 rounded-md bg-red-500/5 px-3 py-1.5 text-sm hover:bg-red-500/10 transition-colors">
+									<div class="divide-y divide-border/30">
+										{#each changed as el (el.id)}
+											<div class="flex items-center gap-2 px-3 py-1.5 text-sm">
+												<span class="w-20 shrink-0 text-[10px] font-mono {elementStatusColor(el.status)}">
+													{elementStatusLabel(el.status)}
+												</span>
+												<code class="font-mono text-sm text-text-primary">{el.name}</code>
+												<span class="text-[10px] text-text-muted">{el.kind}</span>
+												{#if el.start_line}
+													<span class="ml-auto text-[10px] text-text-muted font-mono">:{el.start_line}</span>
+												{/if}
+											</div>
+										{/each}
+										{#if unchanged.length > 0}
+											<details class="border-t border-border/30">
+												<summary class="cursor-pointer px-3 py-1.5 text-[11px] text-text-muted hover:text-text-secondary">
+													{unchanged.length} unchanged elements
+												</summary>
+												{#each unchanged as el (el.id)}
+													<div class="flex items-center gap-2 px-3 py-1 text-sm text-text-muted">
+														<span class="w-20 shrink-0 text-[10px] font-mono"></span>
+														<code class="font-mono text-sm">{el.name}</code>
+														<span class="text-[10px]">{el.kind}</span>
+														{#if el.start_line}
+															<span class="ml-auto text-[10px] font-mono">:{el.start_line}</span>
+														{/if}
+													</div>
+												{/each}
+											</details>
+										{/if}
+									</div>
+								</details>
+							{/if}
+
+							<!-- Section 3: Breaking/compatible classified changes -->
+							{#if sd.breakingCount > 0 || sd.nonBreakingCount > 0}
+								<!-- Verdict banner -->
+								<div class="mb-4 flex items-center gap-3 rounded-md px-3 py-2 {sd.compatible ? 'bg-emerald-500/10' : 'bg-red-500/10'}">
+									<span class="text-lg">{sd.compatible ? '✓' : '⚠'}</span>
+									<div>
+										{#if !sd.compatible}
+											<span class="text-sm font-semibold text-red-400">Breaking changes detected</span>
+											<span class="ml-2 text-xs text-text-muted">
+												{sd.breakingCount} breaking{#if sd.nonBreakingCount > 0} | {sd.nonBreakingCount} safe{/if}
+											</span>
+										{:else}
+											<span class="text-sm font-semibold text-emerald-400">No breaking changes</span>
+											<span class="ml-2 text-xs text-text-muted">
+												{sd.nonBreakingCount} safe {sd.nonBreakingCount === 1 ? 'change' : 'changes'}
+											</span>
+										{/if}
+									</div>
+								</div>
+
+								{#if sd.breakingChanges.length > 0}
+									<details open class="mb-3 rounded-md border border-red-500/20">
+										<summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wider text-red-400 hover:bg-red-500/5">
+											Breaking changes ({sd.breakingCount})
+										</summary>
+										<div class="space-y-0.5 px-2 pb-2">
+											{#each sd.breakingChanges as bc (bc.label)}
+												<div class="flex items-start gap-2 rounded-md bg-red-500/5 px-3 py-1.5 text-sm">
 													<span class="shrink-0 text-red-400 mt-0.5">⚠</span>
 													<span class="text-text-primary flex-1">{bc.label}</span>
-													{#if matchingLines.length > 0}
-														<span class="shrink-0 text-[10px] text-text-muted mt-0.5">{matchingLines.length} lines</span>
-													{/if}
 													<span class="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted">{bc.kind}</span>
-												</summary>
-												{#if matchingLines.length > 0}
-													<pre class="mt-1 overflow-x-auto rounded bg-surface-0 font-mono text-[11px] leading-[18px] mx-3 mb-1">{#each matchingLines as line}<span class={lineClass(line.origin)}><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.oldLineno ?? ''}</span><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.newLineno ?? ''}</span><span class="inline-block w-3 select-none text-[10px]">{linePrefix(line.origin)}</span>{stripNewline(line.content)}
-</span>{/each}</pre>
-												{:else}
-													<p class="mx-3 mb-1 text-[11px] text-text-muted italic">No matching code found in this diff</p>
-												{/if}
-											</details>
-										{/each}
-									</div>
-								</details>
-							{/if}
-
-							<!-- Compatible changes - collapsed, each clickable to show code -->
-							{#if sd.nonBreakingChanges.length > 0}
-								<details class="mb-3 rounded-md border border-emerald-500/20">
-									<summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wider text-emerald-400 hover:bg-emerald-500/5">
-										✓ Compatible changes ({sd.nonBreakingCount})
-									</summary>
-									<div class="space-y-0.5 px-2 pb-2">
-										{#each sd.nonBreakingChanges as nb (nb.label)}
-											{@const searchTerms = extractSearchTerms(nb)}
-											{@const matchingLines = findMatchingLines(file.hunks, searchTerms)}
-											<details class="rounded-md">
-												<summary class="flex cursor-pointer items-start gap-2 rounded-md bg-emerald-500/5 px-3 py-1.5 text-sm hover:bg-emerald-500/10 transition-colors">
-													<span class="shrink-0 text-emerald-400 mt-0.5">✓</span>
-													<span class="text-text-primary flex-1">{nb.label}</span>
-													{#if matchingLines.length > 0}
-														<span class="shrink-0 text-[10px] text-text-muted mt-0.5">{matchingLines.length} lines</span>
-													{/if}
-													<span class="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted">{nb.kind}</span>
-												</summary>
-												{#if matchingLines.length > 0}
-													<pre class="mt-1 overflow-x-auto rounded bg-surface-0 font-mono text-[11px] leading-[18px] mx-3 mb-1">{#each matchingLines as line}<span class={lineClass(line.origin)}><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.oldLineno ?? ''}</span><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.newLineno ?? ''}</span><span class="inline-block w-3 select-none text-[10px]">{linePrefix(line.origin)}</span>{stripNewline(line.content)}
-</span>{/each}</pre>
-												{:else}
-													<p class="mx-3 mb-1 text-[11px] text-text-muted italic">No matching code found in this diff</p>
-												{/if}
-											</details>
-										{/each}
-									</div>
-								</details>
-							{/if}
-
-							<!-- Structural change tree (program elements) -->
-							{#if (() => {
-								const rg = groupVertices(sd.removedVertices, file.path);
-								const ag = groupVertices(sd.addedVertices, file.path);
-								return [...new Set([...rg.map(g => g.scope), ...ag.map(g => g.scope)])].filter(s => s !== '(other)' && s !== '(module)').length > 0;
-							})()}
-								{@const removedGroups = groupVertices(sd.removedVertices, file.path)}
-								{@const addedGroups = groupVertices(sd.addedVertices, file.path)}
-								{@const filteredScopes = [...new Set([
-									...removedGroups.map(g => g.scope),
-									...addedGroups.map(g => g.scope),
-								])].filter(s => s !== '(other)' && s !== '(module)')}
-								<div class="mb-3 space-y-2">
-									<div class="rounded-md border border-border">
-										<div class="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
-											Program elements
-										</div>
-										<div class="space-y-0.5 px-1 pb-1">
-											{#each filteredScopes as scope (scope)}
-												{@const removed = removedGroups.find(g => g.scope === scope)}
-												{@const added = addedGroups.find(g => g.scope === scope)}
-												{@const scopeKind = removed?.scopeKind ?? added?.scopeKind ?? '·'}
-												{@const isNew = !removed && !!added}
-												{@const isGone = !!removed && !added}
-												{@const addedEdgesInScope = sd.addedEdges.filter(e => e.src.includes('::' + scope + '::') || e.src.includes('::' + scope) && !e.src.includes('::' + scope + '::'))}
-												{@const removedEdgesInScope = sd.removedEdges.filter(e => e.src.includes('::' + scope + '::') || e.src.includes('::' + scope) && !e.src.includes('::' + scope + '::'))}
-												<details class="rounded-md {isNew ? 'bg-emerald-500/5' : isGone ? 'bg-red-500/5' : 'bg-surface-0'}">
-													<summary class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-surface-2">
-														<span class="w-5 text-center text-base leading-none {isNew ? 'text-emerald-400' : isGone ? 'text-red-400' : 'text-amber-400'}">
-															{scopeKind}
-														</span>
-														<span class="font-medium text-text-primary">{scope}</span>
-														{#if isNew}
-															<span class="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">added</span>
-														{:else if isGone}
-															<span class="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-400">removed</span>
-														{:else}
-															<span class="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">modified</span>
-														{/if}
-														<span class="ml-auto text-xs text-text-muted">
-															{#if added}<span class="text-emerald-400">+{added.items.length}</span>{/if}
-															{#if removed}{#if added} {/if}<span class="text-red-400">−{removed.items.length}</span>{/if}
-														</span>
-													</summary>
-													<!-- Expanded: structural summary + relevant code -->
-													<div class="border-t border-border/50">
-														<!-- Structural summary -->
-														<div class="px-3 py-2 text-[12px] space-y-1">
-															{#if added && added.items.length > 0}
-																{@const summary = summarizeNodes(added.items)}
-																<div>
-																	<span class="text-emerald-400 font-medium">+ {added.items.length} schema nodes added</span>
-																	{#if summary.named.length > 0}
-																		<span class="text-text-muted"> -</span>
-																		<span class="text-text-secondary">
-																			{summary.named.slice(0, 6).join(', ')}
-																			{#if summary.named.length > 6}, …{/if}
-																		</span>
-																	{/if}
-																	{#if summary.anonymousCount > 0}
-																		<span class="text-text-muted"> ({summary.anonymousCount} internal)</span>
-																	{/if}
-																</div>
-															{/if}
-															{#if removed && removed.items.length > 0}
-																{@const summary = summarizeNodes(removed.items)}
-																<div>
-																	<span class="text-red-400 font-medium">− {removed.items.length} schema nodes removed</span>
-																	{#if summary.named.length > 0}
-																		<span class="text-text-muted"> -</span>
-																		<span class="text-text-secondary">
-																			{summary.named.slice(0, 6).join(', ')}
-																			{#if summary.named.length > 6}, …{/if}
-																		</span>
-																	{/if}
-																	{#if summary.anonymousCount > 0}
-																		<span class="text-text-muted"> ({summary.anonymousCount} internal)</span>
-																	{/if}
-																</div>
-															{/if}
-														</div>
-
-														<!-- Code: the actual lines that changed in this scope -->
-														{#each file.hunks.filter(h =>
-															h.header.includes(scope) ||
-															h.lines.some(l => l.content.includes(scope))
-														) as hunk, h (h)}
-															{#if h === 0}
-																<div class="border-t border-border/30">
-																	<div class="bg-surface-2/50 px-3 py-1 text-[10px] text-text-muted font-medium uppercase tracking-wider">
-																		Code
-																	</div>
-																</div>
-															{/if}
-															<div class="border-t border-border/20">
-																<div class="bg-surface-2/30 px-3 py-0.5 font-mono text-[10px] text-text-muted">
-																	{hunk.header.replace(/\n$/, '')}
-																</div>
-																<pre class="overflow-x-auto bg-surface-0 font-mono text-[11px] leading-[18px]">{#each hunk.lines as line, l (l)}<span class={lineClass(line.origin)}><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.oldLineno ?? ''}</span><span class="inline-block w-7 select-none text-right pr-1 text-[10px] text-text-muted/50">{line.newLineno ?? ''}</span><span class="inline-block w-3 select-none text-[10px]">{linePrefix(line.origin)}</span>{stripNewline(line.content)}
-</span>{/each}</pre>
-															</div>
-														{/each}
-													</div>
-												</details>
+												</div>
 											{/each}
 										</div>
-									</div>
-								</div>
+									</details>
+								{/if}
+
+								{#if sd.nonBreakingChanges.length > 0}
+									<details class="mb-3 rounded-md border border-emerald-500/20">
+										<summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wider text-emerald-400 hover:bg-emerald-500/5">
+											Safe changes ({sd.nonBreakingCount})
+										</summary>
+										<div class="space-y-0.5 px-2 pb-2">
+											{#each sd.nonBreakingChanges as nb (nb.label)}
+												<div class="flex items-start gap-2 rounded-md bg-emerald-500/5 px-3 py-1.5 text-sm">
+													<span class="shrink-0 text-emerald-400 mt-0.5">✓</span>
+													<span class="text-text-primary flex-1">{nb.label}</span>
+													<span class="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted">{nb.kind}</span>
+												</div>
+											{/each}
+										</div>
+									</details>
+								{/if}
 							{/if}
 
-							<!-- Collapsible raw diff -->
+							<!-- Section 4: Raw textual diff (collapsed) -->
 							{#if file.hunks.length > 0}
-								<details class="mt-3 rounded-md border border-border">
+								<details class="rounded-md border border-border">
 									<summary class="cursor-pointer px-3 py-2 text-xs font-medium text-text-muted hover:text-text-secondary transition-colors">
 										Raw textual diff ({file.additions} additions, {file.deletions} deletions)
 									</summary>
@@ -556,7 +375,7 @@
 							{/if}
 						</div>
 					{:else}
-						<!-- No structural diff - show raw textual diff as primary -->
+						<!-- No structural diff: show raw textual diff as primary -->
 						{#if file.hunks.length === 0}
 							<div class="border-t border-border bg-surface-0 px-4 py-6 text-center text-xs text-text-muted">
 								No content changes
@@ -574,7 +393,7 @@
 						{/if}
 					{/if}
 				{/if}
-				{/if}<!-- close {:else} for binary check -->
+				{/if}<!-- close binary check -->
 			</div>
 		{/each}
 	</div>
