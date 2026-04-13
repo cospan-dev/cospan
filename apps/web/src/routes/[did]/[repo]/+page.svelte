@@ -103,7 +103,7 @@
 		importStatus={data.importStatus}
 	/>
 
-	{#if (data.schemaStats?.commits?.length ?? 0) > 1}
+	{#if (data.schemaStats?.commits?.length ?? 0) > 1 && data.schemaStats.commits.some(c => c.totalVertexCount > 0)}
 		<div class="mb-4 rounded-lg border border-border bg-surface-1 px-4 py-3">
 			<h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
 				Schema Evolution

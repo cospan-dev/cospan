@@ -41,26 +41,34 @@ pub async fn get_import_status(
         .len()
         > 0;
 
-    let has_vcs = store.exists(&params.did, &params.repo);
-
     drop(store);
 
+    // Schema data is available via two paths:
+    // 1. Full import via git-remote-cospan (marks file exists)
+    // 2. On-demand parsing (getProjectSchema parses HEAD files on each request)
+    //
+    // If marks exist, the full commit history is available.
+    // If no marks but mirror exists, on-demand parsing provides HEAD data.
+    // The "importing" state only applies when git-remote-cospan is actively
+    // pushing schema objects (detected by marks file growing).
     if has_marks {
         Ok(Json(json!({
             "status": "ready",
-            "message": "Schema analysis complete.",
+            "message": "Full schema history available.",
             "ready": true,
         })))
-    } else if has_vcs {
+    } else if has_mirror {
+        // Mirror exists but no marks: on-demand parsing provides HEAD data.
+        // Full commit history requires pushing via git-remote-cospan.
         Ok(Json(json!({
-            "status": "importing",
-            "message": "Schema analysis in progress. Structural data will appear shortly.",
-            "ready": false,
+            "status": "ready",
+            "message": "Schema data available for HEAD. Push via git-remote-cospan for full commit history.",
+            "ready": true,
         })))
     } else {
         Ok(Json(json!({
-            "status": "pending",
-            "message": "Schema analysis has not started yet.",
+            "status": "no_repo",
+            "message": "Repository not found on this node.",
             "ready": false,
         })))
     }
