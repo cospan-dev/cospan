@@ -298,6 +298,23 @@ pub async fn proxy_get_dependency_graph(
     Ok(Json(result))
 }
 
+/// GET /xrpc/dev.panproto.node.proxy.getImportStatus
+pub async fn proxy_get_import_status(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<RepoParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.panproto.node.getImportStatus",
+        &[],
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+    Ok(Json(result))
+}
+
 /// GET /xrpc/dev.cospan.node.proxy.getObject
 pub async fn proxy_get_object(
     State(state): State<Arc<AppState>>,

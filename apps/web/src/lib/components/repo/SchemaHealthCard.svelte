@@ -1,12 +1,14 @@
 <script lang="ts">
-	import type { ProjectSchemaResponse, CommitSchemaStatsResponse } from '$lib/api/schema.js';
+	import type { ProjectSchemaResponse, CommitSchemaStatsResponse, ImportStatusResponse } from '$lib/api/schema.js';
 
 	let {
 		projectSchema,
 		schemaStats,
+		importStatus,
 	}: {
 		projectSchema: ProjectSchemaResponse | null;
 		schemaStats: CommitSchemaStatsResponse | null;
+		importStatus: ImportStatusResponse | null;
 	} = $props();
 
 	// Language hue mapping (same as RepoCard protocol hues)
@@ -29,6 +31,20 @@
 			.reduce((sum, c) => sum + c.breakingChangeCount, 0) ?? 0
 	);
 </script>
+
+{#if importStatus && !importStatus.ready}
+	<div class="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+		<div class="flex items-center gap-3">
+			<div class="h-4 w-4 animate-spin rounded-full border-2 border-amber-400/30 border-t-amber-400"></div>
+			<div>
+				<span class="text-sm font-medium text-amber-400">Schema analysis in progress</span>
+				<p class="mt-0.5 text-xs text-text-muted">
+					panproto is parsing your repository. Structural data (language breakdown, breaking change detection, schema graphs) will appear once processing completes. This can take a few minutes for large repositories.
+				</p>
+			</div>
+		</div>
+	</div>
+{/if}
 
 {#if projectSchema || schemaStats}
 	<div class="mb-4 rounded-lg border border-border bg-surface-1 p-4">

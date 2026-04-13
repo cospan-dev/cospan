@@ -100,6 +100,7 @@
 	<SchemaHealthCard
 		projectSchema={data.projectSchema}
 		schemaStats={data.schemaStats}
+		importStatus={data.importStatus}
 	/>
 
 	{#if (data.schemaStats?.commits?.length ?? 0) > 1}

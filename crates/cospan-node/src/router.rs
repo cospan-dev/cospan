@@ -51,6 +51,10 @@ pub fn build(state: Arc<NodeState>) -> Router {
         .route(
             "/xrpc/dev.panproto.node.getDependencyGraph",
             get(handlers::get_dependency_graph),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.getImportStatus",
+            get(handlers::get_import_status),
         );
 
     let git = git_compat::git_routes();

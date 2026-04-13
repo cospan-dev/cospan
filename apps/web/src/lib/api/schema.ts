@@ -122,6 +122,12 @@ export interface DependencyGraphResponse {
 	edges: DependencyEdge[];
 }
 
+export interface ImportStatusResponse {
+	status: 'ready' | 'importing' | 'pending' | 'no_repo';
+	message: string;
+	ready: boolean;
+}
+
 // ── API functions ──────────────────────────────────────────────────
 
 export function getProjectSchema(params: {
@@ -178,6 +184,16 @@ export function compareBranchSchemas(params: {
 }): Promise<BranchComparisonResponse> {
 	return xrpcQuery<BranchComparisonResponse>(
 		'dev.panproto.node.proxy.compareBranchSchemas',
+		params
+	);
+}
+
+export function getImportStatus(params: {
+	did: string;
+	repo: string;
+}): Promise<ImportStatusResponse> {
+	return xrpcQuery<ImportStatusResponse>(
+		'dev.panproto.node.proxy.getImportStatus',
 		params
 	);
 }

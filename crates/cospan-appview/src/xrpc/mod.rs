@@ -180,6 +180,10 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/xrpc/dev.panproto.node.proxy.getDependencyGraph",
             get(node_proxy::proxy_get_dependency_graph),
         )
+        .route(
+            "/xrpc/dev.panproto.node.proxy.getImportStatus",
+            get(node_proxy::proxy_get_import_status),
+        )
         // --- Procedures (POST) ---
         .route(
             "/xrpc/dev.cospan.feed.star.toggle",
