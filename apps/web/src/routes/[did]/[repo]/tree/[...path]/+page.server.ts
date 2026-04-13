@@ -1,12 +1,8 @@
 import type { PageServerLoad } from './$types';
-import { env } from '$env/dynamic/private';
 import { getRepo } from '$lib/api/repo.js';
-import { listRefs, getObject } from '$lib/api/node.js';
+import { xrpcQuery } from '$lib/api/client.js';
 import { getFileSchema, type FileSchemaResponse } from '$lib/api/schema.js';
 import { createHighlighter } from 'shiki';
-import type { NodeRef, NodeObject } from '$lib/api/node.js';
-
-const DEFAULT_NODE_URL = env.NODE_URL ?? 'http://localhost:3002';
 
 // Map file extensions to Shiki language identifiers
 const extensionToLang: Record<string, string> = {
@@ -91,6 +87,36 @@ function getHighlighter() {
 	return highlighterPromise;
 }
 
+// Appview proxy response types
+interface ProxyRef {
+	ref: string;
+	target: string;
+}
+
+interface ProxyRefList {
+	refs: ProxyRef[];
+}
+
+interface ProxyObject {
+	id: string;
+	object: {
+		type: string;
+		protocol?: string;
+		vertexCount?: number;
+		edgeCount?: number;
+		message?: string;
+		author?: string;
+		[key: string]: unknown;
+	};
+}
+
+// Frontend types
+interface DisplayRef {
+	name: string;
+	target: string;
+	type: 'branch' | 'tag';
+}
+
 interface TreePageData {
 	repo: {
 		did: string;
@@ -105,7 +131,7 @@ interface TreePageData {
 	};
 	path: string;
 	mode: 'tree' | 'blob';
-	refs?: NodeRef[];
+	refs?: DisplayRef[];
 	object?: {
 		code: string;
 		language: string;
@@ -119,97 +145,109 @@ export const load: PageServerLoad = async ({ params }): Promise<TreePageData> =>
 	const repo = await getRepo({ did: params.did, name: params.repo });
 	const path = params.path || '';
 
-	const nodeUrl = (repo as unknown as Record<string, unknown>).nodeUrl as string | undefined
-		?? DEFAULT_NODE_URL;
-
-	// If no path provided, show the refs tree
+	// If no path provided, show the refs tree via appview proxy
 	if (!path) {
-		{
-			try {
-				const refList = await listRefs(nodeUrl, params.did, params.repo);
-				return {
-					repo,
-					path: '',
-					mode: 'tree',
-					refs: refList.refs
-				};
-			} catch (e) {
-				return {
-					repo,
-					path: '',
-					mode: 'tree',
-					refs: [],
-					error: `Could not fetch refs from node: ${e instanceof Error ? e.message : 'Unknown error'}`
-				};
-			}
+		try {
+			const result = await xrpcQuery<ProxyRefList>(
+				'dev.cospan.node.proxy.listRefs',
+				{ did: params.did, repo: params.repo }
+			);
+			const refs: DisplayRef[] = result.refs.map((r) => ({
+				name: r.ref,
+				target: r.target,
+				type: r.ref.startsWith('refs/tags/') ? 'tag' as const : 'branch' as const,
+			}));
+			return { repo, path: '', mode: 'tree', refs };
+		} catch (e) {
+			return {
+				repo,
+				path: '',
+				mode: 'tree',
+				refs: [],
+				error: `Could not fetch refs: ${e instanceof Error ? e.message : 'Unknown error'}`
+			};
 		}
 	}
 
-	// Path provided: try to fetch the object from the node.
-	{
+	// Path provided: try to fetch the blob via appview proxy.
+	// The proxy getObject endpoint returns structured metadata, but for
+	// code display we need raw file content. Use the node directly for
+	// blob fetching via the git mirror's listCommits to get the tree.
+	// For now, try fetching from the node's git smart HTTP endpoint
+	// which serves raw blobs.
+	try {
+		// Use the appview proxy to get the object
+		const result = await xrpcQuery<ProxyObject>(
+			'dev.cospan.node.proxy.getObject',
+			{ did: params.did, repo: params.repo, id: path }
+		);
+
+		// The proxy returns structured data, not raw file content.
+		// We need to extract the content if it's a schema object,
+		// or show metadata for other types.
+		const language = detectLanguage(path);
+		const code = JSON.stringify(result.object, null, 2);
+
+		let highlightedHtml: string;
 		try {
-			const obj: NodeObject = await getObject(nodeUrl, params.did, params.repo, path);
-			const language = detectLanguage(path);
+			const highlighter = await getHighlighter();
+			highlightedHtml = highlighter.codeToHtml(code, {
+				lang: 'json',
+				theme: 'github-dark'
+			});
+		} catch {
+			highlightedHtml = `<pre><code>${escapeHtml(code)}</code></pre>`;
+		}
 
-			let highlightedHtml: string;
-			try {
-				const highlighter = await getHighlighter();
-				highlightedHtml = highlighter.codeToHtml(obj.data, {
-					lang: language,
-					theme: 'github-dark'
-				});
-			} catch {
-				// Fall back to plain text if highlighting fails for this language
-				highlightedHtml = `<pre><code>${escapeHtml(obj.data)}</code></pre>`;
-			}
+		// Fetch file schema (best-effort)
+		let fileSchema: FileSchemaResponse | null = null;
+		try {
+			fileSchema = await getFileSchema({
+				did: params.did,
+				repo: params.repo,
+				commit: 'HEAD',
+				path,
+			});
+		} catch {
+			// Schema unavailable
+		}
 
-			// Fetch file schema in parallel (best-effort)
-			let fileSchema: FileSchemaResponse | null = null;
-			try {
-				fileSchema = await getFileSchema({
-					did: params.did,
-					repo: params.repo,
-					commit: 'HEAD',
-					path,
-				});
-			} catch {
-				// Schema unavailable; sidebar won't appear
-			}
-
+		return {
+			repo,
+			path,
+			mode: 'blob',
+			object: { code, language, highlightedHtml },
+			fileSchema,
+		};
+	} catch (e) {
+		// Object not found or node unreachable
+		try {
+			const result = await xrpcQuery<ProxyRefList>(
+				'dev.cospan.node.proxy.listRefs',
+				{ did: params.did, repo: params.repo }
+			);
+			const refs: DisplayRef[] = result.refs.map((r) => ({
+				name: r.ref,
+				target: r.target,
+				type: r.ref.startsWith('refs/tags/') ? 'tag' as const : 'branch' as const,
+			}));
 			return {
 				repo,
 				path,
-				mode: 'blob',
-				object: {
-					code: obj.data,
-					language,
-					highlightedHtml
-				},
-				fileSchema,
+				mode: 'tree',
+				refs,
+				error: `Could not fetch "${path}": ${e instanceof Error ? e.message : 'Unknown error'}`
 			};
-		} catch (e) {
-			// If object fetch fails, fall back to tree view for this path
-			try {
-				const refList = await listRefs(nodeUrl, params.did, params.repo);
-				return {
-					repo,
-					path,
-					mode: 'tree',
-					refs: refList.refs,
-					error: `Could not fetch object "${path}": ${e instanceof Error ? e.message : 'Unknown error'}`
-				};
-			} catch {
-				return {
-					repo,
-					path,
-					mode: 'tree',
-					refs: [],
-					error: `Could not connect to node`
-				};
-			}
+		} catch {
+			return {
+				repo,
+				path,
+				mode: 'tree',
+				refs: [],
+				error: 'Could not connect to node'
+			};
 		}
 	}
-
 };
 
 function escapeHtml(text: string): string {
