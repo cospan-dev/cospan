@@ -85,7 +85,10 @@ pub fn verify_push(
 
     // Production mode: require credentials.
     let (username, token) = match extract_basic_auth(headers) {
-        Some(pair) => pair,
+        Some(pair) => {
+            tracing::debug!(username = %pair.0, token_len = pair.1.len(), "extracted basic auth");
+            pair
+        }
         None => return PushAuth::NoCredentials,
     };
 
@@ -114,8 +117,15 @@ pub fn verify_push(
 
     // Check expiration.
     let now = chrono::Utc::now().timestamp();
+    tracing::debug!(
+        sub = %claims.sub,
+        exp = claims.exp,
+        now = now,
+        diff = claims.exp - now,
+        "push token expiration check"
+    );
     if claims.exp < now {
-        return PushAuth::Denied("push token expired".to_string());
+        return PushAuth::Denied(format!("push token expired (exp={}, now={now}, diff={}s)", claims.exp, claims.exp - now));
     }
 
     // Check scope.
