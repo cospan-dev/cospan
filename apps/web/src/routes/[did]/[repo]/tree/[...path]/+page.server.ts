@@ -1,9 +1,12 @@
 import type { PageServerLoad } from './$types';
+import { env } from '$env/dynamic/private';
 import { getRepo } from '$lib/api/repo.js';
 import { listRefs, getObject } from '$lib/api/node.js';
 import { getFileSchema, type FileSchemaResponse } from '$lib/api/schema.js';
 import { createHighlighter } from 'shiki';
 import type { NodeRef, NodeObject } from '$lib/api/node.js';
+
+const DEFAULT_NODE_URL = env.NODE_URL ?? 'http://localhost:3002';
 
 // Map file extensions to Shiki language identifiers
 const extensionToLang: Record<string, string> = {
@@ -116,13 +119,12 @@ export const load: PageServerLoad = async ({ params }): Promise<TreePageData> =>
 	const repo = await getRepo({ did: params.did, name: params.repo });
 	const path = params.path || '';
 
-	// If we have a nodeUrl on the repo, use it to fetch real data.
-	// For now, we try to list refs and show the tree.
-	const nodeUrl = (repo as unknown as Record<string, unknown>).nodeUrl as string | undefined;
+	const nodeUrl = (repo as unknown as Record<string, unknown>).nodeUrl as string | undefined
+		?? DEFAULT_NODE_URL;
 
 	// If no path provided, show the refs tree
 	if (!path) {
-		if (nodeUrl) {
+		{
 			try {
 				const refList = await listRefs(nodeUrl, params.did, params.repo);
 				return {
@@ -141,18 +143,10 @@ export const load: PageServerLoad = async ({ params }): Promise<TreePageData> =>
 				};
 			}
 		}
-
-		// No nodeUrl; return empty ref list (placeholder mode)
-		return {
-			repo,
-			path: '',
-			mode: 'tree',
-			refs: []
-		};
 	}
 
-	// Path provided: try to fetch the object if we have a nodeUrl
-	if (nodeUrl) {
+	// Path provided: try to fetch the object from the node.
+	{
 		try {
 			const obj: NodeObject = await getObject(nodeUrl, params.did, params.repo, path);
 			const language = detectLanguage(path);
@@ -216,14 +210,6 @@ export const load: PageServerLoad = async ({ params }): Promise<TreePageData> =>
 		}
 	}
 
-	// No nodeUrl: show placeholder tree with the path as context
-	return {
-		repo,
-		path,
-		mode: 'tree',
-		refs: [],
-		error: 'No node URL configured for this repository. Code browsing is unavailable.'
-	};
 };
 
 function escapeHtml(text: string): string {
