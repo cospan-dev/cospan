@@ -195,6 +195,7 @@ services:
     environment:
       PORT: "3000"
       APPVIEW_URL: http://appview:3000
+      NODE_URL: http://node:3001
     depends_on:
       appview:
         condition: service_healthy
