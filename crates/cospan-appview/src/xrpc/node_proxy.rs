@@ -298,6 +298,71 @@ pub async fn proxy_get_dependency_graph(
     Ok(Json(result))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListTreeParams {
+    pub did: String,
+    pub repo: String,
+    #[serde(rename = "ref")]
+    pub ref_name: Option<String>,
+    pub path: Option<String>,
+}
+
+/// GET /xrpc/dev.cospan.node.proxy.listTree
+pub async fn proxy_list_tree(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ListTreeParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut extra: Vec<(&str, String)> = Vec::new();
+    if let Some(ref r) = params.ref_name {
+        extra.push(("ref", r.clone()));
+    }
+    if let Some(ref p) = params.path {
+        extra.push(("path", p.clone()));
+    }
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.panproto.node.listTree",
+        &extra,
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+    Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetBlobParams {
+    pub did: String,
+    pub repo: String,
+    #[serde(rename = "ref")]
+    pub ref_name: Option<String>,
+    pub path: String,
+}
+
+/// GET /xrpc/dev.cospan.node.proxy.getBlob
+pub async fn proxy_get_blob(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<GetBlobParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut extra: Vec<(&str, String)> = vec![("path", params.path.clone())];
+    if let Some(ref r) = params.ref_name {
+        extra.push(("ref", r.clone()));
+    }
+    let result = node_proxy::proxy_get_json(
+        &state,
+        &params.did,
+        &params.repo,
+        "dev.panproto.node.getBlob",
+        &extra,
+    )
+    .await
+    .map_err(AppError::Upstream)?;
+    Ok(Json(result))
+}
+
 /// GET /xrpc/dev.panproto.node.proxy.getImportStatus
 pub async fn proxy_get_import_status(
     State(state): State<Arc<AppState>>,

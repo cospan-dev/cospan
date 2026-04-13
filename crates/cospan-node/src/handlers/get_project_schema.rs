@@ -230,18 +230,37 @@ pub async fn get_project_schema(
         })));
     }
 
-    // Fallback: no vcs store data. Parse a subset of files on demand
-    // to give users immediate schema data while the full import runs
-    // in the background (or they switch to git-remote-cospan).
-    // Cap at 50 files to keep latency under ~3 seconds.
-    let on_demand_limit = 50;
+    // Fallback: no vcs store data. Parse all files on demand.
+    // Parsing happens locally via git-remote-cospan in the normal flow;
+    // this on-demand path is a bridge for repos pushed via raw git.
+    let on_demand_limit = file_entries.len();
     let mut total_vc = 0usize;
     let mut total_ec = 0usize;
     let mut parsed_count = 0usize;
     let mut lang_vertex_counts: HashMap<String, usize> = HashMap::new();
     let mut file_schemas: Vec<Value> = Vec::new();
 
-    for (path, blob_oid) in file_entries.iter().take(on_demand_limit) {
+    // Sort entries: source code first, config/data last, skip binaries/locks
+    let mut sorted_entries: Vec<&(String, git2::Oid)> = file_entries.iter().collect();
+    sorted_entries.sort_by_key(|(path, _)| {
+        let lower = path.to_ascii_lowercase();
+        if lower.ends_with(".lock") || lower.ends_with(".sum") || lower.contains("node_modules/") {
+            3 // skip
+        } else if lower.ends_with(".rs") || lower.ends_with(".ts") || lower.ends_with(".svelte")
+            || lower.ends_with(".py") || lower.ends_with(".go") || lower.ends_with(".js")
+            || lower.ends_with(".tsx") || lower.ends_with(".jsx")
+        {
+            0 // source code first
+        } else if lower.ends_with(".json") || lower.ends_with(".yaml") || lower.ends_with(".yml")
+            || lower.ends_with(".toml") || lower.ends_with(".sql")
+        {
+            1 // config/data second
+        } else {
+            2 // everything else
+        }
+    });
+
+    for (path, blob_oid) in sorted_entries.iter().take(on_demand_limit) {
         let blob = match mirror.find_blob(*blob_oid) {
             Ok(b) => b,
             Err(_) => continue,

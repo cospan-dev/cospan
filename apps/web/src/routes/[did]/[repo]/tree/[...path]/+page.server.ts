@@ -6,38 +6,14 @@ import { createHighlighter } from 'shiki';
 
 // Map file extensions to Shiki language identifiers
 const extensionToLang: Record<string, string> = {
-	ts: 'typescript',
-	tsx: 'tsx',
-	js: 'javascript',
-	jsx: 'jsx',
-	rs: 'rust',
-	py: 'python',
-	go: 'go',
-	json: 'json',
-	yaml: 'yaml',
-	yml: 'yaml',
-	toml: 'toml',
-	md: 'markdown',
-	css: 'css',
-	html: 'html',
-	sql: 'sql',
-	proto: 'proto',
-	graphql: 'graphql',
-	sh: 'bash',
-	bash: 'bash',
-	txt: 'text',
-	xml: 'xml',
-	svg: 'xml',
-	c: 'c',
-	cpp: 'cpp',
-	h: 'c',
-	hpp: 'cpp',
-	java: 'java',
-	kt: 'kotlin',
-	swift: 'swift',
-	rb: 'ruby',
-	php: 'php',
-	zig: 'zig'
+	ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx',
+	rs: 'rust', py: 'python', go: 'go', json: 'json',
+	yaml: 'yaml', yml: 'yaml', toml: 'toml', md: 'markdown',
+	css: 'css', html: 'html', sql: 'sql', proto: 'proto',
+	graphql: 'graphql', sh: 'bash', bash: 'bash', txt: 'text',
+	xml: 'xml', svg: 'xml', c: 'c', cpp: 'cpp', h: 'c', hpp: 'cpp',
+	java: 'java', kt: 'kotlin', swift: 'swift', rb: 'ruby',
+	php: 'php', zig: 'zig', svelte: 'svelte',
 };
 
 function detectLanguage(path: string): string {
@@ -45,158 +21,142 @@ function detectLanguage(path: string): string {
 	return extensionToLang[ext] ?? 'text';
 }
 
-// Cached Shiki highlighter instance
 let highlighterPromise: ReturnType<typeof createHighlighter> | null = null;
-
 function getHighlighter() {
 	if (!highlighterPromise) {
 		highlighterPromise = createHighlighter({
 			themes: ['github-dark'],
 			langs: [
-				'typescript',
-				'tsx',
-				'javascript',
-				'jsx',
-				'rust',
-				'python',
-				'go',
-				'json',
-				'yaml',
-				'toml',
-				'markdown',
-				'css',
-				'html',
-				'sql',
-				'bash',
-				'text',
-				'xml',
-				'c',
-				'cpp',
-				'java',
-				'kotlin',
-				'swift',
-				'ruby',
-				'php',
-				'zig',
-				'graphql',
-				'proto',
-				'svelte',
+				'typescript', 'tsx', 'javascript', 'jsx', 'rust', 'python',
+				'go', 'json', 'yaml', 'toml', 'markdown', 'css', 'html',
+				'sql', 'bash', 'text', 'xml', 'c', 'cpp', 'java', 'kotlin',
+				'swift', 'ruby', 'php', 'zig', 'graphql', 'proto', 'svelte',
 			]
 		});
 	}
 	return highlighterPromise;
 }
 
-// Appview proxy response types
-interface ProxyRef {
-	ref: string;
-	target: string;
-}
-
-interface ProxyRefList {
-	refs: ProxyRef[];
-}
-
-interface ProxyObject {
-	id: string;
-	object: {
-		type: string;
-		protocol?: string;
-		vertexCount?: number;
-		edgeCount?: number;
-		message?: string;
-		author?: string;
-		[key: string]: unknown;
-	};
-}
-
-// Frontend types
-interface DisplayRef {
+// XRPC response types
+interface TreeEntry {
 	name: string;
-	target: string;
-	type: 'branch' | 'tag';
+	type: 'file' | 'dir';
+	oid: string;
+	size?: number;
 }
 
-interface TreePageData {
-	repo: {
-		did: string;
-		name: string;
-		protocol: string;
-		starCount: number;
-		openIssueCount: number;
-		openMrCount: number;
-		description: string | null;
-		createdAt: string;
-		updatedAt: string;
-	};
+interface ListTreeResponse {
+	ref: string;
+	commit: string;
 	path: string;
-	mode: 'tree' | 'blob';
-	refs?: DisplayRef[];
-	object?: {
-		code: string;
-		language: string;
-		highlightedHtml: string;
-	};
-	fileSchema?: FileSchemaResponse | null;
-	error?: string;
+	entries: TreeEntry[];
 }
 
-export const load: PageServerLoad = async ({ params }): Promise<TreePageData> => {
+interface GetBlobResponse {
+	path: string;
+	commit: string;
+	binary: boolean;
+	size: number;
+	content: string | null;
+}
+
+export const load: PageServerLoad = async ({ params }) => {
 	const repo = await getRepo({ did: params.did, name: params.repo });
 	const path = params.path || '';
 
-	// If no path provided, show the refs tree via appview proxy
-	if (!path) {
+	// Determine if the path starts with a ref name (refs/heads/*, refs/tags/*)
+	// and split it into ref + subpath
+	let refName: string | undefined;
+	let treePath = path;
+
+	if (path.startsWith('refs/heads/') || path.startsWith('refs/tags/')) {
+		// Extract the ref name and any remaining path
+		const parts = path.split('/');
+		// refs/heads/main or refs/tags/v1.0
+		refName = parts.slice(0, 3).join('/');
+		treePath = parts.slice(3).join('/');
+	}
+
+	// If no path (or just a ref with no subpath), show directory listing
+	if (!treePath) {
 		try {
-			const result = await xrpcQuery<ProxyRefList>(
-				'dev.cospan.node.proxy.listRefs',
-				{ did: params.did, repo: params.repo }
+			const result = await xrpcQuery<ListTreeResponse>(
+				'dev.panproto.node.proxy.listTree',
+				{
+					did: params.did,
+					repo: params.repo,
+					ref: refName,
+					path: '',
+				}
 			);
-			const refs: DisplayRef[] = result.refs.map((r) => ({
-				name: r.ref,
-				target: r.target,
-				type: r.ref.startsWith('refs/tags/') ? 'tag' as const : 'branch' as const,
-			}));
-			return { repo, path: '', mode: 'tree', refs };
+			return {
+				repo, path, mode: 'tree' as const,
+				ref: refName ?? result.ref,
+				entries: result.entries,
+			};
 		} catch (e) {
 			return {
-				repo,
-				path: '',
-				mode: 'tree',
-				refs: [],
-				error: `Could not fetch refs: ${e instanceof Error ? e.message : 'Unknown error'}`
+				repo, path, mode: 'tree' as const,
+				ref: refName,
+				entries: [] as TreeEntry[],
+				error: `Could not list tree: ${e instanceof Error ? e.message : 'Unknown error'}`,
 			};
 		}
 	}
 
-	// Path provided: try to fetch the blob via appview proxy.
-	// The proxy getObject endpoint returns structured metadata, but for
-	// code display we need raw file content. Use the node directly for
-	// blob fetching via the git mirror's listCommits to get the tree.
-	// For now, try fetching from the node's git smart HTTP endpoint
-	// which serves raw blobs.
+	// Path provided: try to list it as a directory first, then as a blob
 	try {
-		// Use the appview proxy to get the object
-		const result = await xrpcQuery<ProxyObject>(
-			'dev.cospan.node.proxy.getObject',
-			{ did: params.did, repo: params.repo, id: path }
+		const result = await xrpcQuery<ListTreeResponse>(
+			'dev.panproto.node.proxy.listTree',
+			{
+				did: params.did,
+				repo: params.repo,
+				ref: refName,
+				path: treePath,
+			}
+		);
+		return {
+			repo, path, mode: 'tree' as const,
+			ref: refName ?? result.ref,
+			entries: result.entries,
+		};
+	} catch {
+		// Not a directory, try as a file
+	}
+
+	try {
+		const blob = await xrpcQuery<GetBlobResponse>(
+			'dev.panproto.node.proxy.getBlob',
+			{
+				did: params.did,
+				repo: params.repo,
+				ref: refName,
+				path: treePath,
+			}
 		);
 
-		// The proxy returns structured data, not raw file content.
-		// We need to extract the content if it's a schema object,
-		// or show metadata for other types.
-		const language = detectLanguage(path);
-		const code = JSON.stringify(result.object, null, 2);
+		if (blob.binary || !blob.content) {
+			return {
+				repo, path, mode: 'blob' as const,
+				ref: refName,
+				object: {
+					code: '(binary file)',
+					language: 'text',
+					highlightedHtml: '<pre><code>(binary file)</code></pre>',
+				},
+			};
+		}
 
+		const language = detectLanguage(treePath);
 		let highlightedHtml: string;
 		try {
 			const highlighter = await getHighlighter();
-			highlightedHtml = highlighter.codeToHtml(code, {
-				lang: 'json',
+			highlightedHtml = highlighter.codeToHtml(blob.content, {
+				lang: language,
 				theme: 'github-dark'
 			});
 		} catch {
-			highlightedHtml = `<pre><code>${escapeHtml(code)}</code></pre>`;
+			highlightedHtml = `<pre><code>${escapeHtml(blob.content)}</code></pre>`;
 		}
 
 		// Fetch file schema (best-effort)
@@ -205,48 +165,24 @@ export const load: PageServerLoad = async ({ params }): Promise<TreePageData> =>
 			fileSchema = await getFileSchema({
 				did: params.did,
 				repo: params.repo,
-				commit: 'HEAD',
-				path,
+				commit: blob.commit,
+				path: treePath,
 			});
-		} catch {
-			// Schema unavailable
-		}
+		} catch { /* schema unavailable */ }
 
 		return {
-			repo,
-			path,
-			mode: 'blob',
-			object: { code, language, highlightedHtml },
+			repo, path, mode: 'blob' as const,
+			ref: refName,
+			object: { code: blob.content, language, highlightedHtml },
 			fileSchema,
 		};
 	} catch (e) {
-		// Object not found or node unreachable
-		try {
-			const result = await xrpcQuery<ProxyRefList>(
-				'dev.cospan.node.proxy.listRefs',
-				{ did: params.did, repo: params.repo }
-			);
-			const refs: DisplayRef[] = result.refs.map((r) => ({
-				name: r.ref,
-				target: r.target,
-				type: r.ref.startsWith('refs/tags/') ? 'tag' as const : 'branch' as const,
-			}));
-			return {
-				repo,
-				path,
-				mode: 'tree',
-				refs,
-				error: `Could not fetch "${path}": ${e instanceof Error ? e.message : 'Unknown error'}`
-			};
-		} catch {
-			return {
-				repo,
-				path,
-				mode: 'tree',
-				refs: [],
-				error: 'Could not connect to node'
-			};
-		}
+		return {
+			repo, path, mode: 'tree' as const,
+			ref: refName,
+			entries: [] as TreeEntry[],
+			error: `Could not fetch "${treePath}": ${e instanceof Error ? e.message : 'Unknown error'}`,
+		};
 	}
 };
 
