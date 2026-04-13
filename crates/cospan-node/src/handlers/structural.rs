@@ -363,8 +363,8 @@ pub fn structural_diff_to_json(diff: &StructuralDiff) -> Value {
         .collect();
 
     // Filter raw vertex lists to only named vertices
-    let added_vertices: Vec<&String> = diff.raw_diff.added_vertices.iter().filter(|v| has_named_segment(v)).collect();
-    let removed_vertices: Vec<&String> = diff.raw_diff.removed_vertices.iter().filter(|v| has_named_segment(v)).collect();
+    let added_vertices: Vec<&String> = diff.raw_diff.added_vertices.iter().filter(|v| is_meaningful_vertex(v)).collect();
+    let removed_vertices: Vec<&String> = diff.raw_diff.removed_vertices.iter().filter(|v| is_meaningful_vertex(v)).collect();
 
     let compatible = breaking.is_empty();
 
@@ -381,17 +381,17 @@ pub fn structural_diff_to_json(diff: &StructuralDiff) -> Value {
         "addedVertices": added_vertices,
         "removedVertices": removed_vertices,
         "kindChanges": diff.raw_diff.kind_changes.iter()
-            .filter(|kc| has_named_segment(&kc.vertex_id))
+            .filter(|kc| is_meaningful_vertex(&kc.vertex_id))
             .map(|kc| json!({
                 "vertexId": kc.vertex_id,
                 "oldKind": kc.old_kind,
                 "newKind": kc.new_kind,
             })).collect::<Vec<_>>(),
         "addedEdges": diff.raw_diff.added_edges.iter()
-            .filter(|e| has_named_segment(&e.src) || has_named_segment(&e.tgt))
+            .filter(|e| is_meaningful_vertex(&e.src) || is_meaningful_vertex(&e.tgt))
             .map(edge_json).collect::<Vec<_>>(),
         "removedEdges": diff.raw_diff.removed_edges.iter()
-            .filter(|e| has_named_segment(&e.src) || has_named_segment(&e.tgt))
+            .filter(|e| is_meaningful_vertex(&e.src) || is_meaningful_vertex(&e.tgt))
             .map(edge_json).collect::<Vec<_>>(),
         "addedNsids": diff.raw_diff.added_nsids,
         "removedNsids": diff.raw_diff.removed_nsids,
@@ -403,43 +403,48 @@ pub fn structural_diff_to_json(diff: &StructuralDiff) -> Value {
     })
 }
 
-/// Check if a vertex ID has at least one named (non-$N, non-file-path) segment.
-fn has_named_segment(id: &str) -> bool {
+/// Check if a vertex ID represents a meaningful named program element
+/// (not an anonymous AST node like $N, and not just a file path).
+fn is_meaningful_vertex(id: &str) -> bool {
     if id.contains("::") {
+        // Tree-sitter style: "file.rs::FunctionName::field"
+        // Must have at least one named segment that's not a file path
         id.split("::").any(|s| {
             !s.starts_with('$') && !s.is_empty() && !s.contains('/') && !s.contains('.')
         })
-    } else if id.contains(':') {
-        // Lexicon-style IDs are always named
+    } else if id.contains(':') && !id.contains("::") {
+        // Lexicon-style: "dev.cospan.repo:body.field" - always meaningful
         true
     } else {
-        !id.starts_with('$') && !id.is_empty()
+        // Bare ID: only meaningful if not $N and not a file path
+        !id.starts_with('$') && !id.is_empty() && !id.contains('/') && !id.contains('.')
     }
 }
 
-/// Check if a breaking change references only anonymous vertices.
+/// Check if a breaking change should be hidden (references anonymous/internal vertices).
 fn is_anonymous_change_breaking(b: &BreakingChange) -> bool {
     match b {
-        BreakingChange::RemovedVertex { vertex_id } => !has_named_segment(vertex_id),
+        BreakingChange::RemovedVertex { vertex_id } => !is_meaningful_vertex(vertex_id),
         BreakingChange::RemovedEdge { src, tgt, .. } => {
-            !has_named_segment(src) && !has_named_segment(tgt)
+            // Filter if either end is anonymous (an edge from a file to $392 is noise)
+            !is_meaningful_vertex(src) || !is_meaningful_vertex(tgt)
         }
-        BreakingChange::KindChanged { vertex_id, .. } => !has_named_segment(vertex_id),
-        BreakingChange::ConstraintTightened { vertex_id, .. } => !has_named_segment(vertex_id),
-        BreakingChange::ConstraintAdded { vertex_id, .. } => !has_named_segment(vertex_id),
-        _ => false, // keep other change types
+        BreakingChange::KindChanged { vertex_id, .. } => !is_meaningful_vertex(vertex_id),
+        BreakingChange::ConstraintTightened { vertex_id, .. } => !is_meaningful_vertex(vertex_id),
+        BreakingChange::ConstraintAdded { vertex_id, .. } => !is_meaningful_vertex(vertex_id),
+        _ => false,
     }
 }
 
-/// Check if a non-breaking change references only anonymous vertices.
+/// Check if a non-breaking change should be hidden.
 fn is_anonymous_change_non_breaking(nb: &NonBreakingChange) -> bool {
     match nb {
-        NonBreakingChange::AddedVertex { vertex_id } => !has_named_segment(vertex_id),
+        NonBreakingChange::AddedVertex { vertex_id } => !is_meaningful_vertex(vertex_id),
         NonBreakingChange::AddedEdge { src, tgt, .. } => {
-            !has_named_segment(src) && !has_named_segment(tgt)
+            !is_meaningful_vertex(src) || !is_meaningful_vertex(tgt)
         }
-        NonBreakingChange::ConstraintRelaxed { vertex_id, .. } => !has_named_segment(vertex_id),
-        NonBreakingChange::ConstraintRemoved { vertex_id, .. } => !has_named_segment(vertex_id),
+        NonBreakingChange::ConstraintRelaxed { vertex_id, .. } => !is_meaningful_vertex(vertex_id),
+        NonBreakingChange::ConstraintRemoved { vertex_id, .. } => !is_meaningful_vertex(vertex_id),
         _ => false,
     }
 }
