@@ -214,68 +214,26 @@ pub async fn git_receive_pack(
 
     drop(store_guard);
 
-    // 5. Import into panproto-vcs asynchronously using incremental
-    //    import. The marks file tracks which git OIDs have already been
-    //    translated, so repeated pushes only import new commits.
+    // 5. Schema import is NOT done server-side. The correct flow is:
+    //
+    //    a) User installs git-remote-cospan (from panproto)
+    //    b) User pushes via: git push panproto://did/repo main
+    //    c) git-remote-cospan parses files LOCALLY via panproto
+    //    d) Pre-parsed Schema + Commit objects are sent via XRPC
+    //    e) Node stores them directly (zero parsing)
+    //
+    //    Raw git push (this handler) only updates the git mirror.
+    //    Schema data becomes available when pushed via git-remote-cospan
+    //    or when the on-demand parser in getProjectSchema runs.
+    //
+    //    See: https://github.com/panproto/panproto/issues/28
     if !import_tasks.is_empty() {
-        let store_clone = state.store.clone();
-        let did_clone = did.clone();
-        let repo_clone = repo.clone();
-        tokio::task::spawn_blocking(move || {
-            // Open the stores under the lock, load marks, then DROP the
-            // lock before the expensive import.
-            let (mirror, mut vcs_store, known) = {
-                let store_guard = store_clone.blocking_lock();
-                let mirror = match store_guard.open_or_init_git_mirror(&did_clone, &repo_clone) {
-                    Ok(m) => m,
-                    Err(e) => {
-                        tracing::error!(error = %e, "background import: open mirror failed");
-                        return;
-                    }
-                };
-                let vcs_store = match store_guard.open_or_init(&did_clone, &repo_clone) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        tracing::error!(error = %e, "background import: open vcs store failed");
-                        return;
-                    }
-                };
-                let known = store_guard.load_import_marks(&did_clone, &repo_clone);
-                (mirror, vcs_store, known)
-                // store_guard dropped here: lock released
-            };
-            for (new_oid, refname) in &import_tasks {
-                match panproto_git::import_git_repo_incremental(
-                    &mirror,
-                    &mut vcs_store,
-                    new_oid,
-                    &known,
-                ) {
-                    Ok(result) => {
-                        let _ = panproto_vcs::Store::set_ref(&mut vcs_store, refname, result.head_id);
-                        // Persist the new OID mappings for future incremental imports.
-                        let store_guard = store_clone.blocking_lock();
-                        store_guard.save_import_marks(
-                            &did_clone,
-                            &repo_clone,
-                            &result.oid_map,
-                        );
-                        drop(store_guard);
-                        tracing::info!(
-                            did = %did_clone, repo = %repo_clone, %refname,
-                            commits = result.commit_count,
-                            "background: incrementally imported git commits into panproto-vcs"
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            did = %did_clone, repo = %repo_clone, %refname, error = %e,
-                            "background: panproto-vcs import failed"
-                        );
-                    }
-                }
-            }
-        });
+        tracing::info!(
+            %did, %repo,
+            refs = import_tasks.len(),
+            "git push received; git mirror updated. For schema analysis, \
+             push via git-remote-cospan (panproto:// URL) to send pre-parsed schemas."
+        );
     }
 
     let full_response = format!("{}{}0000", pkt_line("unpack ok\n"), response);

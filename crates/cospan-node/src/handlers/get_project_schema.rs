@@ -80,8 +80,8 @@ pub async fn get_project_schema(
 
     let registry = panproto_parse::ParserRegistry::new();
 
-    // Collect all file paths from the tree.
-    let mut file_paths: Vec<String> = Vec::new();
+    // Collect all file paths and blob OIDs from the tree.
+    let mut file_entries: Vec<(String, git2::Oid)> = Vec::new();
     tree.walk(git2::TreeWalkMode::PreOrder, |dir, entry| {
         if entry.kind() == Some(git2::ObjectType::Blob) {
             let name = entry.name().unwrap_or("");
@@ -90,17 +90,17 @@ pub async fn get_project_schema(
             } else {
                 format!("{dir}{name}")
             };
-            file_paths.push(path);
+            file_entries.push((path, entry.id()));
         }
         git2::TreeWalkResult::Ok
     })
     .map_err(|e| NodeError::Internal(format!("tree walk: {e}")))?;
 
-    let file_count = file_paths.len();
+    let file_count = file_entries.len();
 
     // Language detection from file extensions (instant, no parsing).
     let mut lang_file_counts: HashMap<String, usize> = HashMap::new();
-    for path in &file_paths {
+    for (path, _) in &file_entries {
         let p = std::path::Path::new(path);
         if let Some(lang) = registry.detect_language(p) {
             *lang_file_counts.entry(lang.to_string()).or_default() += 1;
@@ -230,10 +230,68 @@ pub async fn get_project_schema(
         })));
     }
 
-    // Fallback: no vcs store data. Return language stats from extensions only.
+    // Fallback: no vcs store data. Parse a subset of files on demand
+    // to give users immediate schema data while the full import runs
+    // in the background (or they switch to git-remote-cospan).
+    // Cap at 50 files to keep latency under ~3 seconds.
+    let on_demand_limit = 50;
+    let mut total_vc = 0usize;
+    let mut total_ec = 0usize;
+    let mut parsed_count = 0usize;
+    let mut lang_vertex_counts: HashMap<String, usize> = HashMap::new();
+    let mut file_schemas: Vec<Value> = Vec::new();
+
+    for (path, blob_oid) in file_entries.iter().take(on_demand_limit) {
+        let blob = match mirror.find_blob(*blob_oid) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        if let Some((schema, language)) = super::structural::parse_any(&registry, path, blob.content()) {
+            let vc = schema.vertices.len();
+            let ec = schema.edges.len();
+            total_vc += vc;
+            total_ec += ec;
+            parsed_count += 1;
+
+            *lang_vertex_counts.entry(language.clone()).or_default() += vc;
+
+            let mut top_names: Vec<String> = Vec::new();
+            let mut seen = std::collections::HashSet::new();
+            for vid in schema.vertices.keys() {
+                let vid_str: &str = vid;
+                let human = humanize_vertex(vid_str);
+                if human != vid_str && !human.contains(" in ") {
+                    if let Some(start) = human.find('`') {
+                        if let Some(end) = human[start + 1..].find('`') {
+                            let name = &human[start + 1..start + 1 + end];
+                            if !name.is_empty() && !name.starts_with('$') && seen.insert(name.to_string()) {
+                                top_names.push(name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            top_names.truncate(8);
+
+            file_schemas.push(json!({
+                "path": path,
+                "language": language,
+                "vertexCount": vc,
+                "edgeCount": ec,
+                "topNames": top_names,
+            }));
+        }
+    }
+
+    file_schemas.sort_by(|a, b| b["vertexCount"].as_u64().cmp(&a["vertexCount"].as_u64()));
+
     let mut languages: Vec<Value> = lang_file_counts
         .iter()
-        .map(|(name, fc)| json!({ "name": name, "fileCount": fc, "vertexCount": 0 }))
+        .map(|(name, fc)| json!({
+            "name": name,
+            "fileCount": fc,
+            "vertexCount": lang_vertex_counts.get(name.as_str()).copied().unwrap_or(0),
+        }))
         .collect();
     languages.sort_by(|a, b| b["fileCount"].as_u64().cmp(&a["fileCount"].as_u64()));
 
@@ -246,11 +304,11 @@ pub async fn get_project_schema(
     Ok(Json(json!({
         "commit": commit_oid.to_string(),
         "protocol": protocol,
-        "totalVertexCount": 0,
-        "totalEdgeCount": 0,
+        "totalVertexCount": total_vc,
+        "totalEdgeCount": total_ec,
         "fileCount": file_count,
-        "parsedFileCount": 0,
+        "parsedFileCount": parsed_count,
         "languages": languages,
-        "fileSchemas": [],
+        "fileSchemas": file_schemas,
     })))
 }
