@@ -345,20 +345,25 @@
 					<!-- Structural diff (the schema-level view) -->
 					{#if sd}
 						<div class="border-t border-border bg-surface-0 p-4">
-							<!-- Verdict banner -->
+							<!-- Verdict banner: only show when there are classified changes -->
+							{#if sd.breakingCount > 0 || sd.nonBreakingCount > 0}
 							<div class="mb-4 flex items-center gap-3 rounded-md px-3 py-2 {sd.compatible ? 'bg-emerald-500/10' : 'bg-red-500/10'}">
 								<span class="text-lg">{sd.compatible ? '✓' : '⚠'}</span>
 								<div>
-									<span class="text-sm font-semibold {sd.compatible ? 'text-emerald-400' : 'text-red-400'}">
-										{sd.compatible ? 'Compatible change' : 'BREAKING CHANGE'}
-									</span>
-									<span class="ml-2 text-xs text-text-muted">
-										{sd.breakingCount} breaking · {sd.nonBreakingCount} compatible ·
-										{sd.oldVertexCount} → {sd.newVertexCount} vertices ·
-										{sd.oldEdgeCount} → {sd.newEdgeCount} edges
-									</span>
+									{#if !sd.compatible}
+										<span class="text-sm font-semibold text-red-400">Breaking changes detected</span>
+										<span class="ml-2 text-xs text-text-muted">
+											{sd.breakingCount} breaking{#if sd.nonBreakingCount > 0} · {sd.nonBreakingCount} safe{/if}
+										</span>
+									{:else}
+										<span class="text-sm font-semibold text-emerald-400">No breaking changes</span>
+										<span class="ml-2 text-xs text-text-muted">
+											{sd.nonBreakingCount} safe {sd.nonBreakingCount === 1 ? 'change' : 'changes'}
+										</span>
+									{/if}
 								</div>
 							</div>
+							{/if}
 
 							<!-- Breaking changes - open by default, each clickable to show code -->
 							{#if sd.breakingChanges.length > 0}
