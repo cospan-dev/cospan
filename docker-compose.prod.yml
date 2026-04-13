@@ -99,6 +99,7 @@ services:
     image: ghcr.io/bluesky-social/indigo/tap:latest
     container_name: cospan-tap
     restart: unless-stopped
+    profiles: ["backfill"]
     cpus: 0.25
     environment:
       TAP_DATABASE_URL: postgres://cospan:${POSTGRES_PASSWORD}@db:5432/tap
@@ -128,6 +129,7 @@ services:
     image: ghcr.io/bluesky-social/indigo/tap:latest
     container_name: cospan-tap-knots
     restart: unless-stopped
+    profiles: ["backfill"]
     cpus: 0.25
     environment:
       TAP_DATABASE_URL: postgres://cospan:${POSTGRES_PASSWORD}@db:5432/tap_knots
