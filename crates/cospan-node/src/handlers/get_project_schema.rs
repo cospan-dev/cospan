@@ -8,11 +8,16 @@
 //! stored schema's vertex IDs (which encode the file path prefix).
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, Mutex};
 
 use axum::Json;
 use axum::extract::{Query, State};
 use panproto_core::vcs::{Object, Store};
+
+/// Cache for on-demand project schema results. Keyed by (did, repo, commit_oid).
+/// Avoids reparsing 490 files on every page load.
+static SCHEMA_CACHE: LazyLock<Mutex<HashMap<String, serde_json::Value>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -69,6 +74,14 @@ pub async fn get_project_schema(
             Object::Schema(s) => Some(*s),
             _ => None,
         });
+
+    // Check cache first (avoids reparsing 490 files on every page load).
+    let cache_key = format!("{}:{}:{}", params.did, params.repo, commit_oid);
+    if let Ok(cache) = SCHEMA_CACHE.lock() {
+        if let Some(cached) = cache.get(&cache_key) {
+            return Ok(Json(cached.clone()));
+        }
+    }
 
     // Walk the git tree for file listing and language detection.
     let commit = mirror
@@ -218,7 +231,7 @@ pub async fn get_project_schema(
 
         let parsed_count = file_vertex_counts.len();
 
-        return Ok(Json(json!({
+        let result = json!({
             "commit": commit_oid.to_string(),
             "protocol": protocol,
             "totalVertexCount": total_vc,
@@ -227,7 +240,11 @@ pub async fn get_project_schema(
             "parsedFileCount": parsed_count,
             "languages": languages,
             "fileSchemas": file_schemas,
-        })));
+        });
+        if let Ok(mut cache) = SCHEMA_CACHE.lock() {
+            cache.insert(cache_key, result.clone());
+        }
+        return Ok(Json(result));
     }
 
     // Fallback: no vcs store data. Parse all files on demand.
@@ -320,7 +337,7 @@ pub async fn get_project_schema(
         .map(|(name, _)| name.clone())
         .unwrap_or_default();
 
-    Ok(Json(json!({
+    let result = json!({
         "commit": commit_oid.to_string(),
         "protocol": protocol,
         "totalVertexCount": total_vc,
@@ -329,5 +346,9 @@ pub async fn get_project_schema(
         "parsedFileCount": parsed_count,
         "languages": languages,
         "fileSchemas": file_schemas,
-    })))
+    });
+    if let Ok(mut cache) = SCHEMA_CACHE.lock() {
+        cache.insert(cache_key, result.clone());
+    }
+    Ok(Json(result))
 }
