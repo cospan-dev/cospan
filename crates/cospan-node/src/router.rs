@@ -63,6 +63,23 @@ pub fn build(state: Arc<NodeState>) -> Router {
         .route(
             "/xrpc/dev.panproto.node.getBlob",
             get(handlers::get_blob),
+        )
+        // Aliases in the dev.panproto.node.* namespace so that
+        // panproto-xrpc's NodeClient and git-remote-cospan can talk
+        // to this node. The cospan-specific endpoints above are kept
+        // for backward compatibility.
+        .route("/xrpc/dev.panproto.node.getObject", get(handlers::get_object))
+        .route("/xrpc/dev.panproto.node.putObject", post(handlers::put_object))
+        .route("/xrpc/dev.panproto.node.getRef", get(handlers::get_ref))
+        .route("/xrpc/dev.panproto.node.setRef", post(handlers::set_ref))
+        .route("/xrpc/dev.panproto.node.listRefs", get(handlers::list_refs))
+        .route("/xrpc/dev.panproto.node.listCommits", get(handlers::list_commits))
+        .route("/xrpc/dev.panproto.node.diffCommits", get(handlers::diff_commits))
+        .route("/xrpc/dev.panproto.node.getHead", get(handlers::get_head))
+        .route("/xrpc/dev.panproto.node.negotiate", post(handlers::negotiate))
+        .route(
+            "/xrpc/dev.panproto.node.getRepoInfo",
+            get(handlers::get_repo_info),
         );
 
     let git = git_compat::git_routes();
