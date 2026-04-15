@@ -484,7 +484,7 @@ async fn list_commits_returns_history_with_parents() {
     .await;
 
     let url = format!(
-        "{}/xrpc/dev.cospan.node.listCommits?did=did:plc:owner&repo=graph-test&limit=50",
+        "{}/xrpc/dev.panproto.node.listCommits?did=did:plc:owner&repo=graph-test&limit=50",
         node.url
     );
     let client = Client::new();
@@ -515,7 +515,7 @@ async fn list_commits_returns_history_with_parents() {
 async fn list_commits_returns_404_for_unknown_repo() {
     let node = TestNode::spawn().await;
     let url = format!(
-        "{}/xrpc/dev.cospan.node.listCommits?did=did:plc:nobody&repo=nothing",
+        "{}/xrpc/dev.panproto.node.listCommits?did=did:plc:nobody&repo=nothing",
         node.url
     );
     let client = Client::new();
@@ -545,7 +545,7 @@ async fn diff_commits_shows_added_modified_removed_files() {
     .await;
 
     let url = format!(
-        "{}/xrpc/dev.cospan.node.diffCommits?did=did:plc:owner&repo=diff-test&from={}&to={}",
+        "{}/xrpc/dev.panproto.node.diffCommits?did=did:plc:owner&repo=diff-test&from={}&to={}",
         node.url, oids[0], oids[1]
     );
     let client = Client::new();
@@ -605,7 +605,7 @@ async fn diff_commits_returns_hunks_with_line_content() {
     .await;
 
     let url = format!(
-        "{}/xrpc/dev.cospan.node.diffCommits?did=did:plc:owner&repo=hunk-test&from={}&to={}",
+        "{}/xrpc/dev.panproto.node.diffCommits?did=did:plc:owner&repo=hunk-test&from={}&to={}",
         node.url, oids[0], oids[1]
     );
     let client = Client::new();
@@ -647,7 +647,7 @@ async fn diff_commits_reports_no_changes_for_same_commit() {
     .await;
 
     let url = format!(
-        "{}/xrpc/dev.cospan.node.diffCommits?did=did:plc:owner&repo=same-test&from={}&to={}",
+        "{}/xrpc/dev.panproto.node.diffCommits?did=did:plc:owner&repo=same-test&from={}&to={}",
         node.url, oids[0], oids[0]
     );
     let client = Client::new();

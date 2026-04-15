@@ -9,29 +9,25 @@ use crate::handlers;
 use crate::state::NodeState;
 
 pub fn build(state: Arc<NodeState>) -> Router {
+    // All VCS endpoints live under dev.panproto.node.* (owned by panproto).
+    // The cospan namespace is reserved for cospan-specific features (social:
+    // stars, follows, issues, MRs) which are served by the appview, not the node.
     let xrpc = Router::new()
-        .route("/xrpc/dev.cospan.node.getObject", get(handlers::get_object))
+        // Core VCS operations (used by git-remote-cospan and panproto-xrpc)
+        .route("/xrpc/dev.panproto.node.getObject", get(handlers::get_object))
+        .route("/xrpc/dev.panproto.node.putObject", post(handlers::put_object))
+        .route("/xrpc/dev.panproto.node.getRef", get(handlers::get_ref))
+        .route("/xrpc/dev.panproto.node.setRef", post(handlers::set_ref))
+        .route("/xrpc/dev.panproto.node.listRefs", get(handlers::list_refs))
+        .route("/xrpc/dev.panproto.node.listCommits", get(handlers::list_commits))
+        .route("/xrpc/dev.panproto.node.diffCommits", get(handlers::diff_commits))
+        .route("/xrpc/dev.panproto.node.getHead", get(handlers::get_head))
+        .route("/xrpc/dev.panproto.node.negotiate", post(handlers::negotiate))
         .route(
-            "/xrpc/dev.cospan.node.putObject",
-            post(handlers::put_object),
-        )
-        .route("/xrpc/dev.cospan.node.getRef", get(handlers::get_ref))
-        .route("/xrpc/dev.cospan.node.setRef", post(handlers::set_ref))
-        .route("/xrpc/dev.cospan.node.listRefs", get(handlers::list_refs))
-        .route(
-            "/xrpc/dev.cospan.node.listCommits",
-            get(handlers::list_commits),
-        )
-        .route(
-            "/xrpc/dev.cospan.node.diffCommits",
-            get(handlers::diff_commits),
-        )
-        .route("/xrpc/dev.cospan.node.getHead", get(handlers::get_head))
-        .route("/xrpc/dev.cospan.node.negotiate", post(handlers::negotiate))
-        .route(
-            "/xrpc/dev.cospan.node.getRepoInfo",
+            "/xrpc/dev.panproto.node.getRepoInfo",
             get(handlers::get_repo_info),
         )
+        // Schema-intelligence endpoints
         .route(
             "/xrpc/dev.panproto.node.getProjectSchema",
             get(handlers::get_project_schema),
@@ -63,23 +59,6 @@ pub fn build(state: Arc<NodeState>) -> Router {
         .route(
             "/xrpc/dev.panproto.node.getBlob",
             get(handlers::get_blob),
-        )
-        // Aliases in the dev.panproto.node.* namespace so that
-        // panproto-xrpc's NodeClient and git-remote-cospan can talk
-        // to this node. The cospan-specific endpoints above are kept
-        // for backward compatibility.
-        .route("/xrpc/dev.panproto.node.getObject", get(handlers::get_object))
-        .route("/xrpc/dev.panproto.node.putObject", post(handlers::put_object))
-        .route("/xrpc/dev.panproto.node.getRef", get(handlers::get_ref))
-        .route("/xrpc/dev.panproto.node.setRef", post(handlers::set_ref))
-        .route("/xrpc/dev.panproto.node.listRefs", get(handlers::list_refs))
-        .route("/xrpc/dev.panproto.node.listCommits", get(handlers::list_commits))
-        .route("/xrpc/dev.panproto.node.diffCommits", get(handlers::diff_commits))
-        .route("/xrpc/dev.panproto.node.getHead", get(handlers::get_head))
-        .route("/xrpc/dev.panproto.node.negotiate", post(handlers::negotiate))
-        .route(
-            "/xrpc/dev.panproto.node.getRepoInfo",
-            get(handlers::get_repo_info),
         );
 
     let git = git_compat::git_routes();

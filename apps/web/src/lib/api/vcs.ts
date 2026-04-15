@@ -87,7 +87,7 @@ export function listCommits(params: {
 	};
 	if (params.ref) query.ref = params.ref;
 	if (params.limit) query.limit = params.limit;
-	return xrpcQuery<ListCommitsResponse>('dev.cospan.node.proxy.listCommits', query);
+	return xrpcQuery<ListCommitsResponse>('dev.panproto.node.proxy.listCommits', query);
 }
 
 export function diffCommits(params: {
@@ -104,7 +104,7 @@ export function diffCommits(params: {
 		to: params.to,
 	};
 	if (params.contextLines !== undefined) query.contextLines = params.contextLines;
-	return xrpcQuery<DiffCommitsResponse>('dev.cospan.node.proxy.diffCommits', query);
+	return xrpcQuery<DiffCommitsResponse>('dev.panproto.node.proxy.diffCommits', query);
 }
 
 // ─── Commit-graph lane assignment ──────────────────────────────────

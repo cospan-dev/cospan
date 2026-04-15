@@ -127,7 +127,7 @@ async fn put_get_object_round_trip() {
     // PUT the object
     let put_resp = client
         .post(format!(
-            "{base}/xrpc/dev.cospan.node.putObject?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.putObject?did=did:plc:testuser&repo=test-repo"
         ))
         .header(auth_header().0, auth_header().1)
         .header("Content-Type", "application/vnd.panproto.object+msgpack")
@@ -144,7 +144,7 @@ async fn put_get_object_round_trip() {
     // GET the object back
     let get_resp = client
         .get(format!(
-            "{base}/xrpc/dev.cospan.node.getObject?did=did:plc:testuser&repo=test-repo&id={object_id}"
+            "{base}/xrpc/dev.panproto.node.getObject?did=did:plc:testuser&repo=test-repo&id={object_id}"
         ))
         .send()
         .await
@@ -183,7 +183,7 @@ async fn get_object_not_found() {
 
     client
         .post(format!(
-            "{base}/xrpc/dev.cospan.node.putObject?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.putObject?did=did:plc:testuser&repo=test-repo"
         ))
         .header(auth_header().0, auth_header().1)
         .body(body)
@@ -194,7 +194,7 @@ async fn get_object_not_found() {
     let fake_id = "0000000000000000000000000000000000000000000000000000000000000000";
     let resp = client
         .get(format!(
-            "{base}/xrpc/dev.cospan.node.getObject?did=did:plc:testuser&repo=test-repo&id={fake_id}"
+            "{base}/xrpc/dev.panproto.node.getObject?did=did:plc:testuser&repo=test-repo&id={fake_id}"
         ))
         .send()
         .await
@@ -214,7 +214,7 @@ async fn set_ref_get_ref_round_trip() {
 
     let put_resp = client
         .post(format!(
-            "{base}/xrpc/dev.cospan.node.putObject?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.putObject?did=did:plc:testuser&repo=test-repo"
         ))
         .header(auth_header().0, auth_header().1)
         .body(body)
@@ -234,7 +234,7 @@ async fn set_ref_get_ref_round_trip() {
     });
 
     let set_resp = client
-        .post(format!("{base}/xrpc/dev.cospan.node.setRef"))
+        .post(format!("{base}/xrpc/dev.panproto.node.setRef"))
         .header(auth_header().0, auth_header().1)
         .json(&set_body)
         .send()
@@ -249,7 +249,7 @@ async fn set_ref_get_ref_round_trip() {
     // GET the ref
     let get_resp = client
         .get(format!(
-            "{base}/xrpc/dev.cospan.node.getRef?did=did:plc:testuser&repo=test-repo&ref=refs/heads/main"
+            "{base}/xrpc/dev.panproto.node.getRef?did=did:plc:testuser&repo=test-repo&ref=refs/heads/main"
         ))
         .send()
         .await
@@ -273,7 +273,7 @@ async fn list_refs_returns_set_ref() {
 
     let put_resp = client
         .post(format!(
-            "{base}/xrpc/dev.cospan.node.putObject?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.putObject?did=did:plc:testuser&repo=test-repo"
         ))
         .header(auth_header().0, auth_header().1)
         .body(body)
@@ -293,7 +293,7 @@ async fn list_refs_returns_set_ref() {
     });
 
     let set_resp = client
-        .post(format!("{base}/xrpc/dev.cospan.node.setRef"))
+        .post(format!("{base}/xrpc/dev.panproto.node.setRef"))
         .header(auth_header().0, auth_header().1)
         .json(&set_body)
         .send()
@@ -309,7 +309,7 @@ async fn list_refs_returns_set_ref() {
     // List refs
     let list_resp = client
         .get(format!(
-            "{base}/xrpc/dev.cospan.node.listRefs?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.listRefs?did=did:plc:testuser&repo=test-repo"
         ))
         .send()
         .await
@@ -317,7 +317,7 @@ async fn list_refs_returns_set_ref() {
     // Verify the ref exists by getting it directly
     let get_ref_resp = client
         .get(format!(
-            "{base}/xrpc/dev.cospan.node.getRef?did=did:plc:testuser&repo=test-repo&ref=refs/heads/feature"
+            "{base}/xrpc/dev.panproto.node.getRef?did=did:plc:testuser&repo=test-repo&ref=refs/heads/feature"
         ))
         .send()
         .await
@@ -332,7 +332,7 @@ async fn list_refs_returns_set_ref() {
     // filesystem layout issues; verify via listRefs endpoint
     let list_resp = client
         .get(format!(
-            "{base}/xrpc/dev.cospan.node.listRefs?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.listRefs?did=did:plc:testuser&repo=test-repo"
         ))
         .send()
         .await
@@ -363,7 +363,7 @@ async fn get_head_returns_head_state() {
 
     client
         .post(format!(
-            "{base}/xrpc/dev.cospan.node.putObject?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.putObject?did=did:plc:testuser&repo=test-repo"
         ))
         .header(auth_header().0, auth_header().1)
         .body(body)
@@ -373,7 +373,7 @@ async fn get_head_returns_head_state() {
 
     let resp = client
         .get(format!(
-            "{base}/xrpc/dev.cospan.node.getHead?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.getHead?did=did:plc:testuser&repo=test-repo"
         ))
         .send()
         .await
@@ -397,7 +397,7 @@ async fn negotiate_returns_need_set() {
 
     let put_resp = client
         .post(format!(
-            "{base}/xrpc/dev.cospan.node.putObject?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.putObject?did=did:plc:testuser&repo=test-repo"
         ))
         .header(auth_header().0, auth_header().1)
         .body(body)
@@ -417,7 +417,7 @@ async fn negotiate_returns_need_set() {
     });
 
     client
-        .post(format!("{base}/xrpc/dev.cospan.node.setRef"))
+        .post(format!("{base}/xrpc/dev.panproto.node.setRef"))
         .header(auth_header().0, auth_header().1)
         .json(&set_body)
         .send()
@@ -433,7 +433,7 @@ async fn negotiate_returns_need_set() {
     });
 
     let resp = client
-        .post(format!("{base}/xrpc/dev.cospan.node.negotiate"))
+        .post(format!("{base}/xrpc/dev.panproto.node.negotiate"))
         .header(auth_header().0, auth_header().1)
         .json(&negotiate_body)
         .send()
@@ -466,7 +466,7 @@ async fn get_repo_info_returns_metadata() {
 
     client
         .post(format!(
-            "{base}/xrpc/dev.cospan.node.putObject?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.putObject?did=did:plc:testuser&repo=test-repo"
         ))
         .header(auth_header().0, auth_header().1)
         .body(body)
@@ -476,7 +476,7 @@ async fn get_repo_info_returns_metadata() {
 
     let resp = client
         .get(format!(
-            "{base}/xrpc/dev.cospan.node.getRepoInfo?did=did:plc:testuser&repo=test-repo"
+            "{base}/xrpc/dev.panproto.node.getRepoInfo?did=did:plc:testuser&repo=test-repo"
         ))
         .send()
         .await
@@ -496,7 +496,7 @@ async fn get_repo_info_not_found() {
 
     let resp = client
         .get(format!(
-            "{base}/xrpc/dev.cospan.node.getRepoInfo?did=did:plc:nobody&repo=nonexistent"
+            "{base}/xrpc/dev.panproto.node.getRepoInfo?did=did:plc:nobody&repo=nonexistent"
         ))
         .send()
         .await

@@ -74,7 +74,7 @@ export function listRefs(
 	did: string,
 	repo: string
 ): Promise<NodeRefListResponse> {
-	return nodeXrpcQuery<NodeRefListResponse>(nodeUrl, 'dev.cospan.node.listRefs', {
+	return nodeXrpcQuery<NodeRefListResponse>(nodeUrl, 'dev.panproto.node.listRefs', {
 		did,
 		repo
 	});
@@ -86,7 +86,7 @@ export function getObject(
 	repo: string,
 	id: string
 ): Promise<NodeObject> {
-	return nodeXrpcQuery<NodeObject>(nodeUrl, 'dev.cospan.node.getObject', {
+	return nodeXrpcQuery<NodeObject>(nodeUrl, 'dev.panproto.node.getObject', {
 		did,
 		repo,
 		id
@@ -98,7 +98,7 @@ export function getHead(
 	did: string,
 	repo: string
 ): Promise<NodeHead> {
-	return nodeXrpcQuery<NodeHead>(nodeUrl, 'dev.cospan.node.getHead', {
+	return nodeXrpcQuery<NodeHead>(nodeUrl, 'dev.panproto.node.getHead', {
 		did,
 		repo
 	});
@@ -109,7 +109,7 @@ export function getRepoInfo(
 	did: string,
 	repo: string
 ): Promise<NodeRepoInfo> {
-	return nodeXrpcQuery<NodeRepoInfo>(nodeUrl, 'dev.cospan.node.getRepoInfo', {
+	return nodeXrpcQuery<NodeRepoInfo>(nodeUrl, 'dev.panproto.node.getRepoInfo', {
 		did,
 		repo
 	});

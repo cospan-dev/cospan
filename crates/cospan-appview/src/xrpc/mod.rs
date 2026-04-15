@@ -141,23 +141,23 @@ pub fn router(state: Arc<AppState>) -> Router {
         )
         // Node proxy (fetches from cospan nodes via panproto-xrpc)
         .route(
-            "/xrpc/dev.cospan.node.proxy.listRefs",
+            "/xrpc/dev.panproto.node.proxy.listRefs",
             get(node_proxy::proxy_list_refs),
         )
         .route(
-            "/xrpc/dev.cospan.node.proxy.getHead",
+            "/xrpc/dev.panproto.node.proxy.getHead",
             get(node_proxy::proxy_get_head),
         )
         .route(
-            "/xrpc/dev.cospan.node.proxy.getObject",
+            "/xrpc/dev.panproto.node.proxy.getObject",
             get(node_proxy::proxy_get_object),
         )
         .route(
-            "/xrpc/dev.cospan.node.proxy.listCommits",
+            "/xrpc/dev.panproto.node.proxy.listCommits",
             get(node_proxy::proxy_list_commits),
         )
         .route(
-            "/xrpc/dev.cospan.node.proxy.diffCommits",
+            "/xrpc/dev.panproto.node.proxy.diffCommits",
             get(node_proxy::proxy_diff_commits),
         )
         .route(

@@ -45,7 +45,7 @@ pub struct DiffCommitsParams {
     pub context_lines: Option<i64>,
 }
 
-/// GET /xrpc/dev.cospan.node.proxy.listRefs
+/// GET /xrpc/dev.panproto.node.proxy.listRefs
 /// Proxies to the node hosting this repo.
 pub async fn proxy_list_refs(
     State(state): State<Arc<AppState>>,
@@ -55,7 +55,7 @@ pub async fn proxy_list_refs(
         &state,
         &params.did,
         &params.repo,
-        "dev.cospan.node.listRefs",
+        "dev.panproto.node.listRefs",
         &[],
     )
     .await
@@ -63,7 +63,7 @@ pub async fn proxy_list_refs(
     Ok(Json(result))
 }
 
-/// GET /xrpc/dev.cospan.node.proxy.getHead
+/// GET /xrpc/dev.panproto.node.proxy.getHead
 pub async fn proxy_get_head(
     State(state): State<Arc<AppState>>,
     Query(params): Query<RepoParams>,
@@ -84,7 +84,7 @@ pub async fn proxy_get_head(
     Ok(Json(serde_json::json!({ "head": head_json })))
 }
 
-/// GET /xrpc/dev.cospan.node.proxy.listCommits
+/// GET /xrpc/dev.panproto.node.proxy.listCommits
 pub async fn proxy_list_commits(
     State(state): State<Arc<AppState>>,
     Query(params): Query<ListCommitsParams>,
@@ -101,7 +101,7 @@ pub async fn proxy_list_commits(
         &state,
         &params.did,
         &params.repo,
-        "dev.cospan.node.listCommits",
+        "dev.panproto.node.listCommits",
         &extra,
     )
     .await
@@ -110,7 +110,7 @@ pub async fn proxy_list_commits(
     Ok(Json(result))
 }
 
-/// GET /xrpc/dev.cospan.node.proxy.diffCommits
+/// GET /xrpc/dev.panproto.node.proxy.diffCommits
 pub async fn proxy_diff_commits(
     State(state): State<Arc<AppState>>,
     Query(params): Query<DiffCommitsParams>,
@@ -127,7 +127,7 @@ pub async fn proxy_diff_commits(
         &state,
         &params.did,
         &params.repo,
-        "dev.cospan.node.diffCommits",
+        "dev.panproto.node.diffCommits",
         &extra,
     )
     .await
@@ -308,7 +308,7 @@ pub struct ListTreeParams {
     pub path: Option<String>,
 }
 
-/// GET /xrpc/dev.cospan.node.proxy.listTree
+/// GET /xrpc/dev.panproto.node.proxy.listTree
 pub async fn proxy_list_tree(
     State(state): State<Arc<AppState>>,
     Query(params): Query<ListTreeParams>,
@@ -342,7 +342,7 @@ pub struct GetBlobParams {
     pub path: String,
 }
 
-/// GET /xrpc/dev.cospan.node.proxy.getBlob
+/// GET /xrpc/dev.panproto.node.proxy.getBlob
 pub async fn proxy_get_blob(
     State(state): State<Arc<AppState>>,
     Query(params): Query<GetBlobParams>,
@@ -380,7 +380,7 @@ pub async fn proxy_get_import_status(
     Ok(Json(result))
 }
 
-/// GET /xrpc/dev.cospan.node.proxy.getObject
+/// GET /xrpc/dev.panproto.node.proxy.getObject
 pub async fn proxy_get_object(
     State(state): State<Arc<AppState>>,
     Query(params): Query<ObjectParams>,
