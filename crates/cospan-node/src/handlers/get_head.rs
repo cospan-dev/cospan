@@ -18,12 +18,14 @@ pub async fn get_head(
     Query(params): Query<GetHeadParams>,
 ) -> Result<Json<serde_json::Value>, NodeError> {
     let store = state.store.lock().await;
+
+    // Return an empty-repo default (Branch("main")) when the vcs store
+    // doesn't exist yet. git-remote-cospan calls getHead before the first
+    // push to determine the default branch; returning 404 would prevent
+    // any initial push from ever succeeding.
     let head = store
         .get_head(&params.did, &params.repo)
-        .map_err(|_| NodeError::RepoNotFound {
-            did: params.did.clone(),
-            name: params.repo.clone(),
-        })?;
+        .unwrap_or_else(|_| panproto_core::vcs::HeadState::Branch("main".to_string()));
 
     // Flat format matches panproto-xrpc NodeClient expectations.
     let head_json = match head {
