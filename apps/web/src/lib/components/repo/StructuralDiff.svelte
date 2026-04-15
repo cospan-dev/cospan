@@ -160,6 +160,24 @@
 		<p class="text-sm text-text-secondary">No changes between these commits.</p>
 	</div>
 {:else}
+	{@const noStructural = diff.files.every(f => !f.binary && !getStructuralDiff(f))}
+	{#if noStructural}
+		<div class="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/5 p-4">
+			<div class="flex items-start gap-3">
+				<svg class="h-5 w-5 shrink-0 mt-0.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+				</svg>
+				<div class="flex-1">
+					<span class="text-sm font-medium text-blue-400">Structural diff unavailable</span>
+					<p class="mt-1 text-xs text-text-secondary">
+						These commits were pushed via plain <code class="font-mono">git push</code>, so no pre-parsed
+						schemas are available. Install <code class="font-mono">git-remote-cospan</code> and re-push to
+						see scope-level changes, breaking change detection, and semantic diffs.
+					</p>
+				</div>
+			</div>
+		</div>
+	{/if}
 	<!-- Summary bar -->
 	<div class="mb-4 flex flex-wrap items-center gap-4 rounded-lg border border-border bg-surface-1 px-4 py-3 text-sm">
 		<span class="font-medium text-text-primary">

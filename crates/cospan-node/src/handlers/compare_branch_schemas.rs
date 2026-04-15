@@ -74,6 +74,7 @@ pub async fn compare_branch_schemas(
     let mut total_removed_edges = 0usize;
     let mut breaking_changes: Vec<Value> = Vec::new();
     let mut non_breaking_changes: Vec<Value> = Vec::new();
+    let mut scope_changes: Vec<Value> = Vec::new();
     let mut changed_files: Vec<String> = Vec::new();
     let mut base_vertex_total = 0usize;
     let mut head_vertex_total = 0usize;
@@ -130,6 +131,18 @@ pub async fn compare_branch_schemas(
                     }
                 }
             }
+            // Include scope-level changes per file (tagged with path)
+            if let Some(sc) = sd_json["scopeChanges"].as_array() {
+                for c in sc {
+                    if scope_changes.len() < 100 {
+                        let mut tagged = c.clone();
+                        if let Some(obj) = tagged.as_object_mut() {
+                            obj.insert("path".to_string(), json!(path));
+                        }
+                        scope_changes.push(tagged);
+                    }
+                }
+            }
         }
     }
 
@@ -148,6 +161,7 @@ pub async fn compare_branch_schemas(
         "removedEdges": total_removed_edges,
         "breakingChanges": breaking_changes,
         "nonBreakingChanges": non_breaking_changes,
+        "scopeChanges": scope_changes,
         "changedFiles": changed_files,
         "baseVertexCount": base_vertex_total,
         "headVertexCount": head_vertex_total,

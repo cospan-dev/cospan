@@ -34,6 +34,9 @@ export interface ProjectSchemaResponse {
 	parsedFileCount: number;
 	languages: SchemaLanguage[];
 	fileSchemas: FileSchemaEntry[];
+	/** True when the repo was pushed via raw git and has no pre-parsed schemas.
+	 *  The user should install git-remote-cospan to enable structural analysis. */
+	needsGitRemoteCospan?: boolean;
 }
 
 export interface CommitSchemaStat {

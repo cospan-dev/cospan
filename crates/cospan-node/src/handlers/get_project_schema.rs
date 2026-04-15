@@ -247,86 +247,18 @@ pub async fn get_project_schema(
         return Ok(Json(result));
     }
 
-    // Fallback: no vcs store data. Parse all files on demand.
-    // Parsing happens locally via git-remote-cospan in the normal flow;
-    // this on-demand path is a bridge for repos pushed via raw git.
-    let on_demand_limit = file_entries.len();
-    let mut total_vc = 0usize;
-    let mut total_ec = 0usize;
-    let mut parsed_count = 0usize;
-    let mut lang_vertex_counts: HashMap<String, usize> = HashMap::new();
-    let mut file_schemas: Vec<Value> = Vec::new();
-
-    // Sort entries: source code first, config/data last, skip binaries/locks
-    let mut sorted_entries: Vec<&(String, git2::Oid)> = file_entries.iter().collect();
-    sorted_entries.sort_by_key(|(path, _)| {
-        let lower = path.to_ascii_lowercase();
-        if lower.ends_with(".lock") || lower.ends_with(".sum") || lower.contains("node_modules/") {
-            3 // skip
-        } else if lower.ends_with(".rs") || lower.ends_with(".ts") || lower.ends_with(".svelte")
-            || lower.ends_with(".py") || lower.ends_with(".go") || lower.ends_with(".js")
-            || lower.ends_with(".tsx") || lower.ends_with(".jsx")
-        {
-            0 // source code first
-        } else if lower.ends_with(".json") || lower.ends_with(".yaml") || lower.ends_with(".yml")
-            || lower.ends_with(".toml") || lower.ends_with(".sql")
-        {
-            1 // config/data second
-        } else {
-            2 // everything else
-        }
-    });
-
-    for (path, blob_oid) in sorted_entries.iter().take(on_demand_limit) {
-        let blob = match mirror.find_blob(*blob_oid) {
-            Ok(b) => b,
-            Err(_) => continue,
-        };
-        if let Some((schema, language)) = super::structural::parse_any(&registry, path, blob.content()) {
-            let vc = schema.vertices.len();
-            let ec = schema.edges.len();
-            total_vc += vc;
-            total_ec += ec;
-            parsed_count += 1;
-
-            *lang_vertex_counts.entry(language.clone()).or_default() += vc;
-
-            let mut top_names: Vec<String> = Vec::new();
-            let mut seen = std::collections::HashSet::new();
-            for vid in schema.vertices.keys() {
-                let vid_str: &str = vid;
-                let human = humanize_vertex(vid_str);
-                if human != vid_str && !human.contains(" in ") {
-                    if let Some(start) = human.find('`') {
-                        if let Some(end) = human[start + 1..].find('`') {
-                            let name = &human[start + 1..start + 1 + end];
-                            if !name.is_empty() && !name.starts_with('$') && seen.insert(name.to_string()) {
-                                top_names.push(name.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-            top_names.truncate(8);
-
-            file_schemas.push(json!({
-                "path": path,
-                "language": language,
-                "vertexCount": vc,
-                "edgeCount": ec,
-                "topNames": top_names,
-            }));
-        }
-    }
-
-    file_schemas.sort_by(|a, b| b["vertexCount"].as_u64().cmp(&a["vertexCount"].as_u64()));
-
+    // No vcs store data: return language stats from file extensions only.
+    // Schema data (vertex counts, named elements) requires pushing via
+    // git-remote-cospan which pre-parses files client-side and stores
+    // schemas in the panproto-vcs store.
+    //
+    // See panproto/panproto#28 (distribute git-remote-cospan binary).
     let mut languages: Vec<Value> = lang_file_counts
         .iter()
         .map(|(name, fc)| json!({
             "name": name,
             "fileCount": fc,
-            "vertexCount": lang_vertex_counts.get(name.as_str()).copied().unwrap_or(0),
+            "vertexCount": 0,
         }))
         .collect();
     languages.sort_by(|a, b| b["fileCount"].as_u64().cmp(&a["fileCount"].as_u64()));
@@ -340,12 +272,13 @@ pub async fn get_project_schema(
     let result = json!({
         "commit": commit_oid.to_string(),
         "protocol": protocol,
-        "totalVertexCount": total_vc,
-        "totalEdgeCount": total_ec,
+        "totalVertexCount": 0,
+        "totalEdgeCount": 0,
         "fileCount": file_count,
-        "parsedFileCount": parsed_count,
+        "parsedFileCount": 0,
         "languages": languages,
-        "fileSchemas": file_schemas,
+        "fileSchemas": [],
+        "needsGitRemoteCospan": true,
     });
     if let Ok(mut cache) = SCHEMA_CACHE.lock() {
         cache.insert(cache_key, result.clone());

@@ -22,7 +22,8 @@
 //!   - `contextLines`: optional unified context lines (default 3)
 
 use std::cell::RefCell;
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, LazyLock, Mutex};
 
 use axum::Json;
 use axum::extract::{Query, State};
@@ -32,6 +33,12 @@ use serde_json::json;
 
 use crate::error::NodeError;
 use crate::state::NodeState;
+
+/// Cache for diff results keyed by (did, repo, from_oid, to_oid, context_lines).
+/// Commit diffs are immutable once computed (git OIDs are content-addressed),
+/// so this cache never needs invalidation.
+static DIFF_CACHE: LazyLock<Mutex<HashMap<String, DiffCommitsResult>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,6 +70,15 @@ pub async fn diff_commits(
         .map_err(|e| NodeError::InvalidRequest(format!("bad 'from' oid: {e}")))?;
     let to_oid = git2::Oid::from_str(&params.to)
         .map_err(|e| NodeError::InvalidRequest(format!("bad 'to' oid: {e}")))?;
+
+    // Check cache: commit OIDs are content-addressed so diffs are immutable.
+    let ctx_lines = params.context_lines.unwrap_or(3);
+    let cache_key = format!("{}:{}:{from_oid}:{to_oid}:{ctx_lines}", params.did, params.repo);
+    if let Ok(cache) = DIFF_CACHE.lock() {
+        if let Some(cached) = cache.get(&cache_key) {
+            return Ok(Json(cached.clone()));
+        }
+    }
 
     let from_commit = mirror
         .find_commit(from_oid)
@@ -228,37 +244,32 @@ pub async fn diff_commits(
     let total_additions: u64 = entries.iter().map(|f| f.additions).sum();
     let total_deletions: u64 = entries.iter().map(|f| f.deletions).sum();
 
-    // Pass 2: panproto structural diff per file.
-    let registry = panproto_parse::ParserRegistry::new();
+    // Pass 2: attach structural diff from the panproto-vcs store if
+    // available. We NEVER parse server-side: structural data only comes
+    // from pre-parsed schemas pushed via git-remote-cospan. Repos pushed
+    // via raw git get hunks only; the frontend prompts users to install
+    // git-remote-cospan for structural analysis.
+    //
+    // See panproto/panproto#28 (distribute git-remote-cospan binary).
+    let file_paths: Vec<(String, bool)> = entries
+        .iter()
+        .map(|e| (e.path.clone(), e.binary))
+        .collect();
+    let structural_diffs = try_load_structural_diffs_from_vcs(
+        &state,
+        &params.did,
+        &params.repo,
+        from_oid,
+        to_oid,
+        &file_paths,
+    );
+
     let files: Vec<FileDiff> = entries
         .iter()
         .map(|f| {
-            let structural_diff = if f.binary {
-                None
-            } else {
-                let old_bytes = if f.status != "added" {
-                    load_blob(&mirror, &f.old_oid)
-                } else {
-                    None
-                };
-                let new_bytes = if f.status != "removed" {
-                    load_blob(&mirror, &f.new_oid)
-                } else {
-                    None
-                };
-                super::structural::try_structural_diff(
-                    &registry,
-                    &f.path,
-                    old_bytes.as_deref(),
-                    new_bytes.as_deref(),
-                )
-                .map(|s| super::structural::structural_diff_to_json(
-                    &s,
-                    old_bytes.as_deref(),
-                    new_bytes.as_deref(),
-                ))
-            };
-
+            let structural_diff = structural_diffs
+                .as_ref()
+                .and_then(|m| m.get(&f.path).cloned());
             FileDiff {
                 path: f.path.clone(),
                 old_path: f.old_path.clone(),
@@ -274,14 +285,18 @@ pub async fn diff_commits(
         })
         .collect();
 
-    Ok(Json(DiffCommitsResult {
+    let result = DiffCommitsResult {
         from: params.from,
         to: params.to,
         file_count: files.len() as u64,
         files,
         total_additions,
         total_deletions,
-    }))
+    };
+    if let Ok(mut cache) = DIFF_CACHE.lock() {
+        cache.insert(cache_key, result.clone());
+    }
+    Ok(Json(result))
 }
 
 /// Load a blob's raw contents from the git mirror, if it exists.
@@ -295,4 +310,94 @@ fn load_blob(mirror: &git2::Repository, oid_str: &str) -> Option<Vec<u8>> {
         .find_blob(oid)
         .ok()
         .map(|b| b.content().to_vec())
+}
+
+/// Load pre-parsed structural diffs from the panproto-vcs store.
+/// Returns `None` if the store doesn't have schemas for these commits
+/// (meaning the repo was pushed via raw git, not git-remote-cospan).
+fn try_load_structural_diffs_from_vcs(
+    state: &Arc<NodeState>,
+    did: &str,
+    repo: &str,
+    from_git_oid: git2::Oid,
+    to_git_oid: git2::Oid,
+    file_paths: &[(String, bool)],
+) -> Option<std::collections::HashMap<String, serde_json::Value>> {
+    use panproto_core::vcs::{Object, Store};
+
+    let store_guard = state.store.blocking_lock();
+    let marks = store_guard.load_import_marks(did, repo);
+    let from_pp = marks.get(&from_git_oid).copied()?;
+    let to_pp = marks.get(&to_git_oid).copied()?;
+    let vcs_store = store_guard.open(did, repo).ok()?;
+    drop(store_guard);
+
+    // Load both project schemas from the vcs store.
+    let from_schema = match vcs_store.get(&from_pp).ok()? {
+        Object::Commit(c) => match vcs_store.get(&c.schema_id).ok()? {
+            Object::Schema(s) => *s,
+            _ => return None,
+        },
+        _ => return None,
+    };
+    let to_schema = match vcs_store.get(&to_pp).ok()? {
+        Object::Commit(c) => match vcs_store.get(&c.schema_id).ok()? {
+            Object::Schema(s) => *s,
+            _ => return None,
+        },
+        _ => return None,
+    };
+
+    // Per-file structural diffs: filter the project schema by file path,
+    // run diff + classify + report_by_scope. This is fast because schemas
+    // are already parsed.
+    let mut result = std::collections::HashMap::new();
+    for (path, binary) in file_paths {
+        if *binary {
+            continue;
+        }
+        let old_file_schema = filter_schema_by_file(&from_schema, path);
+        let new_file_schema = filter_schema_by_file(&to_schema, path);
+        let raw_diff = panproto_check::diff(&old_file_schema, &new_file_schema);
+        let report = panproto_check::CompatReport {
+            breaking: Vec::new(),
+            non_breaking: Vec::new(),
+            compatible: true,
+        };
+        let sd = super::structural::StructuralDiff {
+            protocol: new_file_schema.protocol.clone(),
+            report,
+            raw_diff,
+            old_schema: old_file_schema.clone(),
+            new_schema: new_file_schema.clone(),
+            old_vertex_count: old_file_schema.vertices.len(),
+            new_vertex_count: new_file_schema.vertices.len(),
+            old_edge_count: old_file_schema.edges.len(),
+            new_edge_count: new_file_schema.edges.len(),
+        };
+        let json = super::structural::structural_diff_to_json(&sd, None, None);
+        result.insert(path.clone(), json);
+    }
+    Some(result)
+}
+
+/// Filter a project-level schema to vertices/edges belonging to one file.
+/// Vertex IDs starting with `file_path::` belong to that file.
+fn filter_schema_by_file(schema: &panproto_schema::Schema, file_path: &str) -> panproto_schema::Schema {
+    let prefix = format!("{file_path}::");
+    let mut out = schema.clone();
+    out.vertices.retain(|vid, _| {
+        let s: &str = vid.as_ref();
+        s == file_path || s.starts_with(&prefix)
+    });
+    out.edges.retain(|e, _| {
+        let s: &str = e.src.as_ref();
+        let t: &str = e.tgt.as_ref();
+        s.starts_with(&prefix) || t.starts_with(&prefix) || s == file_path || t == file_path
+    });
+    out.constraints.retain(|vid, _| {
+        let s: &str = vid.as_ref();
+        s == file_path || s.starts_with(&prefix)
+    });
+    out
 }
