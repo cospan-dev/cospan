@@ -19,43 +19,18 @@ pub async fn list_refs(
 ) -> Result<Json<serde_json::Value>, NodeError> {
     let store = state.store.lock().await;
 
-    // Try panproto-vcs store first (has refs from git-remote-cospan push).
-    if let Ok(refs) = store.list_refs(&params.did, &params.repo) {
-        if !refs.is_empty() {
-            let refs_json: Vec<serde_json::Value> = refs
-                .into_iter()
-                .map(|(name, id)| {
-                    serde_json::json!({ "name": name, "target": id.to_string() })
-                })
-                .collect();
-            return Ok(Json(serde_json::json!({ "refs": refs_json })));
-        }
-    }
-
-    // Fall back to git mirror refs (from raw git push).
-    if store.has_git_mirror(&params.did, &params.repo) {
-        let mirror = store
-            .open_or_init_git_mirror(&params.did, &params.repo)
-            .map_err(|e| NodeError::Internal(format!("open mirror: {e}")))?;
-        drop(store);
-
-        let mut refs_json: Vec<serde_json::Value> = Vec::new();
-        let references = mirror
-            .references()
-            .map_err(|e| NodeError::Internal(format!("list refs: {e}")))?;
-
-        for r in references.flatten() {
-            let Some(name) = r.name() else { continue };
-            let Some(oid) = r.target() else { continue };
-            refs_json.push(serde_json::json!({
-                "name": name,
-                "target": oid.to_string(),
-            }));
-        }
-
-        return Ok(Json(serde_json::json!({ "refs": refs_json })));
-    }
-
-    drop(store);
-    Ok(Json(serde_json::json!({ "refs": [] })))
+    // Return refs from the panproto-vcs store. We do NOT fall back to
+    // git mirror refs: those are git OIDs (20 bytes) while panproto-xrpc
+    // clients expect panproto ObjectIds (32 bytes). Empty response is the
+    // correct behavior for repos without vcs data.
+    let refs = store
+        .list_refs(&params.did, &params.repo)
+        .unwrap_or_default();
+    let refs_json: Vec<serde_json::Value> = refs
+        .into_iter()
+        .map(|(name, id)| {
+            serde_json::json!({ "name": name, "target": id.to_string() })
+        })
+        .collect();
+    Ok(Json(serde_json::json!({ "refs": refs_json })))
 }
