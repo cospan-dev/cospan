@@ -171,9 +171,10 @@
 					<span class="text-sm font-medium text-blue-400">Structural diff unavailable</span>
 					<p class="mt-1 text-xs text-text-secondary">
 						These commits were pushed via plain <code class="font-mono">git push</code>, so no pre-parsed
-						schemas are available. Install <code class="font-mono">git-remote-cospan</code> and re-push to
+						schemas are available. Install <code class="font-mono">git-remote-cospan</code> and re-push via <code class="font-mono">panproto://</code> to
 						see scope-level changes, breaking change detection, and semantic diffs.
 					</p>
+					<pre class="mt-2 rounded bg-surface-0 px-2 py-1 text-[11px] font-mono text-text-primary overflow-x-auto"><code>brew install panproto/tap/git-remote-cospan</code></pre>
 				</div>
 			</div>
 		</div>

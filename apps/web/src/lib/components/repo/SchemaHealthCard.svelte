@@ -48,8 +48,12 @@
 				<p class="mt-2 text-xs text-text-secondary">
 					Install the helper and re-push:
 				</p>
-				<pre class="mt-1 rounded bg-surface-0 px-2 py-1 text-[11px] font-mono text-text-primary overflow-x-auto"><code>brew install git-remote-cospan   # or: cargo install git-remote-cospan
-git push panproto://did:plc:.../repo main</code></pre>
+				<pre class="mt-1 rounded bg-surface-0 px-2 py-1 text-[11px] font-mono text-text-primary overflow-x-auto"><code>brew install panproto/tap/git-remote-cospan
+# or: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/panproto/panproto/releases/latest/download/git-remote-cospan-installer.sh | sh
+# or: cargo install git-remote-cospan
+
+git remote set-url origin panproto://did:plc:.../repo
+git push origin main</code></pre>
 			</div>
 		</div>
 	</div>
