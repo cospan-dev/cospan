@@ -122,6 +122,28 @@
 		}
 	}
 
+	// Map tree-sitter tags.scm canonical categories to visual symbols.
+	// Since panproto v0.31.0 the walker uses tags.scm queries, so kind
+	// is one of: "function", "method", "class", "module", "interface",
+	// "type", "macro", or "Other:<custom>" for grammar-specific extensions.
+	function scopeSymbol(kind: string): { symbol: string; label: string } {
+		switch (kind.toLowerCase()) {
+			case 'function': return { symbol: 'f', label: 'function' };
+			case 'method':   return { symbol: 'm', label: 'method' };
+			case 'class':    return { symbol: 'C', label: 'class' };
+			case 'interface':return { symbol: 'I', label: 'interface' };
+			case 'module':   return { symbol: 'M', label: 'module' };
+			case 'type':     return { symbol: 'T', label: 'type' };
+			case 'macro':    return { symbol: '#', label: 'macro' };
+			default: {
+				if (kind.toLowerCase().startsWith('other:')) {
+					return { symbol: '.', label: kind.slice(6) };
+				}
+				return { symbol: '.', label: kind };
+			}
+		}
+	}
+
 	function elementStatusLabel(status: string): string {
 		switch (status) {
 			case 'Added': return 'added';
@@ -269,12 +291,16 @@
 									</summary>
 									<div class="divide-y divide-border/30">
 										{#each changed as el (el.id)}
+											{@const sym = scopeSymbol(el.kind)}
 											<div class="flex items-center gap-2 px-3 py-1.5 text-sm">
 												<span class="w-20 shrink-0 text-[10px] font-mono {elementStatusColor(el.status)}">
 													{elementStatusLabel(el.status)}
 												</span>
+												<span class="w-4 text-center font-mono text-[11px] text-text-muted" title={sym.label}>
+													{sym.symbol}
+												</span>
 												<code class="font-mono text-sm text-text-primary">{el.name}</code>
-												<span class="text-[10px] text-text-muted">{el.kind}</span>
+												<span class="text-[10px] text-text-muted">{sym.label}</span>
 												{#if el.start_line}
 													<span class="ml-auto text-[10px] text-text-muted font-mono">:{el.start_line}</span>
 												{/if}
@@ -286,10 +312,14 @@
 													{unchanged.length} unchanged elements
 												</summary>
 												{#each unchanged as el (el.id)}
+													{@const sym = scopeSymbol(el.kind)}
 													<div class="flex items-center gap-2 px-3 py-1 text-sm text-text-muted">
 														<span class="w-20 shrink-0 text-[10px] font-mono"></span>
+														<span class="w-4 text-center font-mono text-[11px]" title={sym.label}>
+															{sym.symbol}
+														</span>
 														<code class="font-mono text-sm">{el.name}</code>
-														<span class="text-[10px]">{el.kind}</span>
+														<span class="text-[10px]">{sym.label}</span>
 														{#if el.start_line}
 															<span class="ml-auto text-[10px] font-mono">:{el.start_line}</span>
 														{/if}
