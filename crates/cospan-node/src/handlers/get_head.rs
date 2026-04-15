@@ -25,16 +25,15 @@ pub async fn get_head(
             name: params.repo.clone(),
         })?;
 
+    // Flat format matches panproto-xrpc NodeClient expectations.
     let head_json = match head {
         panproto_core::vcs::HeadState::Branch(name) => serde_json::json!({
-            "type": "branch",
-            "ref": name,
+            "branch": name,
         }),
         panproto_core::vcs::HeadState::Detached(id) => serde_json::json!({
-            "type": "detached",
-            "target": id.to_string(),
+            "detached": id.to_string(),
         }),
     };
 
-    Ok(Json(serde_json::json!({ "head": head_json })))
+    Ok(Json(head_json))
 }

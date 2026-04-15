@@ -25,7 +25,7 @@ pub async fn list_refs(
             let refs_json: Vec<serde_json::Value> = refs
                 .into_iter()
                 .map(|(name, id)| {
-                    serde_json::json!({ "ref": name, "target": id.to_string() })
+                    serde_json::json!({ "name": name, "target": id.to_string() })
                 })
                 .collect();
             return Ok(Json(serde_json::json!({ "refs": refs_json })));
@@ -48,7 +48,7 @@ pub async fn list_refs(
             let Some(name) = r.name() else { continue };
             let Some(oid) = r.target() else { continue };
             refs_json.push(serde_json::json!({
-                "ref": name,
+                "name": name,
                 "target": oid.to_string(),
             }));
         }
