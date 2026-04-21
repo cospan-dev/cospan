@@ -28,8 +28,10 @@ pub async fn negotiate(
     Json(input): Json<NegotiateInput>,
 ) -> Result<Json<serde_json::Value>, NodeError> {
     let store = state.store.lock().await;
+    // Auto-init on first push: an authenticated client negotiating against
+    // a not-yet-existing repo means "I'm about to push you everything".
     let fs_store = store
-        .open(&input.did, &input.repo)
+        .open_or_init(&input.did, &input.repo)
         .map_err(|e| NodeError::Internal(format!("store error: {e}")))?;
 
     // Build set of objects the client already has
