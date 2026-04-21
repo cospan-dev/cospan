@@ -88,7 +88,10 @@ impl NodeConfig {
                             .join(".cospan")
                     }),
                 validation: ValidationConfig::default(),
-                auth: AuthConfig::default(),
+                auth: AuthConfig {
+                    appview_jwks_url: std::env::var("APPVIEW_JWKS_URL").ok(),
+                    ..Default::default()
+                },
             })
         }
     }

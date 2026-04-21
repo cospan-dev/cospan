@@ -85,7 +85,7 @@ struct VerificationMethod {
 /// Extract the DID from a Bearer token with full verification.
 async fn extract_did_from_bearer(
     token: &str,
-    _state: &std::sync::Arc<NodeState>,
+    state: &std::sync::Arc<NodeState>,
 ) -> Result<String, NodeError> {
     // Dev mode: accept raw DID strings when COSPAN_DEV_AUTH is set.
     let dev_auth = std::env::var("COSPAN_DEV_AUTH").is_ok();
@@ -118,18 +118,22 @@ async fn extract_did_from_bearer(
         ));
     }
 
-    // Resolve the DID document to get the signing public key.
-    let did_doc = resolve_did_document(did)
-        .await
-        .map_err(|e| NodeError::Unauthorized(format!("failed to resolve DID {did}: {e}")))?;
+    // Push tokens from the appview have a `kid` in the header and are
+    // signed by the appview's DPoP key. Verify against the appview's
+    // JWKS endpoint instead of the user's DID document.
+    let decoding_key = if let Some(ref kid) = header.kid {
+        if let Some(key) = try_appview_jwks(state, kid, algorithm).await {
+            tracing::debug!(kid, "verified push token via appview JWKS");
+            key
+        } else {
+            // Fall back to DID document resolution.
+            resolve_key_from_did(did, algorithm).await?
+        }
+    } else {
+        resolve_key_from_did(did, algorithm).await?
+    };
 
-    // Find a verification method with a JWK public key.
-    let decoding_key = find_decoding_key(&did_doc, algorithm)
-        .ok_or_else(|| NodeError::Unauthorized(format!(
-            "no suitable verification method found in DID document for {did} (algorithm: {algorithm:?})"
-        )))?;
-
-    // Now verify the signature with the real key.
+    // Verify the signature with the real key.
     let mut verified_validation = Validation::new(algorithm);
     verified_validation.set_required_spec_claims(&["sub"]);
     verified_validation.validate_exp = true;
@@ -150,6 +154,71 @@ async fn extract_did_from_bearer(
 
     tracing::debug!(did = %verified.claims.sub, "authenticated via verified JWT");
     Ok(verified.claims.sub)
+}
+
+/// Resolve the signing key from the user's DID document.
+async fn resolve_key_from_did(did: &str, algorithm: Algorithm) -> Result<DecodingKey, NodeError> {
+    let did_doc = resolve_did_document(did)
+        .await
+        .map_err(|e| NodeError::Unauthorized(format!("failed to resolve DID {did}: {e}")))?;
+
+    find_decoding_key(&did_doc, algorithm).ok_or_else(|| {
+        NodeError::Unauthorized(format!(
+            "no suitable verification method found in DID document for {did} (algorithm: {algorithm:?})"
+        ))
+    })
+}
+
+/// Try to verify against the appview's JWKS endpoint.
+///
+/// Returns the matching `DecodingKey` if the JWKS URL is configured
+/// and a key with the given `kid` and algorithm is found.
+async fn try_appview_jwks(
+    state: &NodeState,
+    kid: &str,
+    algorithm: Algorithm,
+) -> Option<DecodingKey> {
+    let jwks_url = state
+        .config
+        .auth
+        .appview_jwks_url
+        .as_deref()
+        .or_else(|| {
+            // Default: derive from APPVIEW_URL env var.
+            None
+        })?;
+
+    let http = reqwest::Client::new();
+    let resp = http.get(jwks_url).send().await.ok()?;
+    if !resp.status().is_success() {
+        tracing::warn!(url = jwks_url, status = %resp.status(), "JWKS fetch failed");
+        return None;
+    }
+
+    let jwks: JwksDocument = resp.json().await.ok()?;
+    for key in &jwks.keys {
+        if key.kid.as_deref() == Some(kid) {
+            if let Some(decoding_key) = try_decoding_key_from_jwk(&key.raw, algorithm) {
+                return Some(decoding_key);
+            }
+        }
+    }
+
+    tracing::warn!(kid, "no matching key in appview JWKS");
+    None
+}
+
+/// JWKS document structure.
+#[derive(Debug, Deserialize)]
+struct JwksDocument {
+    keys: Vec<JwksKey>,
+}
+
+#[derive(Debug, Deserialize)]
+struct JwksKey {
+    kid: Option<String>,
+    #[serde(flatten)]
+    raw: serde_json::Value,
 }
 
 /// Resolve a DID to its DID document.
