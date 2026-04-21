@@ -48,6 +48,7 @@ impl TestNode {
             validation: cospan_node::config::ValidationConfig::default(),
             auth: cospan_node::config::AuthConfig {
                 allowed_dids: vec![], // allow all
+                appview_jwks_url: None,
             },
         };
         let repos_dir = config.repos_dir();
