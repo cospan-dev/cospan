@@ -276,45 +276,12 @@ fn try_decoding_key_from_jwk(jwk: &serde_json::Value, algorithm: Algorithm) -> O
     let crv = jwk.get("crv").and_then(|v| v.as_str());
 
     match (algorithm, kty, crv) {
-        (Algorithm::ES256, "EC", Some("P-256")) | (Algorithm::ES256, "EC", Some("secp256r1")) => {
+        (Algorithm::ES256, "EC", Some("P-256"))
+        | (Algorithm::ES256, "EC", Some("secp256r1"))
+        | (Algorithm::ES384, "EC", Some("P-384")) => {
             let x = jwk.get("x")?.as_str()?;
             let y = jwk.get("y")?.as_str()?;
-
-            // Reconstruct the uncompressed EC point (04 || x || y).
-            use base64::Engine;
-            let x_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .decode(x)
-                .ok()?;
-            let y_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .decode(y)
-                .ok()?;
-
-            let mut ec_point = Vec::with_capacity(1 + x_bytes.len() + y_bytes.len());
-            ec_point.push(0x04); // uncompressed point prefix
-            ec_point.extend_from_slice(&x_bytes);
-            ec_point.extend_from_slice(&y_bytes);
-
-            Some(DecodingKey::from_ec_der(&ec_point))
-        }
-        // ES384 for P-384 keys (less common in ATProto)
-        (Algorithm::ES384, "EC", Some("P-384")) => {
-            let x = jwk.get("x")?.as_str()?;
-            let y = jwk.get("y")?.as_str()?;
-
-            use base64::Engine;
-            let x_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .decode(x)
-                .ok()?;
-            let y_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .decode(y)
-                .ok()?;
-
-            let mut ec_point = Vec::with_capacity(1 + x_bytes.len() + y_bytes.len());
-            ec_point.push(0x04);
-            ec_point.extend_from_slice(&x_bytes);
-            ec_point.extend_from_slice(&y_bytes);
-
-            Some(DecodingKey::from_ec_der(&ec_point))
+            DecodingKey::from_ec_components(x, y).ok()
         }
         _ => None,
     }
