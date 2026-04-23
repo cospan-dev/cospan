@@ -17,5 +17,9 @@
 }
 
 node.{$DOMAIN:cospan.dev} {
+	# Project schemas can be tens of MB; default 10 MiB rejects pushes.
+	request_body {
+		max_size 256MB
+	}
 	reverse_proxy node:3001
 }

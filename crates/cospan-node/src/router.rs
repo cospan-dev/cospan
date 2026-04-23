@@ -1,8 +1,15 @@
 use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, post};
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
+
+/// Maximum body size for putObject. Project schemas can be tens of MB
+/// for repos with many files (one schema vertex per AST node), and the
+/// default 2 MiB axum limit caused 413s on first push. 256 MiB matches
+/// what the node can comfortably hold under its 1 GiB memory cap.
+const PUT_OBJECT_BODY_LIMIT: usize = 256 * 1024 * 1024;
 
 use crate::git_compat;
 use crate::handlers;
@@ -71,6 +78,7 @@ pub fn build(state: Arc<NodeState>) -> Router {
         .merge(xrpc)
         .merge(git)
         .merge(health)
+        .layer(DefaultBodyLimit::max(PUT_OBJECT_BODY_LIMIT))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
         .with_state(state)
