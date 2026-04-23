@@ -72,10 +72,17 @@ pub async fn negotiate(
         }
     }
 
-    let want_resolved: Vec<String> = want_ids.iter().map(|id| id.to_string()).collect();
+    // Wire format expected by panproto-xrpc::NegotiateResult: { need, refs }
+    // where refs is the list of (name, target) pairs the remote currently has.
+    let refs: Vec<(String, String)> = fs_store
+        .list_refs("refs/")
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, id)| (name, id.to_string()))
+        .collect();
 
     Ok(Json(serde_json::json!({
         "need": need,
-        "wantResolved": want_resolved,
+        "refs": refs,
     })))
 }
