@@ -1,11 +1,10 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::State;
 use serde::Deserialize;
 
-use panproto_core::vcs::{Object, Store};
+use panproto_core::vcs::Store;
 
 use crate::auth::DidAuth;
 use crate::error::NodeError;
@@ -16,9 +15,10 @@ use crate::state::NodeState;
 pub struct NegotiateInput {
     pub did: String,
     pub repo: String,
-    /// Object IDs the client already has.
+    /// Object IDs the client already has (for push: the full local object set).
     pub have: Vec<String>,
-    /// Refs the client wants.
+    /// Refs the client wants (for push: the ref names it intends to update).
+    #[serde(default)]
     pub want: Vec<String>,
 }
 
@@ -27,6 +27,8 @@ pub async fn negotiate(
     _auth: DidAuth,
     Json(input): Json<NegotiateInput>,
 ) -> Result<Json<serde_json::Value>, NodeError> {
+    let _ = input.want; // ref names are informational; client follows up with setRef
+
     let store = state.store.lock().await;
     // Auto-init on first push: an authenticated client negotiating against
     // a not-yet-existing repo means "I'm about to push you everything".
@@ -34,41 +36,17 @@ pub async fn negotiate(
         .open_or_init(&input.did, &input.repo)
         .map_err(|e| NodeError::Internal(format!("store error: {e}")))?;
 
-    // Build set of objects the client already has
-    let have_set: HashSet<String> = input.have.into_iter().collect();
-
-    // Resolve wanted refs to object IDs
-    let mut want_ids = Vec::new();
-    for ref_name in &input.want {
-        if let Ok(Some(target)) = fs_store.get_ref(ref_name) {
-            want_ids.push(target);
-        }
-    }
-
-    // Walk the commit DAG from each wanted object, collecting all
-    // reachable objects that the client doesn't have.
-    let mut need = Vec::new();
-    let mut visited = HashSet::new();
-    let mut queue: Vec<panproto_core::vcs::ObjectId> = want_ids.clone();
-
-    while let Some(id) = queue.pop() {
-        let id_str = id.to_string();
-        if have_set.contains(&id_str) || !visited.insert(id_str.clone()) {
-            continue;
-        }
-        need.push(id_str);
-
-        // If this object is a commit, follow its parents and schema ref
-        if let Ok(obj) = fs_store.get(&id)
-            && let Object::Commit(commit) = obj
-        {
-            for parent in &commit.parents {
-                queue.push(*parent);
-            }
-            queue.push(commit.schema_id);
-            if let Some(ref mig) = commit.migration_id {
-                queue.push(*mig);
-            }
+    // For push: the server replies with the subset of `have` it doesn't
+    // yet have. The client then putObjects each one before calling setRef.
+    let mut need = Vec::with_capacity(input.have.len());
+    for id_str in input.have {
+        let id = match id_str.parse::<panproto_core::vcs::ObjectId>() {
+            Ok(id) => id,
+            Err(_) => continue,
+        };
+        let already_have = fs_store.has(&id);
+        if !already_have {
+            need.push(id_str);
         }
     }
 
