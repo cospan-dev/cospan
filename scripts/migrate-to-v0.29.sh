@@ -1,7 +1,7 @@
 #!/bin/bash
-# Cospan v0.28.x → v0.29.0 migration.
+# Cospan v0.28.x → 0.29.0 migration.
 #
-# v0.29.0 pins panproto to v0.39.0 which removes Object::Schema and
+# 0.29.0 pins panproto to v0.39.0 which removes Object::Schema and
 # stores per-file Merkle schema trees instead (panproto/panproto#49).
 # Existing on-disk objects from earlier versions are unreadable by
 # the new code, so the panproto-vcs store must be wiped before starting
@@ -43,13 +43,13 @@ docker volume rm "$NODE_VOLUME" || {
 }
 
 # 3. Pull the new images.
-echo "Pulling v0.29.0 images..."
-COSPAN_VERSION=v0.29.0 \
+echo "Pulling 0.29.0 images..."
+COSPAN_VERSION=0.29.0 \
     docker compose -f docker-compose.prod.yml --env-file .env.production pull
 
 # 4. Start the stack on the new images.
-echo "Starting containers on v0.29.0..."
-COSPAN_VERSION=v0.29.0 \
+echo "Starting containers on 0.29.0..."
+COSPAN_VERSION=0.29.0 \
     docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 echo
