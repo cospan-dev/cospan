@@ -115,10 +115,8 @@ pub async fn proxy_diff_commits(
     State(state): State<Arc<AppState>>,
     Query(params): Query<DiffCommitsParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let mut extra: Vec<(&str, String)> = vec![
-        ("from", params.from.clone()),
-        ("to", params.to.clone()),
-    ];
+    let mut extra: Vec<(&str, String)> =
+        vec![("from", params.from.clone()), ("to", params.to.clone())];
     if let Some(c) = params.context_lines {
         extra.push(("contextLines", c.to_string()));
     }
@@ -249,10 +247,8 @@ pub async fn proxy_compare_branch_schemas(
     State(state): State<Arc<AppState>>,
     Query(params): Query<CompareBranchSchemasParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let extra: Vec<(&str, String)> = vec![
-        ("base", params.base.clone()),
-        ("head", params.head.clone()),
-    ];
+    let extra: Vec<(&str, String)> =
+        vec![("base", params.base.clone()), ("head", params.head.clone())];
     let result = node_proxy::proxy_get_json(
         &state,
         &params.did,
@@ -391,8 +387,19 @@ pub async fn proxy_get_object(
 
     // Serialize the object type and key metadata
     let obj_json = match &object {
-        panproto_core::vcs::Object::Schema(s) => serde_json::json!({
-            "type": "schema",
+        panproto_core::vcs::Object::FileSchema(file) => serde_json::json!({
+            "type": "file_schema",
+            "path": file.path,
+            "protocol": file.protocol,
+            "vertexCount": file.schema.vertices.len(),
+            "edgeCount": file.schema.edges.len(),
+        }),
+        panproto_core::vcs::Object::SchemaTree(tree) => serde_json::json!({
+            "type": "schema_tree",
+            "entryCount": tree.sorted_entries().len(),
+        }),
+        panproto_core::vcs::Object::FlatSchema(s) => serde_json::json!({
+            "type": "flat_schema",
             "protocol": s.protocol,
             "vertexCount": s.vertices.len(),
             "edgeCount": s.edges.len(),

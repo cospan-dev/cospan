@@ -27,8 +27,8 @@
 //! zero hand-coded JSON traversal of schemas: it just parses through
 //! panproto and forwards the result.
 
-use panproto_check::{BreakingChange, CompatReport, NonBreakingChange, SchemaDiff};
 use panproto_check::scope::{report_by_scope, report_scope_json};
+use panproto_check::{BreakingChange, CompatReport, NonBreakingChange, SchemaDiff};
 use panproto_parse::ParserRegistry;
 use panproto_protocols::web_document::atproto;
 use panproto_schema::{Protocol, Schema};
@@ -123,32 +123,29 @@ pub(crate) fn parse_any(
     //    the semantic vertices panproto-protocols knows about (record
     //    types, fields, constraints). Content-based detectors produce
     //    much richer schemas for schema files.
-    if lower.ends_with(".json") || lower.ends_with(".yaml") || lower.ends_with(".yml") {
-        if let Ok(text) = std::str::from_utf8(bytes) {
-            if let Ok(json) = serde_json::from_str::<Value>(text) {
-                if let Some(pair) = detect_json_protocol(&json) {
-                    return Some(pair);
-                }
-            }
-        }
+    if (lower.ends_with(".json") || lower.ends_with(".yaml") || lower.ends_with(".yml"))
+        && let Ok(text) = std::str::from_utf8(bytes)
+        && let Ok(json) = serde_json::from_str::<Value>(text)
+        && let Some(pair) = detect_json_protocol(&json)
+    {
+        return Some(pair);
     }
 
     // 2. Generic tree-sitter full-AST parsing: 248 languages, one
     //    code path. Uses the file extension to pick a grammar.
-    if let Some(proto) = registry.detect_language(p) {
-        if let Ok(schema) = registry.parse_file(p, bytes) {
-            return Some((schema, proto.to_string()));
-        }
+    if let Some(proto) = registry.detect_language(p)
+        && let Ok(schema) = registry.parse_file(p, bytes)
+    {
+        return Some((schema, proto.to_string()));
     }
 
     // 3. Fallback: content-based detection for files without a
     //    recognized extension.
-    if let Ok(text) = std::str::from_utf8(bytes) {
-        if let Ok(json) = serde_json::from_str::<Value>(text) {
-            if let Some(pair) = detect_json_protocol(&json) {
-                return Some(pair);
-            }
-        }
+    if let Ok(text) = std::str::from_utf8(bytes)
+        && let Ok(json) = serde_json::from_str::<Value>(text)
+        && let Some(pair) = detect_json_protocol(&json)
+    {
+        return Some(pair);
     }
 
     None
@@ -162,10 +159,9 @@ fn detect_json_protocol(json: &Value) -> Option<(Schema, String)> {
     if json.get("lexicon").is_some()
         && json.get("id").is_some()
         && json.get("defs").is_some()
+        && let Ok(s) = atproto::parse_lexicon(json)
     {
-        if let Ok(s) = atproto::parse_lexicon(json) {
-            return Some((s, "atproto-lexicon".to_string()));
-        }
+        return Some((s, "atproto-lexicon".to_string()));
     }
 
     // Avro: top-level "type" + "name" with an Avro-specific "fields"
@@ -173,10 +169,9 @@ fn detect_json_protocol(json: &Value) -> Option<(Schema, String)> {
     if json.get("type").is_some()
         && json.get("name").is_some()
         && (json.get("fields").is_some() || json.get("symbols").is_some())
+        && let Ok(s) = panproto_protocols::serialization::avro::parse_avsc(json)
     {
-        if let Ok(s) = panproto_protocols::serialization::avro::parse_avsc(json) {
-            return Some((s, "avro".to_string()));
-        }
+        return Some((s, "avro".to_string()));
     }
 
     // k8s CustomResourceDefinition
@@ -184,27 +179,23 @@ fn detect_json_protocol(json: &Value) -> Option<(Schema, String)> {
         .get("apiVersion")
         .and_then(Value::as_str)
         .is_some_and(|v| v.starts_with("apiextensions.k8s.io"))
+        && let Ok(s) = panproto_protocols::config::k8s_crd::parse_k8s_crd_schema(json)
     {
-        if let Ok(s) = panproto_protocols::config::k8s_crd::parse_k8s_crd_schema(json) {
-            return Some((s, "k8s-crd".to_string()));
-        }
+        return Some((s, "k8s-crd".to_string()));
     }
 
     // CloudFormation template
-    if json.get("AWSTemplateFormatVersion").is_some() || json.get("Resources").is_some()
+    if (json.get("AWSTemplateFormatVersion").is_some() || json.get("Resources").is_some())
+        && let Ok(s) = panproto_protocols::config::cloudformation::parse_cfn_schema(json)
     {
-        if let Ok(s) =
-            panproto_protocols::config::cloudformation::parse_cfn_schema(json)
-        {
-            return Some((s, "cloudformation".to_string()));
-        }
+        return Some((s, "cloudformation".to_string()));
     }
 
     // MongoDB collection validator
-    if json.get("bsonType").is_some() || json.get("$jsonSchema").is_some() {
-        if let Ok(s) = panproto_protocols::database::mongodb::parse_mongodb_schema(json) {
-            return Some((s, "mongodb".to_string()));
-        }
+    if (json.get("bsonType").is_some() || json.get("$jsonSchema").is_some())
+        && let Ok(s) = panproto_protocols::database::mongodb::parse_mongodb_schema(json)
+    {
+        return Some((s, "mongodb".to_string()));
     }
 
     None
@@ -294,10 +285,7 @@ fn split_vertex_id(id: &str) -> (Option<&str>, Option<&str>) {
         let named: Vec<&str> = segments
             .iter()
             .filter(|s| {
-                !s.starts_with('$')
-                    && !s.is_empty()
-                    && !s.contains('/')
-                    && !s.contains('.')
+                !s.starts_with('$') && !s.is_empty() && !s.contains('/') && !s.contains('.')
             })
             .copied()
             .collect();
@@ -381,8 +369,18 @@ pub fn structural_diff_to_json(
         .collect();
 
     // Filter raw vertex lists to only named vertices
-    let added_vertices: Vec<&String> = diff.raw_diff.added_vertices.iter().filter(|v| is_meaningful_vertex(v)).collect();
-    let removed_vertices: Vec<&String> = diff.raw_diff.removed_vertices.iter().filter(|v| is_meaningful_vertex(v)).collect();
+    let added_vertices: Vec<&String> = diff
+        .raw_diff
+        .added_vertices
+        .iter()
+        .filter(|v| is_meaningful_vertex(v))
+        .collect();
+    let removed_vertices: Vec<&String> = diff
+        .raw_diff
+        .removed_vertices
+        .iter()
+        .filter(|v| is_meaningful_vertex(v))
+        .collect();
 
     let compatible = breaking.is_empty();
 
@@ -429,9 +427,8 @@ fn is_meaningful_vertex(id: &str) -> bool {
     if id.contains("::") {
         // Tree-sitter style: "file.rs::FunctionName::field"
         // Must have at least one named segment that's not a file path
-        id.split("::").any(|s| {
-            !s.starts_with('$') && !s.is_empty() && !s.contains('/') && !s.contains('.')
-        })
+        id.split("::")
+            .any(|s| !s.starts_with('$') && !s.is_empty() && !s.contains('/') && !s.contains('.'))
     } else if id.contains(':') && !id.contains("::") {
         // Lexicon-style: "dev.cospan.repo:body.field" - always meaningful
         true
@@ -485,22 +482,40 @@ fn breaking_json(b: &BreakingChange) -> Value {
             "label": format!("Removed {}", humanize_vertex(vertex_id)),
             "vertexId": vertex_id,
         }),
-        BreakingChange::RemovedEdge { src, tgt, kind, name } => json!({
+        BreakingChange::RemovedEdge {
+            src,
+            tgt,
+            kind,
+            name,
+        } => json!({
             "kind": "RemovedEdge",
             "label": format!("Removed edge {}", humanize_edge(src, tgt, name)),
             "src": src, "tgt": tgt, "edgeKind": kind, "name": name,
         }),
-        BreakingChange::KindChanged { vertex_id, old_kind, new_kind } => json!({
+        BreakingChange::KindChanged {
+            vertex_id,
+            old_kind,
+            new_kind,
+        } => json!({
             "kind": "KindChanged",
             "label": format!("{}: kind changed ({old_kind} -> {new_kind})", humanize_vertex(vertex_id)),
             "vertexId": vertex_id, "oldKind": old_kind, "newKind": new_kind,
         }),
-        BreakingChange::ConstraintTightened { vertex_id, sort, old_value, new_value } => json!({
+        BreakingChange::ConstraintTightened {
+            vertex_id,
+            sort,
+            old_value,
+            new_value,
+        } => json!({
             "kind": "ConstraintTightened",
             "label": format!("{}: {sort} tightened ({old_value} -> {new_value})", humanize_vertex(vertex_id)),
             "vertexId": vertex_id, "sort": sort, "oldValue": old_value, "newValue": new_value,
         }),
-        BreakingChange::ConstraintAdded { vertex_id, sort, value } => json!({
+        BreakingChange::ConstraintAdded {
+            vertex_id,
+            sort,
+            value,
+        } => json!({
             "kind": "ConstraintAdded",
             "label": format!("{}: added constraint {sort} = {value}", humanize_vertex(vertex_id)),
             "vertexId": vertex_id, "sort": sort, "value": value,
@@ -519,12 +534,22 @@ fn non_breaking_json(nb: &NonBreakingChange) -> Value {
             "label": format!("Added {}", humanize_vertex(vertex_id)),
             "vertexId": vertex_id,
         }),
-        NonBreakingChange::AddedEdge { src, tgt, kind, name } => json!({
+        NonBreakingChange::AddedEdge {
+            src,
+            tgt,
+            kind,
+            name,
+        } => json!({
             "kind": "AddedEdge",
             "label": format!("Added edge {}", humanize_edge(src, tgt, name)),
             "src": src, "tgt": tgt, "edgeKind": kind, "name": name,
         }),
-        NonBreakingChange::ConstraintRelaxed { vertex_id, sort, old_value, new_value } => json!({
+        NonBreakingChange::ConstraintRelaxed {
+            vertex_id,
+            sort,
+            old_value,
+            new_value,
+        } => json!({
             "kind": "ConstraintRelaxed",
             "label": format!("{}: {sort} relaxed ({old_value} -> {new_value})", humanize_vertex(vertex_id)),
             "vertexId": vertex_id, "sort": sort, "oldValue": old_value, "newValue": new_value,

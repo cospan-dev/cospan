@@ -19,7 +19,12 @@ use cospan_appview::db;
 use cospan_appview::state::AppState;
 
 async fn build_state(pool: PgPool) -> Arc<AppState> {
-    build_state_with_config(pool, "did:plc:cospan-node".to_string(), "http://localhost:0".to_string()).await
+    build_state_with_config(
+        pool,
+        "did:plc:cospan-node".to_string(),
+        "http://localhost:0".to_string(),
+    )
+    .await
 }
 
 async fn build_state_with_config(
@@ -34,6 +39,7 @@ async fn build_state_with_config(
         lexicons_dir: "packages/lexicons".to_string(),
         default_node_did,
         default_node_url,
+        appview_did: String::new(),
     };
 
     let oauth_config = OAuthConfig {
@@ -87,6 +93,7 @@ async fn seed_session(state: &Arc<AppState>, did: &str, pds_url: &str) -> String
         dpop_nonce: None,
         expires_at: Utc::now() + chrono::Duration::hours(1),
         created_at: Utc::now(),
+        scope: String::new(),
     };
     let session_id = uuid::Uuid::new_v4().to_string();
     state
@@ -313,7 +320,10 @@ async fn fork_creates_new_repo(pool: PgPool) {
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["did"].as_str().unwrap(), "did:plc:carol");
     assert_eq!(json["name"].as_str().unwrap(), "test-project");
-    assert_eq!(json["uri"].as_str().unwrap(), "at://did:plc:carol/dev.cospan.repo/3mockrkey123");
+    assert_eq!(
+        json["uri"].as_str().unwrap(),
+        "at://did:plc:carol/dev.cospan.repo/3mockrkey123"
+    );
     assert_eq!(json["cid"].as_str().unwrap(), "bafymockedcidvalue");
     assert_eq!(
         json["sourceRepo"].as_str().unwrap(),

@@ -1,8 +1,8 @@
 pub mod emit_rows;
 pub mod emit_sql;
 pub mod emit_typescript_views;
-pub mod lens_config;
 pub mod emit_xrpc;
+pub mod lens_config;
 pub mod morphism;
 pub mod record_config;
 pub mod tangled_interop;

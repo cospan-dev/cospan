@@ -13,12 +13,10 @@ static TRACING: OnceLock<()> = OnceLock::new();
 fn init_test_tracing() {
     TRACING.get_or_init(|| {
         use tracing_subscriber::{EnvFilter, fmt};
-        let filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("debug,hyper=info,tower=info,sqlx=warn,h2=info,rustls=info"));
-        let _ = fmt()
-            .with_env_filter(filter)
-            .with_test_writer()
-            .try_init();
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            EnvFilter::new("debug,hyper=info,tower=info,sqlx=warn,h2=info,rustls=info")
+        });
+        let _ = fmt().with_env_filter(filter).with_test_writer().try_init();
     });
 }
 
@@ -56,9 +54,7 @@ impl TestNode {
 
         let state = Arc::new(cospan_node::state::NodeState {
             config: config.clone(),
-            store: Arc::new(Mutex::new(cospan_node::store::RepoManager::new(
-                repos_dir,
-            ))),
+            store: Arc::new(Mutex::new(cospan_node::store::RepoManager::new(repos_dir))),
             validator: Arc::new(cospan_node::validation::ValidationPipeline::new(
                 &config.validation,
             )),
@@ -121,10 +117,7 @@ impl cospan_node::pds_client::PdsClient for NoopPdsClient {
 ///
 /// Performs all git2 work on a blocking thread so it's safe to call from
 /// any tokio runtime flavor.
-pub async fn seed_git_repo(
-    node_git_url: &str,
-    files: &[(&str, &str)],
-) -> (String, TempDir) {
+pub async fn seed_git_repo(node_git_url: &str, files: &[(&str, &str)]) -> (String, TempDir) {
     let url = node_git_url.to_string();
     let owned_files: Vec<(String, String)> = files
         .iter()
@@ -135,10 +128,7 @@ pub async fn seed_git_repo(
         .expect("seed_git_repo task panicked")
 }
 
-fn seed_git_repo_blocking(
-    node_git_url: &str,
-    files: &[(String, String)],
-) -> (String, TempDir) {
+fn seed_git_repo_blocking(node_git_url: &str, files: &[(String, String)]) -> (String, TempDir) {
     use git2::{IndexAddOption, Repository, Signature};
 
     let tmp = TempDir::new().unwrap();
@@ -170,18 +160,16 @@ fn seed_git_repo_blocking(
 
     // Make sure the default branch is `main` for consistency.
     let head_ref = repo.head().unwrap();
-    if let Some(name) = head_ref.shorthand() {
-        if name != "main" {
-            repo.branch("main", &repo.find_commit(commit_id).unwrap(), false)
-                .unwrap();
-            repo.set_head("refs/heads/main").unwrap();
-        }
+    if let Some(name) = head_ref.shorthand()
+        && name != "main"
+    {
+        repo.branch("main", &repo.find_commit(commit_id).unwrap(), false)
+            .unwrap();
+        repo.set_head("refs/heads/main").unwrap();
     }
 
     // Push to the test node via git smart HTTP.
-    let mut remote = repo
-        .remote("origin", node_git_url)
-        .expect("create remote");
+    let mut remote = repo.remote("origin", node_git_url).expect("create remote");
 
     let mut push_opts = git2::PushOptions::new();
     let mut callbacks = git2::RemoteCallbacks::new();
@@ -313,20 +301,18 @@ fn seed_history_blocking(
         if i == 0 {
             // Ensure the branch is named main.
             let head = repo.head().unwrap();
-            if let Some(name) = head.shorthand() {
-                if name != "main" {
-                    repo.branch("main", &repo.find_commit(commit_id).unwrap(), false)
-                        .unwrap();
-                    repo.set_head("refs/heads/main").unwrap();
-                }
+            if let Some(name) = head.shorthand()
+                && name != "main"
+            {
+                repo.branch("main", &repo.find_commit(commit_id).unwrap(), false)
+                    .unwrap();
+                repo.set_head("refs/heads/main").unwrap();
             }
         }
     }
 
     // Push the whole history.
-    let mut remote = repo
-        .remote("origin", node_git_url)
-        .expect("create remote");
+    let mut remote = repo.remote("origin", node_git_url).expect("create remote");
     let mut push_opts = git2::PushOptions::new();
     let mut callbacks = git2::RemoteCallbacks::new();
     callbacks.credentials(|_url, _user, allowed| {

@@ -150,30 +150,27 @@ pub async fn get_dependency_graph(
         std::collections::HashSet::new();
     let mut dep_edges: Vec<Value> = Vec::new();
 
-    for (edge, _) in &project.schema.edges {
+    for edge in project.schema.edges.keys() {
         let src_str: &str = &edge.src;
         let tgt_str: &str = &edge.tgt;
         let src_file = vertex_to_file.get(src_str);
         let tgt_file = vertex_to_file.get(tgt_str);
 
-        if let (Some(sf), Some(tf)) = (src_file, tgt_file) {
-            if sf != tf && edge_set.insert((sf.clone(), tf.clone())) {
-                dep_edges.push(json!({
-                    "src": sf,
-                    "tgt": tf,
-                    "kind": edge.kind.as_ref(),
-                    "label": edge.kind.as_ref(),
-                }));
-            }
+        if let (Some(sf), Some(tf)) = (src_file, tgt_file)
+            && sf != tf
+            && edge_set.insert((sf.clone(), tf.clone()))
+        {
+            dep_edges.push(json!({
+                "src": sf,
+                "tgt": tf,
+                "kind": edge.kind.as_ref(),
+                "label": edge.kind.as_ref(),
+            }));
         }
     }
 
     // Sort nodes by vertex count descending
-    nodes.sort_by(|a, b| {
-        b["vertexCount"]
-            .as_u64()
-            .cmp(&a["vertexCount"].as_u64())
-    });
+    nodes.sort_by(|a, b| b["vertexCount"].as_u64().cmp(&a["vertexCount"].as_u64()));
 
     Ok(Json(json!({
         "commit": commit_oid.to_string(),

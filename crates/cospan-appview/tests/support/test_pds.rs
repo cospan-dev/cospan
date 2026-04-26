@@ -140,10 +140,7 @@ fn router(store: Arc<PdsStore>) -> Router {
             "/xrpc/com.atproto.repo.createRecord",
             post(create_record_handler),
         )
-        .route(
-            "/xrpc/com.atproto.repo.getRecord",
-            get(get_record_handler),
-        )
+        .route("/xrpc/com.atproto.repo.getRecord", get(get_record_handler))
         .route(
             "/xrpc/com.atproto.repo.listRecords",
             get(list_records_handler),
@@ -298,9 +295,9 @@ async fn create_record_handler(
 
     // Verify the token matches a registered account for the repo.
     let accounts = store.accounts.read().await;
-    let account = accounts.get(&input.repo).ok_or_else(|| {
-        PdsError::new(403, "AccountNotFound", "no test account for this DID")
-    })?;
+    let account = accounts
+        .get(&input.repo)
+        .ok_or_else(|| PdsError::new(403, "AccountNotFound", "no test account for this DID"))?;
     if account.access_token != token {
         return Err(PdsError::new(
             403,

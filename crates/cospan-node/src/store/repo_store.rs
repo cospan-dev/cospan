@@ -144,11 +144,7 @@ impl RepoManager {
 
     /// Load the git→panproto OID mapping from the marks file.
     /// Returns an empty map if the file doesn't exist or is corrupt.
-    pub fn load_import_marks(
-        &self,
-        did: &str,
-        name: &str,
-    ) -> HashMap<git2::Oid, ObjectId> {
+    pub fn load_import_marks(&self, did: &str, name: &str) -> HashMap<git2::Oid, ObjectId> {
         let path = self.marks_path(did, name);
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
@@ -175,12 +171,7 @@ impl RepoManager {
 
     /// Persist the git→panproto OID mapping to the marks file.
     /// Merges new entries with existing ones.
-    pub fn save_import_marks(
-        &self,
-        did: &str,
-        name: &str,
-        new_entries: &[(git2::Oid, ObjectId)],
-    ) {
+    pub fn save_import_marks(&self, did: &str, name: &str, new_entries: &[(git2::Oid, ObjectId)]) {
         let mut map = self.load_import_marks(did, name);
         for (git_oid, pp_id) in new_entries {
             map.insert(*git_oid, *pp_id);

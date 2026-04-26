@@ -19,8 +19,8 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use serde::Serialize;
 
-use crate::auth::oauth::extract_session_id;
 use crate::error::AppError;
+use crate::middleware::auth::RequiredAuth;
 use crate::state::AppState;
 
 #[derive(Serialize)]
@@ -45,32 +45,18 @@ struct PushTokenClaims {
 /// can use as their git password when pushing to the cospan node.
 pub async fn handler(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    RequiredAuth(caller): RequiredAuth,
+    _headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    // 1. Require an authenticated session.
-    let has_cookie = headers.get("cookie").is_some();
-    let cookie_preview = headers
-        .get("cookie")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| if s.len() > 40 { format!("{}...", &s[..40]) } else { s.to_string() })
-        .unwrap_or_default();
-    tracing::info!(has_cookie, cookie_preview, "createPushToken auth check");
-    let session_id = extract_session_id(&headers)
-        .ok_or_else(|| AppError::Unauthorized("sign in required".to_string()))?;
-    let session = state
-        .session_store
-        .get_session(&session_id)
-        .await
-        .map_err(|e| AppError::Upstream(format!("session lookup: {e}")))?
-        .ok_or_else(|| AppError::Unauthorized("session not found".to_string()))?;
-
-    // 2. Build the push token JWT.
+    // Build the push token JWT. The `scope` claim uses the granular
+    // `rpc:<lxm>?aud=<node>` form so the node can enforce it with the
+    // same parser as the appview.
     let now = chrono::Utc::now().timestamp();
     let ttl = 3600; // 1 hour
     let claims = PushTokenClaims {
-        sub: session.did.clone(),
+        sub: caller.did.clone(),
         iss: state.config.public_url().to_string(),
-        scope: "push".to_string(),
+        scope: "rpc:dev.cospan.vcs.push?aud=*".to_string(),
         iat: now,
         exp: now + ttl,
         jti: uuid::Uuid::new_v4().to_string(),
@@ -87,10 +73,10 @@ pub async fn handler(
 
     Ok(Json(serde_json::json!({
         "token": token,
-        "did": session.did,
+        "did": caller.did,
         "expiresIn": ttl,
         "usage": "Use as git password when pushing. Your DID is the username.",
-        "example": format!("git push https://node.cospan.dev/{}/REPO main", session.did),
+        "example": format!("git push https://node.cospan.dev/{}/REPO main", caller.did),
     })))
 }
 

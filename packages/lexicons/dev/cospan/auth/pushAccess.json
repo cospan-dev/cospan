@@ -1,0 +1,15 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.auth.pushAccess",
+  "revision": 1,
+  "defs": {
+    "main": {
+      "type": "permission-set",
+      "title": "Push to a Cospan repository",
+      "detail": "Narrow scope used by short-lived tokens that authorise a single git push over HTTP to a Cospan node.",
+      "permissions": [
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.vcs.push" }
+      ]
+    }
+  }
+}

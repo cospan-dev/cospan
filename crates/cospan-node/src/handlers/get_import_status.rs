@@ -36,10 +36,9 @@ pub async fn get_import_status(
         })));
     }
 
-    let has_marks = store
+    let has_marks = !store
         .load_import_marks(&params.did, &params.repo)
-        .len()
-        > 0;
+        .is_empty();
 
     drop(store);
 

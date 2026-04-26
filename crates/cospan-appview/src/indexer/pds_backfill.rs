@@ -11,10 +11,8 @@ use crate::state::AppState;
 use super::consumer;
 
 /// Collections to backfill from each user's PDS.
-const BACKFILL_COLLECTIONS: &[&str] = &[
-    "sh.tangled.repo.pull.status",
-    "sh.tangled.repo.issue.state",
-];
+const BACKFILL_COLLECTIONS: &[&str] =
+    &["sh.tangled.repo.pull.status", "sh.tangled.repo.issue.state"];
 
 /// Run the PDS backfill. Fetches state records for all known DIDs.
 pub async fn run(state: Arc<AppState>) {
@@ -72,11 +70,7 @@ pub async fn run(state: Arc<AppState>) {
         }
     }
 
-    tracing::info!(
-        total_processed,
-        total_errors,
-        "PDS backfill complete"
-    );
+    tracing::info!(total_processed, total_errors, "PDS backfill complete");
 }
 
 /// Fetch all records of a collection from a user's PDS and process them.
@@ -100,11 +94,7 @@ async fn fetch_and_process(
             url.push_str(&format!("&cursor={}", c));
         }
 
-        let resp = state
-            .http_client
-            .get(&url)
-            .send()
-            .await?;
+        let resp = state.http_client.get(&url).send().await?;
 
         if !resp.status().is_success() {
             return Ok(count);
@@ -127,10 +117,7 @@ async fn fetch_and_process(
             let value = record.get("value");
 
             // Parse AT-URI: at://did/collection/rkey
-            let parts: Vec<&str> = uri
-                .trim_start_matches("at://")
-                .splitn(3, '/')
-                .collect();
+            let parts: Vec<&str> = uri.trim_start_matches("at://").splitn(3, '/').collect();
             if parts.len() < 3 {
                 continue;
             }

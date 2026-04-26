@@ -89,12 +89,15 @@ pub async fn git_info_refs(
 
     // Require auth for receive-pack (push) but not upload-pack (clone/fetch).
     if service == "git-receive-pack" {
-        match crate::auth::push_auth::verify_push(&headers, &did) {
+        match crate::auth::push_auth::verify_push(&state, &headers, &did).await {
             crate::auth::push_auth::PushAuth::Authenticated(_) => {}
             crate::auth::push_auth::PushAuth::NoCredentials => {
                 return (
                     StatusCode::UNAUTHORIZED,
-                    [(header::WWW_AUTHENTICATE, "Basic realm=\"cospan-node\"".to_owned())],
+                    [(
+                        header::WWW_AUTHENTICATE,
+                        "Basic realm=\"cospan-node\"".to_owned(),
+                    )],
                     b"Authentication required for push".to_vec(),
                 );
             }
@@ -128,11 +131,7 @@ pub async fn git_info_refs(
         drop(store);
         if service == "git-receive-pack" {
             let body = build_info_refs_body(service, &[], None);
-            return (
-                StatusCode::OK,
-                [(header::CONTENT_TYPE, content_type)],
-                body,
-            );
+            return (StatusCode::OK, [(header::CONTENT_TYPE, content_type)], body);
         }
         return (
             StatusCode::NOT_FOUND,

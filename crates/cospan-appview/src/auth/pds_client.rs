@@ -90,29 +90,29 @@ pub async fn create_record(
     // If the server returned 401 with use_dpop_nonce, retry once with the new nonce.
     if status.as_u16() == 401 || status.as_u16() == 400 {
         let body_text = resp.text().await.unwrap_or_default();
-        if body_text.contains("use_dpop_nonce") || body_text.contains("DPoP") {
-            if let Some(ref nonce) = new_nonce {
-                let retry = send_dpop_post(
-                    http,
-                    &dpop_key,
-                    &url,
-                    &session.access_token,
-                    Some(nonce.as_str()),
-                    &body,
-                )
-                .await?;
+        if (body_text.contains("use_dpop_nonce") || body_text.contains("DPoP"))
+            && let Some(ref nonce) = new_nonce
+        {
+            let retry = send_dpop_post(
+                http,
+                &dpop_key,
+                &url,
+                &session.access_token,
+                Some(nonce.as_str()),
+                &body,
+            )
+            .await?;
 
-                if retry.status().is_success() {
-                    return parse_create_response(retry).await;
-                }
-
-                let retry_status = retry.status().as_u16();
-                let retry_body = retry.text().await.unwrap_or_default();
-                return Err(PdsClientError::PdsError {
-                    status: retry_status,
-                    body: retry_body,
-                });
+            if retry.status().is_success() {
+                return parse_create_response(retry).await;
             }
+
+            let retry_status = retry.status().as_u16();
+            let retry_body = retry.text().await.unwrap_or_default();
+            return Err(PdsClientError::PdsError {
+                status: retry_status,
+                body: retry_body,
+            });
         }
         return Err(PdsClientError::PdsError {
             status: status.as_u16(),
@@ -217,12 +217,19 @@ pub async fn delete_record(
 
     if (status.as_u16() == 401 || status.as_u16() == 400)
         && (body_text.contains("use_dpop_nonce") || body_text.contains("DPoP"))
+        && let Some(ref nonce) = new_nonce
     {
-        if let Some(ref nonce) = new_nonce {
-            let retry = send_dpop_post(http, &dpop_key, &url, &session.access_token, Some(nonce), &body).await?;
-            if retry.status().is_success() {
-                return Ok(());
-            }
+        let retry = send_dpop_post(
+            http,
+            &dpop_key,
+            &url,
+            &session.access_token,
+            Some(nonce),
+            &body,
+        )
+        .await?;
+        if retry.status().is_success() {
+            return Ok(());
         }
     }
 

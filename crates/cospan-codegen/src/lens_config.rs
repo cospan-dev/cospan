@@ -41,12 +41,19 @@ pub fn load_all_lenses(lenses_dir: &Path) -> Result<Vec<CompiledLens>> {
 
 /// DB projection lenses (id ending in ".db-projection").
 pub fn db_projection_lenses(lenses: &[CompiledLens]) -> Vec<&CompiledLens> {
-    lenses.iter().filter(|l| l.id.ends_with(".db-projection")).collect()
+    lenses
+        .iter()
+        .filter(|l| l.id.ends_with(".db-projection"))
+        .collect()
 }
 
 /// Interop lenses (id ending in ".interop").
+#[allow(dead_code)]
 pub fn interop_lenses(lenses: &[CompiledLens]) -> Vec<&CompiledLens> {
-    lenses.iter().filter(|l| l.id.ends_with(".interop")).collect()
+    lenses
+        .iter()
+        .filter(|l| l.id.ends_with(".interop"))
+        .collect()
 }
 
 /// Find a compiled lens by source NSID.
@@ -56,11 +63,17 @@ pub fn find_by_source<'a>(lenses: &'a [CompiledLens], source: &str) -> Option<&'
 
 /// Extract table config from the lens's extensions.
 pub fn table_config(lens: &CompiledLens) -> Option<TableConfig> {
-    lens.extensions.get("table").and_then(|v| serde_json::from_value(v.clone()).ok())
+    lens.extensions
+        .get("table")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
 }
 
 /// DDL metadata from the "table" extension.
+///
+/// Fields are deserialized from a lens-config JSON document; clippy's
+/// dead-code detector can't see those reads, hence the allow.
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct TableConfig {
     pub name: String,
     pub row_struct: String,
@@ -77,4 +90,6 @@ pub struct TableConfig {
     pub counter_fields: Vec<String>,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}

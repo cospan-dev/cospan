@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::auth::dpop::{DpopKey, compute_code_challenge, generate_code_verifier};
+use crate::auth::scope::{AuthIntent, build_scope_string, client_metadata_scope};
 use crate::auth::{AuthFlowState, Session};
 use crate::state::AppState;
 
@@ -42,6 +43,7 @@ pub fn router() -> Router<Arc<AppState>> {
 
 async fn client_metadata(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let config = &state.oauth_config;
+    let scope = client_metadata_scope(&state.config.appview_did);
 
     let metadata = json!({
         "client_id": config.client_id,
@@ -56,7 +58,7 @@ async fn client_metadata(State(state): State<Arc<AppState>>) -> impl IntoRespons
         ],
         "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],
-        "scope": "atproto transition:generic",
+        "scope": scope,
         "application_type": "web",
         "token_endpoint_auth_method": "none",
         "dpop_bound_access_tokens": true,
@@ -85,6 +87,9 @@ async fn jwks(State(state): State<Arc<AppState>>) -> impl IntoResponse {
 #[derive(Deserialize)]
 struct LoginQuery {
     handle: String,
+    /// Access tier to request: `browse|contribute|maintain|own`.
+    /// Defaults to `contribute` — the minimum for most interactive flows.
+    intent: Option<String>,
 }
 
 async fn login(
@@ -92,7 +97,13 @@ async fn login(
     Query(query): Query<LoginQuery>,
 ) -> Result<Response, OAuthError> {
     let handle = query.handle.trim().to_lowercase();
-    tracing::info!(handle = %handle, "OAuth login initiated");
+    let intent = query
+        .intent
+        .as_deref()
+        .and_then(AuthIntent::parse)
+        .unwrap_or(AuthIntent::Contribute);
+    let requested_scope = build_scope_string(intent, &state.config.appview_did);
+    tracing::info!(handle = %handle, ?intent, scope = %requested_scope, "OAuth login initiated");
 
     // Step 1: Resolve handle -> DID -> DID document
     let (did, doc) = state
@@ -132,7 +143,7 @@ async fn login(
         ("client_id", client_id.as_str()),
         ("response_type", "code"),
         ("redirect_uri", redirect_uri.as_str()),
-        ("scope", "atproto"),
+        ("scope", requested_scope.as_str()),
         ("state", &oauth_state),
         ("code_challenge", &code_challenge),
         ("code_challenge_method", "S256"),
@@ -265,6 +276,7 @@ async fn login(
         handle: Some(handle),
         dpop_nonce,
         expires_at: chrono::Utc::now() + chrono::Duration::minutes(10),
+        requested_scope: requested_scope.clone(),
     };
 
     state
@@ -484,6 +496,10 @@ async fn callback(
     let expires_at = chrono::Utc::now()
         + chrono::Duration::seconds(token_response.expires_in.unwrap_or(7200) as i64);
 
+    let granted_scope = token_response
+        .scope
+        .clone()
+        .unwrap_or_else(|| flow.requested_scope.clone());
     let session = Session {
         did: token_response.sub.clone(),
         handle: flow.handle.clone(),
@@ -495,6 +511,7 @@ async fn callback(
         dpop_nonce: final_nonce,
         expires_at,
         created_at: chrono::Utc::now(),
+        scope: granted_scope,
     };
 
     state
@@ -575,6 +592,10 @@ struct SessionResponse {
     did: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     handle: Option<String>,
+    /// Raw granted scope string from the PDS (space-separated tokens).
+    /// Frontend parses this to gate intent upgrades.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scope: Option<String>,
 }
 
 async fn session_info(
@@ -588,6 +609,7 @@ async fn session_info(
                 authenticated: false,
                 did: None,
                 handle: None,
+                scope: None,
             }));
         }
     };
@@ -603,11 +625,17 @@ async fn session_info(
             authenticated: true,
             did: Some(s.did),
             handle: s.handle,
+            scope: if s.scope.is_empty() {
+                None
+            } else {
+                Some(s.scope)
+            },
         })),
         None => Ok(Json(SessionResponse {
             authenticated: false,
             did: None,
             handle: None,
+            scope: None,
         })),
     }
 }
@@ -645,7 +673,6 @@ struct TokenResponse {
     #[allow(dead_code)]
     expires_in: Option<u64>,
     refresh_token: String,
-    #[allow(dead_code)]
     scope: Option<String>,
     sub: String,
 }
@@ -728,7 +755,6 @@ impl IntoResponse for OAuthError {
 struct BridgeInput {
     did: String,
     handle: Option<String>,
-    avatar: Option<String>,
 }
 
 async fn bridge_session(
@@ -750,6 +776,7 @@ async fn bridge_session(
         dpop_nonce: None,
         expires_at: chrono::Utc::now() + chrono::Duration::days(7),
         created_at: chrono::Utc::now(),
+        scope: String::new(),
     };
 
     if let Err(e) = state.session_store.put_session(&session_id, session).await {

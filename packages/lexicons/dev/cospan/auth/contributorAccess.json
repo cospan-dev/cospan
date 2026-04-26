@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.auth.contributorAccess",
+  "revision": 1,
+  "defs": {
+    "main": {
+      "type": "permission-set",
+      "title": "Contribute to Cospan",
+      "detail": "Browse Cospan plus: open issues, comment, react, star, follow, fork, and open pull requests you've authored.",
+      "includes": ["dev.cospan.auth.readerAccess"],
+      "permissions": [
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.actor.profile" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.feed.reaction" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.feed.star" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.graph.follow" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.repo.fork" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.repo.issue.issue" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.repo.issue.comment" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.repo.pull.pull" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.repo.pull.comment" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.actor.profile.put" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.feed.star.toggle" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.graph.follow.toggle" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.create" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.fork" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.import" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.issue.create" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.issue.comment.create" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.sync.requestCrawl" }
+      ]
+    }
+  }
+}

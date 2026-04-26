@@ -115,17 +115,17 @@ pub async fn list_commits(
 /// "main" as well as fully-qualified "refs/heads/main".
 pub(crate) fn resolve_ref(mirror: &git2::Repository, name: &str) -> Result<git2::Oid, NodeError> {
     // Try fully qualified first.
-    if let Ok(r) = mirror.find_reference(name) {
-        if let Some(oid) = r.target() {
-            return Ok(oid);
-        }
+    if let Ok(r) = mirror.find_reference(name)
+        && let Some(oid) = r.target()
+    {
+        return Ok(oid);
     }
     // Try under refs/heads/.
     let candidate = format!("refs/heads/{name}");
-    if let Ok(r) = mirror.find_reference(&candidate) {
-        if let Some(oid) = r.target() {
-            return Ok(oid);
-        }
+    if let Ok(r) = mirror.find_reference(&candidate)
+        && let Some(oid) = r.target()
+    {
+        return Ok(oid);
     }
     // Try under refs/tags/.
     let candidate = format!("refs/tags/{name}");
@@ -139,10 +139,10 @@ pub(crate) fn resolve_ref(mirror: &git2::Repository, name: &str) -> Result<git2:
         }
     }
     // Maybe it's already a raw oid.
-    if let Ok(oid) = git2::Oid::from_str(name) {
-        if mirror.find_commit(oid).is_ok() {
-            return Ok(oid);
-        }
+    if let Ok(oid) = git2::Oid::from_str(name)
+        && mirror.find_commit(oid).is_ok()
+    {
+        return Ok(oid);
     }
     Err(NodeError::RefNotFound(format!("ref '{name}' not found")))
 }
@@ -150,10 +150,10 @@ pub(crate) fn resolve_ref(mirror: &git2::Repository, name: &str) -> Result<git2:
 /// Pick a sensible default start point: HEAD if set, else the first
 /// branch found in the mirror.
 pub(crate) fn resolve_default(mirror: &git2::Repository) -> Result<git2::Oid, NodeError> {
-    if let Ok(head) = mirror.head() {
-        if let Some(oid) = head.target() {
-            return Ok(oid);
-        }
+    if let Ok(head) = mirror.head()
+        && let Some(oid) = head.target()
+    {
+        return Ok(oid);
     }
     // Fall back to the first branch.
     let branches = mirror
@@ -168,5 +168,7 @@ pub(crate) fn resolve_default(mirror: &git2::Repository) -> Result<git2::Oid, No
             return Ok(oid);
         }
     }
-    Err(NodeError::RefNotFound("repository has no commits".to_string()))
+    Err(NodeError::RefNotFound(
+        "repository has no commits".to_string(),
+    ))
 }

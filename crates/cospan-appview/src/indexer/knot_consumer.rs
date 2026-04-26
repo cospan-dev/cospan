@@ -43,7 +43,10 @@ async fn discover_and_consume(state: &Arc<AppState>) -> anyhow::Result<()> {
         .filter(|r| !r.node_url.contains("localhost") && !r.node_url.contains("192.168."))
         .filter(|r| seen.insert(r.node_url.clone()))
         .map(|r| {
-            let ws_url = r.node_url.replace("https://", "wss://").replace("http://", "ws://");
+            let ws_url = r
+                .node_url
+                .replace("https://", "wss://")
+                .replace("http://", "ws://");
             format!("{ws_url}/events")
         })
         .collect();
@@ -53,7 +56,10 @@ async fn discover_and_consume(state: &Arc<AppState>) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    tracing::info!(count = knot_urls.len(), "discovered knots, connecting to event streams");
+    tracing::info!(
+        count = knot_urls.len(),
+        "discovered knots, connecting to event streams"
+    );
 
     // Spawn a consumer for each knot (with concurrency limit)
     let semaphore = Arc::new(tokio::sync::Semaphore::new(10)); // max 10 concurrent connections
@@ -97,11 +103,8 @@ async fn consume_knot(state: &Arc<AppState>, url: &str) -> anyhow::Result<()> {
     let mut count = 0u64;
 
     // Read events with a timeout per message (2 min for historical replay)
-    while let Ok(Some(msg)) = tokio::time::timeout(
-        std::time::Duration::from_secs(120),
-        read.next(),
-    )
-    .await
+    while let Ok(Some(msg)) =
+        tokio::time::timeout(std::time::Duration::from_secs(120), read.next()).await
     {
         let msg = msg?;
         let data = match msg {
@@ -140,14 +143,24 @@ async fn consume_knot(state: &Arc<AppState>, url: &str) -> anyhow::Result<()> {
             let repo_did = obj.get("repoDid").and_then(|v| v.as_str()).unwrap_or("");
             let repo_name = obj.get("repoName").and_then(|v| v.as_str()).unwrap_or("");
             if !repo_did.is_empty() && !repo_name.is_empty() {
-                obj.insert("repo".to_string(),
-                    serde_json::Value::String(format!("at://{repo_did}/sh.tangled.repo/{repo_name}")));
+                obj.insert(
+                    "repo".to_string(),
+                    serde_json::Value::String(format!(
+                        "at://{repo_did}/sh.tangled.repo/{repo_name}"
+                    )),
+                );
             }
             // Map newSha → newTarget, oldSha → oldTarget for the Cospan schema
-            if let Some(v) = obj.remove("newSha") { obj.insert("newTarget".to_string(), v); }
-            if let Some(v) = obj.remove("oldSha") { obj.insert("oldTarget".to_string(), v); }
+            if let Some(v) = obj.remove("newSha") {
+                obj.insert("newTarget".to_string(), v);
+            }
+            if let Some(v) = obj.remove("oldSha") {
+                obj.insert("oldTarget".to_string(), v);
+            }
             // Map ref field name
-            if let Some(v) = obj.remove("ref") { obj.insert("refName".to_string(), v); }
+            if let Some(v) = obj.remove("ref") {
+                obj.insert("refName".to_string(), v);
+            }
         }
 
         let compat_event = serde_json::json!({

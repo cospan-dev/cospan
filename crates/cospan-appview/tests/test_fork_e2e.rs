@@ -45,11 +45,7 @@ use crate::support::test_pds::TestPds;
 // Users cache: `sh.tangled.repo` source creates the db row on the source node.
 // For the e2e test we seed synthetic repos directly.
 
-async fn build_state(
-    pool: PgPool,
-    dest_node_did: String,
-    dest_node_url: String,
-) -> Arc<AppState> {
+async fn build_state(pool: PgPool, dest_node_did: String, dest_node_url: String) -> Arc<AppState> {
     let config = AppConfig {
         database_url: String::new(),
         jetstream_url: "wss://localhost:0/unused".to_string(),
@@ -57,6 +53,7 @@ async fn build_state(
         lexicons_dir: "packages/lexicons".to_string(),
         default_node_did: dest_node_did,
         default_node_url: dest_node_url,
+        appview_did: String::new(),
     };
 
     let oauth_config = OAuthConfig {
@@ -174,6 +171,7 @@ async fn seed_session(
         dpop_nonce: None,
         expires_at: Utc::now() + chrono::Duration::hours(1),
         created_at: Utc::now(),
+        scope: String::new(),
     };
     let session_id = uuid::Uuid::new_v4().to_string();
     state
@@ -262,8 +260,7 @@ async fn fork_copies_git_objects(pool: PgPool) {
 
     // 7. POST /xrpc/dev.cospan.repo.fork.
     let client = Client::new();
-    let source_at_uri =
-        format!("at://{source_owner}/dev.cospan.repo/{source_repo_name}");
+    let source_at_uri = format!("at://{source_owner}/dev.cospan.repo/{source_repo_name}");
     let resp = client
         .post(format!("{appview_url}/xrpc/dev.cospan.repo.fork"))
         .header("Cookie", cookie)
@@ -332,10 +329,8 @@ async fn fork_copies_git_objects(pool: PgPool) {
 
     let readme = tree.get_name("README.md").expect("README.md in tree");
     let readme_blob = readme.to_object(&cloned).unwrap();
-    let readme_content = String::from_utf8_lossy(
-        readme_blob.as_blob().unwrap().content(),
-    )
-    .to_string();
+    let readme_content =
+        String::from_utf8_lossy(readme_blob.as_blob().unwrap().content()).to_string();
     assert!(readme_content.contains("hello"));
 
     let src_dir = tree.get_name("src").expect("src/ in tree");
@@ -343,10 +338,7 @@ async fn fork_copies_git_objects(pool: PgPool) {
     let src_tree = src_tree.as_tree().unwrap();
     let main_txt = src_tree.get_name("main.txt").expect("src/main.txt");
     let main_blob = main_txt.to_object(&cloned).unwrap();
-    let main_content = String::from_utf8_lossy(
-        main_blob.as_blob().unwrap().content(),
-    )
-    .to_string();
+    let main_content = String::from_utf8_lossy(main_blob.as_blob().unwrap().content()).to_string();
     assert_eq!(main_content, "hello from main\n");
 }
 
@@ -391,7 +383,10 @@ async fn git_copy_transfers_all_files() {
 
     assert!(report.refs_copied >= 1);
     assert!(
-        report.refs.iter().any(|(name, _)| name == "refs/heads/main"),
+        report
+            .refs
+            .iter()
+            .any(|(name, _)| name == "refs/heads/main"),
         "expected main branch in copied refs"
     );
 
@@ -451,7 +446,10 @@ async fn probe_info_refs_receive_pack() {
     let body = resp.text().await.unwrap();
     eprintln!("probe: status={status} body_len={}", body.len());
     eprintln!("probe: body = {body:?}");
-    assert_eq!(status, 200, "info/refs should return 200 for receive-pack on empty repo");
+    assert_eq!(
+        status, 200,
+        "info/refs should return 200 for receive-pack on empty repo"
+    );
     assert!(body.contains("git-receive-pack"));
 }
 

@@ -112,7 +112,7 @@ pub async fn git_receive_pack(
     tracing::info!(%did, %repo, body_len = body.len(), "git-receive-pack requested");
 
     // 0. Authenticate the pusher.
-    match crate::auth::push_auth::verify_push(&headers, &did) {
+    match crate::auth::push_auth::verify_push(&state, &headers, &did).await {
         crate::auth::push_auth::PushAuth::Authenticated(authed_did) => {
             tracing::info!(%authed_did, "push authenticated");
         }
@@ -120,7 +120,10 @@ pub async fn git_receive_pack(
             return (
                 StatusCode::UNAUTHORIZED,
                 [(header::WWW_AUTHENTICATE, "Basic realm=\"cospan-node\"")],
-                [(header::CONTENT_TYPE, "application/x-git-receive-pack-result")],
+                [(
+                    header::CONTENT_TYPE,
+                    "application/x-git-receive-pack-result",
+                )],
                 pkt_line("ERR authentication required\n") + "0000",
             )
                 .into_response();
@@ -129,7 +132,10 @@ pub async fn git_receive_pack(
             tracing::warn!(%did, %reason, "push denied");
             return (
                 StatusCode::FORBIDDEN,
-                [(header::CONTENT_TYPE, "application/x-git-receive-pack-result")],
+                [(
+                    header::CONTENT_TYPE,
+                    "application/x-git-receive-pack-result",
+                )],
                 pkt_line(&format!("ERR {reason}\n")) + "0000",
             )
                 .into_response();
@@ -187,9 +193,8 @@ pub async fn git_receive_pack(
         let zero_oid = "0".repeat(40);
 
         if new_oid == &zero_oid {
-            match git_mirror.find_reference(refname) {
-                Ok(mut r) => { let _ = r.delete(); }
-                Err(_) => {}
+            if let Ok(mut r) = git_mirror.find_reference(refname) {
+                let _ = r.delete();
             }
             response.push_str(&pkt_line(&format!("ok {refname}\n")));
             continue;

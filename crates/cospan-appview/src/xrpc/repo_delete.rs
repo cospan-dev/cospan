@@ -51,17 +51,14 @@ pub async fn handler(
     // Look up the repo to get its rkey (needed for PDS deletion).
     let repo = db::repo::get(&state.db, &input.did, &input.name)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("repo {}/{} not found", input.did, input.name)))?;
+        .ok_or_else(|| {
+            AppError::NotFound(format!("repo {}/{} not found", input.did, input.name))
+        })?;
 
     // Try to delete the PDS record if the session has PDS credentials.
     if !session.pds_url.is_empty() && !session.access_token.is_empty() {
-        match pds_client::delete_record(
-            &state.http_client,
-            &session,
-            "dev.cospan.repo",
-            &repo.rkey,
-        )
-        .await
+        match pds_client::delete_record(&state.http_client, &session, "dev.cospan.repo", &repo.rkey)
+            .await
         {
             Ok(_) => tracing::info!(did = %input.did, name = %input.name, "PDS record deleted"),
             Err(e) => tracing::warn!(

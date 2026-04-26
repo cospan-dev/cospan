@@ -96,6 +96,17 @@ fn main() -> Result<()> {
 
         let nsid = json.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
 
+        // Skip Lexicon types that don't project to records / RPC methods.
+        // `permission-set` is OAuth-consent metadata (panproto issue #49 era):
+        // it has no row type, no DDL, no XRPC wire surface — nothing to emit.
+        let main_type = json
+            .pointer("/defs/main/type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if main_type == "permission-set" {
+            continue;
+        }
+
         // Parse Lexicon → ATProto Schema
         let atproto_schema =
             atproto::parse_lexicon(&json).with_context(|| format!("parsing lexicon {nsid}"))?;

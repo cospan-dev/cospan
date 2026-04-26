@@ -206,34 +206,33 @@ impl ValidationPipeline {
     }
 }
 
-/// Extract a schema from a VCS object. If the object is a Commit, follow its
-/// schema_id to load the actual Schema object.
+/// Extract a schema from a commit-typed VCS object.
+///
+/// Ref-update targets are always commits in the tree-schema model
+/// (panproto issue #49); the commit's `schema_id` points at a
+/// `SchemaTree` root which [`vcs::resolve_commit_schema`] walks to
+/// produce the flat [`Schema`] needed for diff/classify.
 fn extract_schema(
     store: &RepoManager,
     did: &str,
     repo: &str,
     obj: &panproto_core::vcs::Object,
 ) -> Result<panproto_schema::Schema, String> {
-    match obj {
-        panproto_core::vcs::Object::Schema(s) => Ok(*s.clone()),
-        panproto_core::vcs::Object::Commit(commit) => {
-            let schema_obj = store
-                .get_object(did, repo, &commit.schema_id)
-                .map_err(|e| format!("failed to load schema {}: {e}", commit.schema_id))?;
-            match schema_obj {
-                panproto_core::vcs::Object::Schema(s) => Ok(*s),
-                other => Err(format!(
-                    "expected schema object at {}, got {}",
-                    commit.schema_id,
-                    other.type_name()
-                )),
-            }
+    use panproto_core::vcs;
+    let commit = match obj {
+        vcs::Object::Commit(c) => c,
+        other => {
+            return Err(format!(
+                "expected commit object at ref target, got {}",
+                other.type_name()
+            ));
         }
-        other => Err(format!(
-            "expected commit or schema object, got {}",
-            other.type_name()
-        )),
-    }
+    };
+    let fs_store = store
+        .open(did, repo)
+        .map_err(|e| format!("open store for commit {}: {e}", commit.schema_id))?;
+    vcs::resolve_commit_schema(&fs_store, commit)
+        .map_err(|e| format!("resolve commit schema {}: {e}", commit.schema_id))
 }
 
 /// Resolve a protocol name to its Protocol definition.

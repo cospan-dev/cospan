@@ -92,17 +92,15 @@ pub async fn proxy_get_json(
     endpoint: &str,
     extra_params: &[(&str, String)],
 ) -> Result<serde_json::Value, String> {
-    let row: Option<(String,)> = sqlx::query_as::<_, (String,)>(
-        "SELECT node_url FROM repos WHERE did = $1 AND name = $2",
-    )
-    .bind(repo_did)
-    .bind(repo_name)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| format!("database error: {e}"))?;
+    let row: Option<(String,)> =
+        sqlx::query_as::<_, (String,)>("SELECT node_url FROM repos WHERE did = $1 AND name = $2")
+            .bind(repo_did)
+            .bind(repo_name)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| format!("database error: {e}"))?;
 
-    let (node_url,) =
-        row.ok_or_else(|| format!("repo {repo_did}/{repo_name} not found"))?;
+    let (node_url,) = row.ok_or_else(|| format!("repo {repo_did}/{repo_name} not found"))?;
     if node_url.is_empty() {
         return Err("repo has no node URL configured".into());
     }

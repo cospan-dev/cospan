@@ -43,13 +43,11 @@ fn parse_wants_haves(body: &[u8]) -> (Vec<String>, Vec<String>, ClientCaps) {
             Err(_) => break,
         };
 
-        if pkt_len == 0 || pkt_len == 1 || pkt_len == 2 {
+        // 0000 = flush, 0001 = delim, 0002 = response-end. All consume just
+        // the four-byte length prefix and carry no payload.
+        if pkt_len <= 2 {
             pos += 4;
-            if pkt_len == 0 {
-                continue;
-            } else {
-                continue;
-            }
+            continue;
         }
 
         if pos + pkt_len > body.len() {

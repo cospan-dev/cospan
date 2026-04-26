@@ -177,9 +177,8 @@ fn apply_morphism(
     // Jetstream delivers the record body (not the full ATProto record wrapper),
     // so parse from the body vertex, not the record vertex.
     let body_vertex = format!("{}:body", mapping.tangled_nsid);
-    let instance =
-        panproto_inst::parse::parse_json(&mapping.tangled_schema, &body_vertex, record)
-            .map_err(|e| anyhow::anyhow!("parse {}: {e:?}", mapping.tangled_nsid))?;
+    let instance = panproto_inst::parse::parse_json(&mapping.tangled_schema, &body_vertex, record)
+        .map_err(|e| anyhow::anyhow!("parse {}: {e:?}", mapping.tangled_nsid))?;
 
     let lifted =
         lift_wtype_sigma(&mapping.compiled, &mapping.cospan_schema, &instance).map_err(|e| {

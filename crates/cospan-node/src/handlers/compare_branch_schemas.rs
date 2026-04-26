@@ -172,8 +172,5 @@ fn load_blob(mirror: &git2::Repository, oid: git2::Oid) -> Option<Vec<u8>> {
     if oid.is_zero() {
         return None;
     }
-    mirror
-        .find_blob(oid)
-        .ok()
-        .map(|b| b.content().to_vec())
+    mirror.find_blob(oid).ok().map(|b| b.content().to_vec())
 }

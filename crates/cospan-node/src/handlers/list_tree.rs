@@ -64,14 +64,10 @@ pub async fn list_tree(
     } else {
         let entry = root_tree
             .get_path(std::path::Path::new(path))
-            .map_err(|_| {
-                NodeError::ObjectNotFound(format!("path '{path}' not found in tree"))
-            })?;
+            .map_err(|_| NodeError::ObjectNotFound(format!("path '{path}' not found in tree")))?;
         mirror
             .find_tree(entry.id())
-            .map_err(|_| {
-                NodeError::ObjectNotFound(format!("'{path}' is not a directory"))
-            })?
+            .map_err(|_| NodeError::ObjectNotFound(format!("'{path}' is not a directory")))?
     };
 
     // List entries in the tree

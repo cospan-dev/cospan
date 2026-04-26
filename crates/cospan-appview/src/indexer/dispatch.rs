@@ -66,7 +66,11 @@ pub async fn dispatch_simple_upsert(
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
-            let source = if collection.starts_with("sh.tangled.") { "tangled" } else { "cospan" };
+            let source = if collection.starts_with("sh.tangled.") {
+                "tangled"
+            } else {
+                "cospan"
+            };
             db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, source).await?;
             db::$mod::upsert(&state.db, &row).await?;
             return Ok(true);
@@ -89,8 +93,20 @@ pub async fn dispatch_simple_upsert(
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
-            db::repo::ensure_exists(&state.db, &row.source_repo_did, &row.source_repo_name, "cospan").await?;
-            db::repo::ensure_exists(&state.db, &row.target_repo_did, &row.target_repo_name, "cospan").await?;
+            db::repo::ensure_exists(
+                &state.db,
+                &row.source_repo_did,
+                &row.source_repo_name,
+                "cospan",
+            )
+            .await?;
+            db::repo::ensure_exists(
+                &state.db,
+                &row.target_repo_did,
+                &row.target_repo_name,
+                "cospan",
+            )
+            .await?;
             db::dependency::upsert(&state.db, &row).await?;
             Ok(true)
         }

@@ -1,0 +1,25 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.auth.maintainerAccess",
+  "revision": 1,
+  "defs": {
+    "main": {
+      "type": "permission-set",
+      "title": "Maintain Cospan repositories",
+      "detail": "Contribute to Cospan plus: manage collaborators, merge pull requests, triage issues, and publish labels on repos you maintain.",
+      "includes": ["dev.cospan.auth.contributorAccess"],
+      "permissions": [
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.repo.collaborator" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.repo.dependency" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.repo.issue.state" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.repo.pull.state" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.label.definition" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.pipeline.pipeline" },
+        { "type": "permission", "resource": "repo", "collection": "dev.cospan.vcs.refUpdate" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.collaborator.add" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.issue.state.change" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.label.definition.create" }
+      ]
+    }
+  }
+}

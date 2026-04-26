@@ -14,7 +14,9 @@ pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
     // Spawn Tap consumers for each URL in TAP_URL (comma-separated)
     if let Ok(tap_urls) = std::env::var("TAP_URL") {
         for url in tap_urls.split(',').map(|s| s.trim().to_string()) {
-            if url.is_empty() { continue; }
+            if url.is_empty() {
+                continue;
+            }
             let tap_state = state.clone();
             tokio::spawn(async move {
                 loop {

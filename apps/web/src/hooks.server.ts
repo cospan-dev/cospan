@@ -18,6 +18,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 					did: session.did,
 					handle: session.handle,
 					avatar: avatarCookie ? decodeURIComponent(avatarCookie) : undefined,
+					scope: session.scope,
 				};
 			}
 		} catch {

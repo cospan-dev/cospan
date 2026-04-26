@@ -57,20 +57,14 @@ pub async fn create(
 }
 
 pub async fn mark_running(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "UPDATE fork_jobs SET state = 'running', started_at = NOW() WHERE id = $1",
-    )
-    .bind(id)
-    .execute(pool)
-    .await?;
+    sqlx::query("UPDATE fork_jobs SET state = 'running', started_at = NOW() WHERE id = $1")
+        .bind(id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
-pub async fn mark_completed(
-    pool: &PgPool,
-    id: Uuid,
-    refs_copied: i32,
-) -> Result<(), sqlx::Error> {
+pub async fn mark_completed(pool: &PgPool, id: Uuid, refs_copied: i32) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE fork_jobs SET state = 'completed', refs_copied = $2, completed_at = NOW() \
          WHERE id = $1",

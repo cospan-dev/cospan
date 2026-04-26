@@ -11,6 +11,9 @@ pub struct AppConfig {
     pub default_node_did: String,
     /// Public URL of the default Cospan-hosted node.
     pub default_node_url: String,
+    /// Service DID of this AppView (used as `aud` in `rpc:` scopes).
+    /// Empty string falls back to wildcard audience.
+    pub appview_did: String,
 }
 
 impl AppConfig {
@@ -30,6 +33,7 @@ impl AppConfig {
             default_node_did: std::env::var("DEFAULT_NODE_DID").unwrap_or_default(),
             default_node_url: std::env::var("DEFAULT_NODE_URL")
                 .unwrap_or_else(|_| "https://node.cospan.dev".into()),
+            appview_did: std::env::var("APPVIEW_DID").unwrap_or_default(),
         })
     }
 }

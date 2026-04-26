@@ -1,0 +1,40 @@
+{
+  "lexicon": 1,
+  "id": "dev.cospan.auth.readerAccess",
+  "revision": 1,
+  "defs": {
+    "main": {
+      "type": "permission-set",
+      "title": "Browse Cospan",
+      "detail": "Read-only access: browse repos, issues, pull requests, profiles, and search.",
+      "permissions": [
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.actor.getProfile" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.feed.getBreakingChanges" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.feed.getTimeline" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.feed.reaction.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.feed.star.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.graph.follow.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.node.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.org.get" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.org.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.org.member.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.pipeline.get" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.pipeline.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.collaborator.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.dependency.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.get" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.issue.comment.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.issue.get" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.issue.getTimeline" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.issue.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.pull.comment.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.pull.get" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.repo.pull.list" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.search.repos" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.search.structural" },
+        { "type": "permission", "resource": "rpc", "inheritAud": true, "lxm": "dev.cospan.vcs.refUpdate.list" }
+      ]
+    }
+  }
+}

@@ -127,10 +127,7 @@ impl SessionStore for RedisSessionStore {
     async fn get_session(&self, session_id: &str) -> anyhow::Result<Option<Session>> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = format!("session:{session_id}");
-        let value: Option<String> = redis::cmd("GET")
-            .arg(&key)
-            .query_async(&mut conn)
-            .await?;
+        let value: Option<String> = redis::cmd("GET").arg(&key).query_async(&mut conn).await?;
         match value {
             Some(v) => Ok(Some(serde_json::from_str(&v)?)),
             None => Ok(None),
@@ -140,7 +137,10 @@ impl SessionStore for RedisSessionStore {
     async fn delete_session(&self, session_id: &str) -> anyhow::Result<()> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = format!("session:{session_id}");
-        redis::cmd("DEL").arg(&key).query_async::<()>(&mut conn).await?;
+        redis::cmd("DEL")
+            .arg(&key)
+            .query_async::<()>(&mut conn)
+            .await?;
         Ok(())
     }
 

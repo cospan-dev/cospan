@@ -21,15 +21,30 @@ pub fn build(state: Arc<NodeState>) -> Router {
     // stars, follows, issues, MRs) which are served by the appview, not the node.
     let xrpc = Router::new()
         // Core VCS operations (used by git-remote-cospan and panproto-xrpc)
-        .route("/xrpc/dev.panproto.node.getObject", get(handlers::get_object))
-        .route("/xrpc/dev.panproto.node.putObject", post(handlers::put_object))
+        .route(
+            "/xrpc/dev.panproto.node.getObject",
+            get(handlers::get_object),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.putObject",
+            post(handlers::put_object),
+        )
         .route("/xrpc/dev.panproto.node.getRef", get(handlers::get_ref))
         .route("/xrpc/dev.panproto.node.setRef", post(handlers::set_ref))
         .route("/xrpc/dev.panproto.node.listRefs", get(handlers::list_refs))
-        .route("/xrpc/dev.panproto.node.listCommits", get(handlers::list_commits))
-        .route("/xrpc/dev.panproto.node.diffCommits", get(handlers::diff_commits))
+        .route(
+            "/xrpc/dev.panproto.node.listCommits",
+            get(handlers::list_commits),
+        )
+        .route(
+            "/xrpc/dev.panproto.node.diffCommits",
+            get(handlers::diff_commits),
+        )
         .route("/xrpc/dev.panproto.node.getHead", get(handlers::get_head))
-        .route("/xrpc/dev.panproto.node.negotiate", post(handlers::negotiate))
+        .route(
+            "/xrpc/dev.panproto.node.negotiate",
+            post(handlers::negotiate),
+        )
         .route(
             "/xrpc/dev.panproto.node.getRepoInfo",
             get(handlers::get_repo_info),
@@ -59,14 +74,8 @@ pub fn build(state: Arc<NodeState>) -> Router {
             "/xrpc/dev.panproto.node.getImportStatus",
             get(handlers::get_import_status),
         )
-        .route(
-            "/xrpc/dev.panproto.node.listTree",
-            get(handlers::list_tree),
-        )
-        .route(
-            "/xrpc/dev.panproto.node.getBlob",
-            get(handlers::get_blob),
-        );
+        .route("/xrpc/dev.panproto.node.listTree", get(handlers::list_tree))
+        .route("/xrpc/dev.panproto.node.getBlob", get(handlers::get_blob));
 
     let git = git_compat::git_routes();
 

@@ -66,7 +66,10 @@ impl Default for CopyOptions {
             dest_creds: None,
             // Fetch all refs from source with force to allow non-FF;
             // push them to destination with matching refs.
-            refspecs: vec!["+refs/heads/*:refs/heads/*".to_string(), "+refs/tags/*:refs/tags/*".to_string()],
+            refspecs: vec![
+                "+refs/heads/*:refs/heads/*".to_string(),
+                "+refs/tags/*:refs/tags/*".to_string(),
+            ],
         }
     }
 }

@@ -10,9 +10,9 @@
 //!  - line-level hunks (unified diff format)
 //!  - total additions / deletions
 //!  - **structural diff**: for parseable files (248 tree-sitter
-//!     languages + all panproto-protocols schema formats), parses
-//!     both sides into panproto schemas, runs `panproto_check::diff`
-//!     + `classify`, and attaches the result.
+//!    languages + all panproto-protocols schema formats), parses
+//!    both sides into panproto schemas, runs `panproto_check::diff`
+//!    + `classify`, and attaches the result.
 //!
 //! Query parameters:
 //!   - `did`: repo owner
@@ -73,11 +73,14 @@ pub async fn diff_commits(
 
     // Check cache: commit OIDs are content-addressed so diffs are immutable.
     let ctx_lines = params.context_lines.unwrap_or(3);
-    let cache_key = format!("{}:{}:{from_oid}:{to_oid}:{ctx_lines}", params.did, params.repo);
-    if let Ok(cache) = DIFF_CACHE.lock() {
-        if let Some(cached) = cache.get(&cache_key) {
-            return Ok(Json(cached.clone()));
-        }
+    let cache_key = format!(
+        "{}:{}:{from_oid}:{to_oid}:{ctx_lines}",
+        params.did, params.repo
+    );
+    if let Ok(cache) = DIFF_CACHE.lock()
+        && let Some(cached) = cache.get(&cache_key)
+    {
+        return Ok(Json(cached.clone()));
     }
 
     let from_commit = mirror
@@ -128,17 +131,17 @@ pub async fn diff_commits(
     diff.foreach(
         &mut |delta, _progress| {
             // Flush any pending hunk from the previous file.
-            if let Some(hunk) = hunk_cell.borrow_mut().take() {
-                if let Some(last) = files_cell.borrow_mut().last_mut() {
-                    last.hunks.push(json!({
-                        "oldStart": hunk.old_start,
-                        "oldLines": hunk.old_lines,
-                        "newStart": hunk.new_start,
-                        "newLines": hunk.new_lines,
-                        "header": hunk.header,
-                        "lines": hunk.lines,
-                    }));
-                }
+            if let Some(hunk) = hunk_cell.borrow_mut().take()
+                && let Some(last) = files_cell.borrow_mut().last_mut()
+            {
+                last.hunks.push(json!({
+                    "oldStart": hunk.old_start,
+                    "oldLines": hunk.old_lines,
+                    "newStart": hunk.new_start,
+                    "newLines": hunk.new_lines,
+                    "header": hunk.header,
+                    "lines": hunk.lines,
+                }));
             }
             let status = match delta.status() {
                 git2::Delta::Added => "added",
@@ -155,9 +158,7 @@ pub async fn diff_commits(
                 .path()
                 .map(|p| p.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            let old_path_str = old_file
-                .path()
-                .map(|p| p.to_string_lossy().into_owned());
+            let old_path_str = old_file.path().map(|p| p.to_string_lossy().into_owned());
             let old_path = match (status, old_path_str.as_deref(), new_path.as_str()) {
                 ("renamed", Some(op), np) if op != np => old_path_str.clone(),
                 _ => None,
@@ -178,17 +179,17 @@ pub async fn diff_commits(
         None,
         Some(&mut |_delta, hunk| {
             // Flush any previous hunk.
-            if let Some(prev) = hunk_cell.borrow_mut().take() {
-                if let Some(last) = files_cell.borrow_mut().last_mut() {
-                    last.hunks.push(json!({
-                        "oldStart": prev.old_start,
-                        "oldLines": prev.old_lines,
-                        "newStart": prev.new_start,
-                        "newLines": prev.new_lines,
-                        "header": prev.header,
-                        "lines": prev.lines,
-                    }));
-                }
+            if let Some(prev) = hunk_cell.borrow_mut().take()
+                && let Some(last) = files_cell.borrow_mut().last_mut()
+            {
+                last.hunks.push(json!({
+                    "oldStart": prev.old_start,
+                    "oldLines": prev.old_lines,
+                    "newStart": prev.new_start,
+                    "newLines": prev.new_lines,
+                    "header": prev.header,
+                    "lines": prev.lines,
+                }));
             }
             *hunk_cell.borrow_mut() = Some(HunkBuilder {
                 old_start: hunk.old_start(),
@@ -225,17 +226,17 @@ pub async fn diff_commits(
     .map_err(|e| NodeError::Internal(format!("diff.foreach: {e}")))?;
 
     // Flush final hunk.
-    if let Some(hunk) = hunk_cell.borrow_mut().take() {
-        if let Some(last) = files_cell.borrow_mut().last_mut() {
-            last.hunks.push(json!({
-                "oldStart": hunk.old_start,
-                "oldLines": hunk.old_lines,
-                "newStart": hunk.new_start,
-                "newLines": hunk.new_lines,
-                "header": hunk.header,
-                "lines": hunk.lines,
-            }));
-        }
+    if let Some(hunk) = hunk_cell.borrow_mut().take()
+        && let Some(last) = files_cell.borrow_mut().last_mut()
+    {
+        last.hunks.push(json!({
+            "oldStart": hunk.old_start,
+            "oldLines": hunk.old_lines,
+            "newStart": hunk.new_start,
+            "newLines": hunk.new_lines,
+            "header": hunk.header,
+            "lines": hunk.lines,
+        }));
     }
 
     let entries = files_cell.into_inner();
@@ -251,10 +252,8 @@ pub async fn diff_commits(
     // git-remote-cospan for structural analysis.
     //
     // See panproto/panproto#28 (distribute git-remote-cospan binary).
-    let file_paths: Vec<(String, bool)> = entries
-        .iter()
-        .map(|e| (e.path.clone(), e.binary))
-        .collect();
+    let file_paths: Vec<(String, bool)> =
+        entries.iter().map(|e| (e.path.clone(), e.binary)).collect();
     let structural_diffs = try_load_structural_diffs_from_vcs(
         &state,
         &params.did,
@@ -299,22 +298,12 @@ pub async fn diff_commits(
     Ok(Json(result))
 }
 
-/// Load a blob's raw contents from the git mirror, if it exists.
-fn load_blob(mirror: &git2::Repository, oid_str: &str) -> Option<Vec<u8>> {
-    let zero = "0".repeat(40);
-    if oid_str == zero || oid_str.is_empty() {
-        return None;
-    }
-    let oid = git2::Oid::from_str(oid_str).ok()?;
-    mirror
-        .find_blob(oid)
-        .ok()
-        .map(|b| b.content().to_vec())
-}
-
 /// Load pre-parsed structural diffs from the panproto-vcs store.
 /// Returns `None` if the store doesn't have schemas for these commits
 /// (meaning the repo was pushed via raw git, not git-remote-cospan).
+///
+/// Walks each commit's `SchemaTree` (panproto issue #49) into a
+/// `path -> FileSchemaObject` map, then diffs per-file schemas natively.
 fn try_load_structural_diffs_from_vcs(
     state: &Arc<NodeState>,
     did: &str,
@@ -323,7 +312,7 @@ fn try_load_structural_diffs_from_vcs(
     to_git_oid: git2::Oid,
     file_paths: &[(String, bool)],
 ) -> Option<std::collections::HashMap<String, serde_json::Value>> {
-    use panproto_core::vcs::{Object, Store};
+    use panproto_core::vcs::{self, FileSchemaObject, Object, Store};
 
     let store_guard = state.store.blocking_lock();
     let marks = store_guard.load_import_marks(did, repo);
@@ -332,72 +321,82 @@ fn try_load_structural_diffs_from_vcs(
     let vcs_store = store_guard.open(did, repo).ok()?;
     drop(store_guard);
 
-    // Load both project schemas from the vcs store.
-    let from_schema = match vcs_store.get(&from_pp).ok()? {
-        Object::Commit(c) => match vcs_store.get(&c.schema_id).ok()? {
-            Object::Schema(s) => *s,
+    fn collect_leaves<S: Store>(
+        store: &S,
+        pp_id: &vcs::ObjectId,
+    ) -> Option<std::collections::HashMap<String, FileSchemaObject>> {
+        let commit = match store.get(pp_id).ok()? {
+            Object::Commit(c) => c,
             _ => return None,
-        },
-        _ => return None,
-    };
-    let to_schema = match vcs_store.get(&to_pp).ok()? {
-        Object::Commit(c) => match vcs_store.get(&c.schema_id).ok()? {
-            Object::Schema(s) => *s,
-            _ => return None,
-        },
-        _ => return None,
+        };
+        let mut out = std::collections::HashMap::new();
+        vcs::walk_tree(store, &commit.schema_id, |path, file| {
+            out.insert(path.to_string_lossy().into_owned(), file.clone());
+            Ok(())
+        })
+        .ok()?;
+        Some(out)
+    }
+
+    let from_leaves = collect_leaves(&vcs_store, &from_pp)?;
+    let to_leaves = collect_leaves(&vcs_store, &to_pp)?;
+
+    // Produce an empty schema matching the shape of `template`, used when a
+    // file is pure-add or pure-delete (only one side has a leaf).
+    let empty_like = |template: &panproto_schema::Schema| {
+        let mut s = template.clone();
+        s.vertices.clear();
+        s.edges.clear();
+        s.hyper_edges.clear();
+        s.constraints.clear();
+        s.required.clear();
+        s.nsids.clear();
+        s.entries.clear();
+        s.variants.clear();
+        s
     };
 
-    // Per-file structural diffs: filter the project schema by file path,
-    // run diff + classify + report_by_scope. This is fast because schemas
-    // are already parsed.
     let mut result = std::collections::HashMap::new();
     for (path, binary) in file_paths {
         if *binary {
             continue;
         }
-        let old_file_schema = filter_schema_by_file(&from_schema, path);
-        let new_file_schema = filter_schema_by_file(&to_schema, path);
-        let raw_diff = panproto_check::diff(&old_file_schema, &new_file_schema);
+
+        let old_leaf = from_leaves.get(path);
+        let new_leaf = to_leaves.get(path);
+
+        let (old_schema, new_schema, protocol) = match (old_leaf, new_leaf) {
+            (Some(o), Some(n)) => (o.schema.clone(), n.schema.clone(), n.protocol.clone()),
+            (Some(o), None) => {
+                let empty = empty_like(&o.schema);
+                (o.schema.clone(), empty, o.protocol.clone())
+            }
+            (None, Some(n)) => {
+                let empty = empty_like(&n.schema);
+                (empty, n.schema.clone(), n.protocol.clone())
+            }
+            (None, None) => continue,
+        };
+
+        let raw_diff = panproto_check::diff(&old_schema, &new_schema);
         let report = panproto_check::CompatReport {
             breaking: Vec::new(),
             non_breaking: Vec::new(),
             compatible: true,
         };
         let sd = super::structural::StructuralDiff {
-            protocol: new_file_schema.protocol.clone(),
+            protocol,
             report,
             raw_diff,
-            old_schema: old_file_schema.clone(),
-            new_schema: new_file_schema.clone(),
-            old_vertex_count: old_file_schema.vertices.len(),
-            new_vertex_count: new_file_schema.vertices.len(),
-            old_edge_count: old_file_schema.edges.len(),
-            new_edge_count: new_file_schema.edges.len(),
+            old_vertex_count: old_schema.vertices.len(),
+            new_vertex_count: new_schema.vertices.len(),
+            old_edge_count: old_schema.edges.len(),
+            new_edge_count: new_schema.edges.len(),
+            old_schema,
+            new_schema,
         };
         let json = super::structural::structural_diff_to_json(&sd, None, None);
         result.insert(path.clone(), json);
     }
     Some(result)
-}
-
-/// Filter a project-level schema to vertices/edges belonging to one file.
-/// Vertex IDs starting with `file_path::` belong to that file.
-fn filter_schema_by_file(schema: &panproto_schema::Schema, file_path: &str) -> panproto_schema::Schema {
-    let prefix = format!("{file_path}::");
-    let mut out = schema.clone();
-    out.vertices.retain(|vid, _| {
-        let s: &str = vid.as_ref();
-        s == file_path || s.starts_with(&prefix)
-    });
-    out.edges.retain(|e, _| {
-        let s: &str = e.src.as_ref();
-        let t: &str = e.tgt.as_ref();
-        s.starts_with(&prefix) || t.starts_with(&prefix) || s == file_path || t == file_path
-    });
-    out.constraints.retain(|vid, _| {
-        let s: &str = vid.as_ref();
-        s == file_path || s.starts_with(&prefix)
-    });
-    out
 }

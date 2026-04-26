@@ -13,10 +13,10 @@ use super::dispatch;
 /// e.g., "sh.tangled.repo.pull.status.merged" → "merged"
 ///       "sh.tangled.repo.issue.state.closed" → "closed"
 fn normalize_state(state: &str) -> String {
-    if let Some(last) = state.rsplit('.').next() {
-        if state.contains("tangled") || state.contains('.') {
-            return last.to_string();
-        }
+    if let Some(last) = state.rsplit('.').next()
+        && (state.contains("tangled") || state.contains('.'))
+    {
+        return last.to_string();
     }
     state.to_string()
 }
@@ -128,7 +128,11 @@ async fn dispatch_special_upsert(
                 serde_json::from_value(transform_record(state, collection, rec))?;
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
-            let source = if collection.starts_with("sh.tangled.") { "tangled" } else { "cospan" };
+            let source = if collection.starts_with("sh.tangled.") {
+                "tangled"
+            } else {
+                "cospan"
+            };
             db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, source).await?;
             db::ref_update::upsert(&state.db, &row).await?;
 
@@ -151,9 +155,15 @@ async fn dispatch_special_upsert(
             row.indexed_at = Utc::now();
             // AT-URI decomposition yields rkey, not name: resolve to human-readable name
             if !row.repo_did.is_empty() && !row.repo_name.is_empty() {
-                row.repo_name = db::repo::resolve_rkey_to_name(&state.db, &row.repo_did, &row.repo_name).await?;
+                row.repo_name =
+                    db::repo::resolve_rkey_to_name(&state.db, &row.repo_did, &row.repo_name)
+                        .await?;
             }
-            let source = if collection.starts_with("sh.tangled.") { "tangled" } else { "cospan" };
+            let source = if collection.starts_with("sh.tangled.") {
+                "tangled"
+            } else {
+                "cospan"
+            };
             db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, source).await?;
             db::issue::upsert(&state.db, &row).await?;
 
@@ -196,9 +206,8 @@ async fn dispatch_special_upsert(
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let new_state = normalize_state(
-                rec.get("state").and_then(|v| v.as_str()).unwrap_or("open")
-            );
+            let new_state =
+                normalize_state(rec.get("state").and_then(|v| v.as_str()).unwrap_or("open"));
 
             let mut row: db::issue_state::IssueStateRow =
                 serde_json::from_value(transform_record(state, collection, rec))?;
@@ -250,7 +259,9 @@ async fn dispatch_special_upsert(
             let rec = if rec.get("repo").is_none() {
                 if let Some(target_repo) = rec.get("target").and_then(|t| t.get("repo")).cloned() {
                     let mut patched = rec.clone();
-                    patched.as_object_mut().map(|o| o.insert("repo".to_string(), target_repo));
+                    patched
+                        .as_object_mut()
+                        .map(|o| o.insert("repo".to_string(), target_repo));
                     patched
                 } else {
                     rec.clone()
@@ -264,9 +275,15 @@ async fn dispatch_special_upsert(
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
             if !row.repo_did.is_empty() && !row.repo_name.is_empty() {
-                row.repo_name = db::repo::resolve_rkey_to_name(&state.db, &row.repo_did, &row.repo_name).await?;
+                row.repo_name =
+                    db::repo::resolve_rkey_to_name(&state.db, &row.repo_did, &row.repo_name)
+                        .await?;
             }
-            let source = if collection.starts_with("sh.tangled.") { "tangled" } else { "cospan" };
+            let source = if collection.starts_with("sh.tangled.") {
+                "tangled"
+            } else {
+                "cospan"
+            };
             db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, source).await?;
             db::pull::upsert(&state.db, &row).await?;
 
@@ -317,7 +334,11 @@ async fn dispatch_special_upsert(
             row.indexed_at = Utc::now();
             // Tangled uses "status" not "state"; fill from raw record if empty
             if row.state.is_empty() {
-                row.state = rec.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                row.state = rec
+                    .get("status")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
             }
             // Normalize NSID-style states: "sh.tangled.repo.pull.status.merged" → "merged"
             row.state = normalize_state(&row.state);
@@ -390,7 +411,11 @@ async fn dispatch_special_upsert(
             row.did = did.to_string();
             row.rkey = rkey.to_string();
             row.indexed_at = Utc::now();
-            let source = if collection.starts_with("sh.tangled.") { "tangled" } else { "cospan" };
+            let source = if collection.starts_with("sh.tangled.") {
+                "tangled"
+            } else {
+                "cospan"
+            };
             db::repo::ensure_exists(&state.db, &row.repo_did, &row.repo_name, source).await?;
             db::pipeline::upsert(&state.db, &row).await?;
         }

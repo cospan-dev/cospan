@@ -7,6 +7,9 @@ declare global {
 				authenticated: boolean;
 				did: string;
 				handle: string;
+				avatar?: string;
+				/** Raw granted scope string from the PDS (space-separated). */
+				scope?: string;
 			};
 		}
 

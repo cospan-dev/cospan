@@ -55,15 +55,11 @@ pub async fn get_blob(
 
     let entry = tree
         .get_path(std::path::Path::new(&params.path))
-        .map_err(|_| {
-            NodeError::ObjectNotFound(format!("file '{}' not found", params.path))
-        })?;
+        .map_err(|_| NodeError::ObjectNotFound(format!("file '{}' not found", params.path)))?;
 
     let blob = mirror
         .find_blob(entry.id())
-        .map_err(|_| {
-            NodeError::ObjectNotFound(format!("'{}' is not a file", params.path))
-        })?;
+        .map_err(|_| NodeError::ObjectNotFound(format!("'{}' is not a file", params.path)))?;
 
     let content = blob.content();
     let is_binary = content.contains(&0u8);

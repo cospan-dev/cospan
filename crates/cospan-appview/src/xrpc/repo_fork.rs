@@ -122,12 +122,7 @@ pub async fn handler(
     })?;
 
     // 8. Extract the rkey from the returned URI.
-    let rkey = created
-        .uri
-        .rsplit('/')
-        .next()
-        .unwrap_or("")
-        .to_string();
+    let rkey = created.uri.rsplit('/').next().unwrap_or("").to_string();
     if rkey.is_empty() {
         return Err(AppError::Upstream(format!(
             "PDS returned malformed URI: {}",

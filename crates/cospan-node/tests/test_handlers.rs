@@ -21,6 +21,18 @@ fn create_test_schema() -> panproto_schema::Schema {
         .unwrap()
 }
 
+/// Wrap a test schema in the canonical per-file structured object the
+/// node accepts on the wire (`Object::FileSchema`).
+fn test_file_object() -> panproto_core::vcs::Object {
+    let schema = create_test_schema();
+    panproto_core::vcs::Object::FileSchema(Box::new(panproto_core::vcs::FileSchemaObject {
+        path: "test-file".to_string(),
+        protocol: schema.protocol.clone(),
+        schema,
+        cross_file_edges: Vec::new(),
+    }))
+}
+
 /// Mock PDS client that returns a fake AT-URI without making real HTTP calls.
 struct MockPdsClient;
 
@@ -114,10 +126,8 @@ async fn put_get_object_round_trip() {
     let (base, _tmp) = start_server().await;
     let client = Client::new();
 
-    // Create a simple Schema object
-    let schema = create_test_schema();
-    let original_bytes =
-        rmp_serde::to_vec(&panproto_core::vcs::Object::Schema(Box::new(schema))).unwrap();
+    // Canonical per-file structured object.
+    let original_bytes = rmp_serde::to_vec(&test_file_object()).unwrap();
 
     let object: panproto_core::vcs::Object = rmp_serde::from_slice(&original_bytes).unwrap();
 
@@ -177,8 +187,7 @@ async fn get_object_not_found() {
     let client = Client::new();
 
     // First we need to init the repo by putting an object
-    let schema = create_test_schema();
-    let object = panproto_core::vcs::Object::Schema(Box::new(schema));
+    let object = test_file_object();
     let body = rmp_serde::to_vec(&object).unwrap();
 
     client
@@ -208,8 +217,7 @@ async fn set_ref_get_ref_round_trip() {
     let client = Client::new();
 
     // First, put an object to have a valid target
-    let schema = create_test_schema();
-    let object = panproto_core::vcs::Object::Schema(Box::new(schema));
+    let object = test_file_object();
     let body = rmp_serde::to_vec(&object).unwrap();
 
     let put_resp = client
@@ -267,8 +275,7 @@ async fn list_refs_returns_set_ref() {
     let client = Client::new();
 
     // Put an object
-    let schema = create_test_schema();
-    let object = panproto_core::vcs::Object::Schema(Box::new(schema));
+    let object = test_file_object();
     let body = rmp_serde::to_vec(&object).unwrap();
 
     let put_resp = client
@@ -307,7 +314,7 @@ async fn list_refs_returns_set_ref() {
     );
 
     // List refs
-    let list_resp = client
+    let _list_resp = client
         .get(format!(
             "{base}/xrpc/dev.panproto.node.listRefs?did=did:plc:testuser&repo=test-repo"
         ))
@@ -342,11 +349,11 @@ async fn list_refs_returns_set_ref() {
     if list_resp.status().is_success() {
         let list_json: serde_json::Value = list_resp.json().await.unwrap();
         let refs = list_json["refs"].as_array().unwrap();
-        assert!(refs.len() >= 1);
+        assert!(!refs.is_empty());
 
         let found = refs
             .iter()
-            .any(|r| r["ref"].as_str().unwrap() == "refs/heads/feature");
+            .any(|r| r["name"].as_str().unwrap() == "refs/heads/feature");
         assert!(found, "refs/heads/feature not found in {:?}", refs);
     }
 }
@@ -357,8 +364,7 @@ async fn get_head_returns_head_state() {
     let client = Client::new();
 
     // Put an object to init the repo
-    let schema = create_test_schema();
-    let object = panproto_core::vcs::Object::Schema(Box::new(schema));
+    let object = test_file_object();
     let body = rmp_serde::to_vec(&object).unwrap();
 
     client
@@ -381,8 +387,12 @@ async fn get_head_returns_head_state() {
     assert_eq!(resp.status(), 200);
 
     let json: serde_json::Value = resp.json().await.unwrap();
-    // HEAD should exist (either branch or detached)
-    assert!(json.get("head").is_some());
+    // The handler returns either {"branch": "<name>"} or
+    // {"detached": "<oid>"} (panproto-xrpc HeadResult flat shape).
+    assert!(
+        json.get("branch").is_some() || json.get("detached").is_some(),
+        "expected branch or detached field, got {json}"
+    );
 }
 
 #[tokio::test]
@@ -391,8 +401,7 @@ async fn negotiate_returns_need_set() {
     let client = Client::new();
 
     // Put an object
-    let schema = create_test_schema();
-    let object = panproto_core::vcs::Object::Schema(Box::new(schema));
+    let object = test_file_object();
     let body = rmp_serde::to_vec(&object).unwrap();
 
     let put_resp = client
@@ -424,11 +433,15 @@ async fn negotiate_returns_need_set() {
         .await
         .unwrap();
 
-    // Negotiate: client has nothing, wants refs/heads/main
+    // Negotiate is push-side: the client says "I have these objects",
+    // the server replies with the subset it does NOT yet have. Send a
+    // have that includes one object the server has and one fake ID it
+    // doesn't, then assert the response reflects that.
+    let unknown = "0".repeat(64);
     let negotiate_body = serde_json::json!({
         "did": "did:plc:testuser",
         "repo": "test-repo",
-        "have": [],
+        "have": [object_id.clone(), unknown.clone()],
         "want": ["refs/heads/main"]
     });
 
@@ -443,15 +456,16 @@ async fn negotiate_returns_need_set() {
 
     let json: serde_json::Value = resp.json().await.unwrap();
     let need = json["need"].as_array().unwrap();
-    // Should need at least the schema object
     assert!(
-        !need.is_empty(),
-        "negotiate should return non-empty need set"
+        need.iter().any(|n| n.as_str().unwrap() == unknown),
+        "unknown id should be in `need`: {need:?}",
     );
     assert!(
-        need.iter().any(|n| n.as_str().unwrap() == object_id),
-        "need set should contain {object_id}"
+        need.iter().all(|n| n.as_str().unwrap() != object_id),
+        "stored object_id should NOT be in `need`: {need:?}",
     );
+    // refs key is also part of the new wire format.
+    assert!(json.get("refs").is_some(), "missing refs field");
 }
 
 #[tokio::test]
@@ -460,8 +474,7 @@ async fn get_repo_info_returns_metadata() {
     let client = Client::new();
 
     // Put an object to init the repo
-    let schema = create_test_schema();
-    let object = panproto_core::vcs::Object::Schema(Box::new(schema));
+    let object = test_file_object();
     let body = rmp_serde::to_vec(&object).unwrap();
 
     client
@@ -502,4 +515,347 @@ async fn get_repo_info_not_found() {
         .await
         .unwrap();
     assert_eq!(resp.status(), 404);
+}
+
+// ---------------------------------------------------------------------------
+// Tree-commit round trip (panproto issue #49)
+//
+// Exercises the exact data shape `git-remote-cospan` pushes: one
+// `FileSchemaObject` per file, a `SchemaTree` root referencing them, a
+// `Commit` pointing at the tree root, and a ref pointing at the commit.
+// Verifies that:
+//   1. cospan-node stores and returns each object under the content-
+//      addressed ID produced by `FsStore::put`.
+//   2. `resolve_commit_schema` walks the tree back into a flat schema
+//      whose vertex/edge counts equal the sum of the leaves'.
+//   3. A second commit that changes one of three files reuses the two
+//      unchanged `FileSchema` ObjectIds (the dedup claim).
+// ---------------------------------------------------------------------------
+
+/// Build a one-file `FileSchemaObject` with a vertex named after the file.
+fn file_leaf(path: &str, vertex_name: &str) -> panproto_core::vcs::FileSchemaObject {
+    let protocol = panproto_protocols::raw_file::protocol();
+    let schema = panproto_schema::SchemaBuilder::new(&protocol)
+        .vertex(vertex_name, "file", None)
+        .unwrap()
+        .build()
+        .unwrap();
+    panproto_core::vcs::FileSchemaObject {
+        path: path.to_string(),
+        protocol: schema.protocol.clone(),
+        schema,
+        cross_file_edges: Vec::new(),
+    }
+}
+
+/// PUT an Object via `putObject` and return the content-addressed ID string
+/// as returned by the server.
+async fn put_object(
+    client: &Client,
+    base: &str,
+    did: &str,
+    repo: &str,
+    obj: &panproto_core::vcs::Object,
+) -> String {
+    let body = rmp_serde::to_vec(obj).unwrap();
+    let resp = client
+        .post(format!(
+            "{base}/xrpc/dev.panproto.node.putObject?did={did}&repo={repo}"
+        ))
+        .header(auth_header().0, auth_header().1)
+        .header("Content-Type", "application/vnd.panproto.object+msgpack")
+        .body(body)
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        resp.status().is_success(),
+        "putObject failed: {}",
+        resp.text().await.unwrap()
+    );
+    let j: serde_json::Value = resp.json().await.unwrap();
+    j["id"].as_str().unwrap().to_string()
+}
+
+#[tokio::test]
+async fn tree_commit_round_trip_and_dedup() {
+    use panproto_core::vcs::{
+        CommitObject, FileSchemaObject, Object, ObjectId, SchemaTreeEntry, SchemaTreeObject,
+    };
+
+    let (base, _tmp) = start_server().await;
+    let client = Client::new();
+    let did = "did:plc:testuser";
+    let repo = "tree-round-trip";
+
+    // Commit 1: three files.
+    let leaves_a: Vec<FileSchemaObject> = vec![
+        file_leaf("src/a.rs", "A"),
+        file_leaf("src/b.rs", "B"),
+        file_leaf("README.md", "R"),
+    ];
+    let mut leaf_ids_a: Vec<(String, ObjectId)> = Vec::new();
+    for leaf in &leaves_a {
+        let id_str = put_object(
+            &client,
+            &base,
+            did,
+            repo,
+            &Object::FileSchema(Box::new(leaf.clone())),
+        )
+        .await;
+        leaf_ids_a.push((leaf.path.clone(), id_str.parse().unwrap()));
+    }
+
+    // Build the directory tree bottom-up. Here our layout is:
+    //   root/
+    //     README.md  (file)
+    //     src/       (tree)
+    //       a.rs (file)
+    //       b.rs (file)
+    let src_tree = Object::SchemaTree(Box::new(SchemaTreeObject::Directory {
+        entries: vec![
+            ("a.rs".into(), SchemaTreeEntry::File(leaf_ids_a[0].1)),
+            ("b.rs".into(), SchemaTreeEntry::File(leaf_ids_a[1].1)),
+        ],
+    }));
+    let src_tree_id: ObjectId = put_object(&client, &base, did, repo, &src_tree)
+        .await
+        .parse()
+        .unwrap();
+
+    let root_tree_1 = Object::SchemaTree(Box::new(SchemaTreeObject::Directory {
+        entries: vec![
+            ("README.md".into(), SchemaTreeEntry::File(leaf_ids_a[2].1)),
+            ("src".into(), SchemaTreeEntry::Tree(src_tree_id)),
+        ],
+    }));
+    let root_tree_1_id: ObjectId = put_object(&client, &base, did, repo, &root_tree_1)
+        .await
+        .parse()
+        .unwrap();
+
+    // First commit.
+    let commit_1 = Object::Commit(
+        CommitObject::builder(root_tree_1_id, "raw_file", "tester", "initial").build(),
+    );
+    let commit_1_id = put_object(&client, &base, did, repo, &commit_1).await;
+
+    // Point a ref at the first commit.
+    let set_resp = client
+        .post(format!("{base}/xrpc/dev.panproto.node.setRef"))
+        .header(auth_header().0, auth_header().1)
+        .json(&serde_json::json!({
+            "did": did,
+            "repo": repo,
+            "ref": "refs/heads/main",
+            "newTarget": commit_1_id,
+            "protocol": "raw_file",
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert!(set_resp.status().is_success(), "setRef must succeed");
+
+    // Commit 2: change only src/b.rs. The other two `FileSchemaObject`s
+    // MUST keep their original ObjectIds (dedup).
+    let b_v2 = file_leaf("src/b.rs", "B2");
+    let b_v2_id: ObjectId = put_object(
+        &client,
+        &base,
+        did,
+        repo,
+        &Object::FileSchema(Box::new(b_v2)),
+    )
+    .await
+    .parse()
+    .unwrap();
+
+    // Re-put a.rs and README.md unchanged and assert the server hands
+    // back the SAME ObjectId (content addressing holds across puts).
+    let a_again_id: ObjectId = put_object(
+        &client,
+        &base,
+        did,
+        repo,
+        &Object::FileSchema(Box::new(leaves_a[0].clone())),
+    )
+    .await
+    .parse()
+    .unwrap();
+    let readme_again_id: ObjectId = put_object(
+        &client,
+        &base,
+        did,
+        repo,
+        &Object::FileSchema(Box::new(leaves_a[2].clone())),
+    )
+    .await
+    .parse()
+    .unwrap();
+    assert_eq!(
+        a_again_id, leaf_ids_a[0].1,
+        "unchanged a.rs should keep its ObjectId"
+    );
+    assert_eq!(
+        readme_again_id, leaf_ids_a[2].1,
+        "unchanged README.md should keep its ObjectId"
+    );
+
+    // Build commit 2's trees with the new b.rs id but the same a.rs +
+    // README.md ids.
+    let src_tree_2 = Object::SchemaTree(Box::new(SchemaTreeObject::Directory {
+        entries: vec![
+            ("a.rs".into(), SchemaTreeEntry::File(leaf_ids_a[0].1)),
+            ("b.rs".into(), SchemaTreeEntry::File(b_v2_id)),
+        ],
+    }));
+    let src_tree_2_id: ObjectId = put_object(&client, &base, did, repo, &src_tree_2)
+        .await
+        .parse()
+        .unwrap();
+    assert_ne!(
+        src_tree_2_id, src_tree_id,
+        "src subtree changes when b.rs changes"
+    );
+
+    let root_tree_2 = Object::SchemaTree(Box::new(SchemaTreeObject::Directory {
+        entries: vec![
+            ("README.md".into(), SchemaTreeEntry::File(leaf_ids_a[2].1)),
+            ("src".into(), SchemaTreeEntry::Tree(src_tree_2_id)),
+        ],
+    }));
+    let root_tree_2_id: ObjectId = put_object(&client, &base, did, repo, &root_tree_2)
+        .await
+        .parse()
+        .unwrap();
+
+    let commit_2 = Object::Commit(
+        CommitObject::builder(root_tree_2_id, "raw_file", "tester", "tweak b")
+            .parents(vec![commit_1_id.parse().unwrap()])
+            .build(),
+    );
+    let commit_2_id = put_object(&client, &base, did, repo, &commit_2).await;
+    assert_ne!(commit_2_id, commit_1_id);
+
+    // Round-trip: fetch commit 2 via getObject, decode, walk its tree
+    // directly using the installed panproto-vcs to confirm the shape.
+    let get_resp = client
+        .get(format!(
+            "{base}/xrpc/dev.panproto.node.getObject?did={did}&repo={repo}&id={commit_2_id}"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), 200);
+    let bytes = get_resp.bytes().await.unwrap();
+    let obj: Object = rmp_serde::from_slice(&bytes).unwrap();
+    let c = match obj {
+        Object::Commit(c) => c,
+        other => panic!("expected Commit, got {}", other.type_name()),
+    };
+    assert_eq!(c.schema_id, root_tree_2_id);
+    assert_eq!(c.parents.len(), 1);
+
+    // Walk the tree leaves via getObject round-trips. Every leaf must
+    // come back as a FileSchema and match its expected path.
+    async fn walk_via_xrpc(
+        client: &Client,
+        base: &str,
+        did: &str,
+        repo: &str,
+        root_id: &ObjectId,
+        prefix: String,
+        acc: &mut Vec<(String, FileSchemaObject)>,
+    ) {
+        let r = client
+            .get(format!(
+                "{base}/xrpc/dev.panproto.node.getObject?did={did}&repo={repo}&id={root_id}"
+            ))
+            .send()
+            .await
+            .unwrap();
+        let bytes = r.bytes().await.unwrap();
+        match rmp_serde::from_slice::<Object>(&bytes).unwrap() {
+            Object::FileSchema(f) => {
+                let path = if prefix.is_empty() {
+                    f.path.clone()
+                } else {
+                    prefix
+                };
+                acc.push((path, *f));
+            }
+            Object::SchemaTree(t) => match *t {
+                SchemaTreeObject::SingleLeaf { file_schema_id } => {
+                    Box::pin(walk_via_xrpc(
+                        client,
+                        base,
+                        did,
+                        repo,
+                        &file_schema_id,
+                        prefix,
+                        acc,
+                    ))
+                    .await;
+                }
+                SchemaTreeObject::Directory { entries } => {
+                    for (name, entry) in entries {
+                        let sub_prefix = if prefix.is_empty() {
+                            name.clone()
+                        } else {
+                            format!("{prefix}/{name}")
+                        };
+                        let id = match entry {
+                            SchemaTreeEntry::File(id) | SchemaTreeEntry::Tree(id) => id,
+                        };
+                        Box::pin(walk_via_xrpc(client, base, did, repo, &id, sub_prefix, acc))
+                            .await;
+                    }
+                }
+            },
+            other => panic!("unexpected object in tree: {}", other.type_name()),
+        }
+    }
+
+    let mut leaves: Vec<(String, FileSchemaObject)> = Vec::new();
+    walk_via_xrpc(
+        &client,
+        &base,
+        did,
+        repo,
+        &root_tree_2_id,
+        String::new(),
+        &mut leaves,
+    )
+    .await;
+
+    let paths: std::collections::BTreeSet<String> = leaves.iter().map(|(p, _)| p.clone()).collect();
+    assert_eq!(
+        paths,
+        ["README.md", "src/a.rs", "src/b.rs"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<std::collections::BTreeSet<_>>(),
+        "tree walk must recover the three files at commit 2"
+    );
+
+    // The leaf at src/b.rs must carry the new vertex name, a.rs the old.
+    let b_leaf = leaves
+        .iter()
+        .find(|(p, _)| p == "src/b.rs")
+        .map(|(_, f)| f)
+        .unwrap();
+    assert!(b_leaf.schema.vertices.keys().any(|k| {
+        let s: &str = k;
+        s == "B2"
+    }));
+    let a_leaf = leaves
+        .iter()
+        .find(|(p, _)| p == "src/a.rs")
+        .map(|(_, f)| f)
+        .unwrap();
+    assert!(a_leaf.schema.vertices.keys().any(|k| {
+        let s: &str = k;
+        s == "A"
+    }));
 }

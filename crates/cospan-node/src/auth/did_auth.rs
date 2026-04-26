@@ -173,20 +173,15 @@ async fn resolve_key_from_did(did: &str, algorithm: Algorithm) -> Result<Decodin
 ///
 /// Returns the matching `DecodingKey` if the JWKS URL is configured
 /// and a key with the given `kid` and algorithm is found.
-async fn try_appview_jwks(
+pub(crate) async fn try_appview_jwks(
     state: &NodeState,
     kid: &str,
     algorithm: Algorithm,
 ) -> Option<DecodingKey> {
-    let jwks_url = state
-        .config
-        .auth
-        .appview_jwks_url
-        .as_deref()
-        .or_else(|| {
-            // Default: derive from APPVIEW_URL env var.
-            None
-        })?;
+    let jwks_url = state.config.auth.appview_jwks_url.as_deref().or({
+        // Default: derive from APPVIEW_URL env var.
+        None
+    })?;
 
     let http = reqwest::Client::new();
     let resp = http.get(jwks_url).send().await.ok()?;
@@ -197,10 +192,10 @@ async fn try_appview_jwks(
 
     let jwks: JwksDocument = resp.json().await.ok()?;
     for key in &jwks.keys {
-        if key.kid.as_deref() == Some(kid) {
-            if let Some(decoding_key) = try_decoding_key_from_jwk(&key.raw, algorithm) {
-                return Some(decoding_key);
-            }
+        if key.kid.as_deref() == Some(kid)
+            && let Some(decoding_key) = try_decoding_key_from_jwk(&key.raw, algorithm)
+        {
+            return Some(decoding_key);
         }
     }
 

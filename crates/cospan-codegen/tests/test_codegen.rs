@@ -54,20 +54,20 @@ fn run_codegen() -> (String, String, String) {
             continue;
         };
 
-        if let Ok(s) = cospan_codegen::morphism::atproto_to_rust(&schema, nsid) {
-            if let Ok(c) = cospan_codegen::morphism::emit_rust_types(&s) {
-                all_rust.push_str(&c);
-            }
+        if let Ok(s) = cospan_codegen::morphism::atproto_to_rust(&schema, nsid)
+            && let Ok(c) = cospan_codegen::morphism::emit_rust_types(&s)
+        {
+            all_rust.push_str(&c);
         }
-        if let Ok(s) = cospan_codegen::morphism::atproto_to_sql(&schema, nsid) {
-            if let Ok(c) = cospan_codegen::morphism::emit_ddl(&s) {
-                all_sql.push_str(&c);
-            }
+        if let Ok(s) = cospan_codegen::morphism::atproto_to_sql(&schema, nsid)
+            && let Ok(c) = cospan_codegen::morphism::emit_ddl(&s)
+        {
+            all_sql.push_str(&c);
         }
-        if let Ok(s) = cospan_codegen::morphism::atproto_to_typescript(&schema, nsid) {
-            if let Ok(c) = cospan_codegen::morphism::emit_ts_types(&s) {
-                all_ts.push_str(&c);
-            }
+        if let Ok(s) = cospan_codegen::morphism::atproto_to_typescript(&schema, nsid)
+            && let Ok(c) = cospan_codegen::morphism::emit_ts_types(&s)
+        {
+            all_ts.push_str(&c);
         }
     }
     (all_rust, all_sql, all_ts)
@@ -127,12 +127,9 @@ fn tangled_issue_transform_decomposes_repo_uri() {
 
     // Parse against the Tangled schema (body vertex, not record vertex)
     let body_vertex = format!("{}:body", issue_morphism.tangled_nsid);
-    let instance = panproto_inst::parse::parse_json(
-        &issue_morphism.tangled_schema,
-        &body_vertex,
-        &record,
-    )
-    .expect("should parse Tangled issue");
+    let instance =
+        panproto_inst::parse::parse_json(&issue_morphism.tangled_schema, &body_vertex, &record)
+            .expect("should parse Tangled issue");
 
     // Apply morphism (includes field transforms)
     let lifted = panproto_mig::lift_wtype_sigma(
@@ -145,7 +142,10 @@ fn tangled_issue_transform_decomposes_repo_uri() {
     // Emit JSON
     let output = panproto_inst::parse::to_json(&issue_morphism.cospan_schema, &lifted);
 
-    eprintln!("Transform output: {}", serde_json::to_string_pretty(&output).unwrap());
+    eprintln!(
+        "Transform output: {}",
+        serde_json::to_string_pretty(&output).unwrap()
+    );
 
     // The repo AT-URI should be decomposed into repoDid + repoName
     assert!(

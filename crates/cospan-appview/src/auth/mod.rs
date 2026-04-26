@@ -2,6 +2,7 @@ pub mod did_resolver;
 pub mod dpop;
 pub mod oauth;
 pub mod pds_client;
+pub mod scope;
 pub mod session;
 
 use serde::{Deserialize, Serialize};
@@ -70,6 +71,10 @@ pub struct Session {
     pub expires_at: chrono::DateTime<chrono::Utc>,
     /// When the session was created.
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Raw scope string granted by the auth server (space-separated).
+    /// Parsed on demand via `auth::scope::parse_scope_string`.
+    #[serde(default)]
+    pub scope: String,
 }
 
 /// Temporary state stored during the OAuth authorization flow (between redirect and callback).
@@ -97,4 +102,8 @@ pub struct AuthFlowState {
     pub dpop_nonce: Option<String>,
     /// When this flow state expires (short-lived, ~10 minutes).
     pub expires_at: chrono::DateTime<chrono::Utc>,
+    /// Scope string sent with the PAR request (so we can verify the
+    /// auth server doesn't narrow it beyond what we asked for).
+    #[serde(default)]
+    pub requested_scope: String,
 }

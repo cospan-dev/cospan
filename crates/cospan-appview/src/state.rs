@@ -6,6 +6,7 @@ use tokio::sync::broadcast;
 use crate::auth::OAuthConfig;
 use crate::auth::did_resolver::DidResolver;
 use crate::auth::dpop::DpopKey;
+use crate::auth::scope::PermissionSetRegistry;
 use crate::auth::session::SessionStore;
 use crate::config::AppConfig;
 use crate::interop::RecordTransformer;
@@ -26,6 +27,8 @@ pub struct AppState {
     pub event_tx: broadcast::Sender<IndexEvent>,
     /// Pre-compiled panproto morphisms for all record transformations.
     pub transformer: RecordTransformer,
+    /// Permission-set lexicons loaded from disk, used to expand `include:` scopes.
+    pub permission_sets: Arc<PermissionSetRegistry>,
 }
 
 impl AppState {
@@ -57,6 +60,17 @@ impl AppState {
             RecordTransformer::empty()
         });
 
+        let permission_sets = Arc::new(
+            PermissionSetRegistry::load_from_dir(
+                &lexicons_dir.join("dev").join("cospan").join("auth"),
+            )
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "failed to load permission-set lexicons; \
+                        scope checks will treat include: scopes as unknown");
+                PermissionSetRegistry::new()
+            }),
+        );
+
         Ok(Self {
             config,
             db,
@@ -67,6 +81,7 @@ impl AppState {
             http_client,
             event_tx,
             transformer,
+            permission_sets,
         })
     }
 }

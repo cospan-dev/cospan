@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Query, State};
-use panproto_core::vcs::{Object, Store};
+use panproto_core::vcs::{self, Object, Store};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -92,50 +92,45 @@ pub async fn get_commit_schema_stats(
         let timestamp = u64::try_from(git_commit.time().seconds()).unwrap_or(0);
 
         // Look up the panproto-vcs commit via the import marks.
-        let (total_vc, total_ec, breaking, non_breaking) =
-            if let Some(pp_id) = marks.get(&oid) {
-                match vcs_store.get(pp_id) {
-                    Ok(Object::Commit(pp_commit)) => {
-                        // Read the schema stored at this commit.
-                        let schema = match vcs_store.get(&pp_commit.schema_id) {
-                            Ok(Object::Schema(s)) => Some(*s),
-                            _ => None,
-                        };
+        let (total_vc, total_ec, breaking, non_breaking) = if let Some(pp_id) = marks.get(&oid) {
+            match vcs_store.get(pp_id) {
+                Ok(Object::Commit(pp_commit)) => {
+                    // Per-file content addressing (panproto issue #49):
+                    // the commit's `schema_id` is a SchemaTree root;
+                    // assemble to get the flat schema used below.
+                    let schema = vcs::resolve_commit_schema(&vcs_store, &pp_commit).ok();
 
-                        let vc = schema.as_ref().map_or(0, |s| s.vertices.len());
-                        let ec = schema.as_ref().map_or(0, |s| s.edges.len());
+                    let vc = schema.as_ref().map_or(0, |s| s.vertices.len());
+                    let ec = schema.as_ref().map_or(0, |s| s.edges.len());
 
-                        // Diff against the previous commit's schema for
-                        // breaking/non-breaking classification.
-                        let (b, nb) = match (&schema, &prev_schema) {
-                            (Some(curr), Some(prev)) => {
-                                let raw_diff = panproto_check::diff(prev, curr);
-                                let protocol = super::structural::resolve_protocol(
-                                    &curr.protocol,
-                                );
-                                match protocol {
-                                    Some(p) => {
-                                        let report =
-                                            panproto_check::classify(&raw_diff, &p);
-                                        (report.breaking.len(), report.non_breaking.len())
-                                    }
-                                    None => (0, 0),
+                    // Diff against the previous commit's schema for
+                    // breaking/non-breaking classification.
+                    let (b, nb) = match (&schema, &prev_schema) {
+                        (Some(curr), Some(prev)) => {
+                            let raw_diff = panproto_check::diff(prev, curr);
+                            let protocol = super::structural::resolve_protocol(&curr.protocol);
+                            match protocol {
+                                Some(p) => {
+                                    let report = panproto_check::classify(&raw_diff, &p);
+                                    (report.breaking.len(), report.non_breaking.len())
                                 }
+                                None => (0, 0),
                             }
-                            _ => (0, 0),
-                        };
-
-                        if let Some(s) = schema {
-                            prev_schema = Some(s);
                         }
+                        _ => (0, 0),
+                    };
 
-                        (vc, ec, b, nb)
+                    if let Some(s) = schema {
+                        prev_schema = Some(s);
                     }
-                    _ => (0, 0, 0, 0),
+
+                    (vc, ec, b, nb)
                 }
-            } else {
-                (0, 0, 0, 0)
-            };
+                _ => (0, 0, 0, 0),
+            }
+        } else {
+            (0, 0, 0, 0)
+        };
 
         commits.push(json!({
             "oid": oid.to_string(),
