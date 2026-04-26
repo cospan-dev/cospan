@@ -657,47 +657,113 @@ impl AuthIntent {
     }
 }
 
+/// Serialize a single [`Scope`] back to its wire-format token.
+fn scope_to_wire(scope: &Scope) -> Option<String> {
+    match scope {
+        Scope::Atproto => Some("atproto".into()),
+        Scope::Transition(name) => Some(format!("transition:{name}")),
+        Scope::Repo {
+            collection,
+            actions,
+        } => {
+            if actions.is_empty() {
+                Some(format!("repo:{collection}"))
+            } else {
+                let mut s = format!("repo:{collection}?");
+                let parts: Vec<String> = actions
+                    .iter()
+                    .map(|a| format!("action={}", match a {
+                        RepoAction::Create => "create",
+                        RepoAction::Update => "update",
+                        RepoAction::Delete => "delete",
+                    }))
+                    .collect();
+                s.push_str(&parts.join("&"));
+                Some(s)
+            }
+        }
+        Scope::Rpc { lxm, aud } => {
+            let aud_s = match aud {
+                Aud::Wildcard => "*".to_owned(),
+                Aud::Did(d) => urlencoding::encode(d).into_owned(),
+            };
+            Some(format!("rpc:{lxm}?aud={aud_s}"))
+        }
+        Scope::Blob { accept } => {
+            let parts: Vec<String> = accept
+                .iter()
+                .map(|m| format!("accept={}", urlencoding::encode(m)))
+                .collect();
+            Some(format!("blob?{}", parts.join("&")))
+        }
+        Scope::Account { attr, action } => match action {
+            Some(AccountAction::Read) => Some(format!("account:{attr}?action=read")),
+            Some(AccountAction::Manage) => Some(format!("account:{attr}?action=manage")),
+            None => Some(format!("account:{attr}")),
+        },
+        Scope::Identity { attr } => Some(format!("identity:{attr}")),
+        Scope::Include { .. } => {
+            // `include:` references are intentionally NOT serialized into the
+            // wire form: Bluesky's PDS can't resolve `dev.cospan.auth.*`
+            // lexicons today (no DNS record at `_lexicon.auth.cospan.dev`),
+            // so emitting `include:` collapses the consent screen to just
+            // `atproto`. We instead inline the expanded `repo:` / `rpc:`
+            // scopes so the PDS renders one line per concrete operation.
+            None
+        }
+    }
+}
+
+/// Expand an intent into the flat list of inline scope tokens, using the
+/// loaded permission-set registry. Falls back to a hardcoded
+/// `atproto` if the registry is empty (e.g. lexicon files missing on disk).
+fn expand_intent_to_inline_scopes(
+    intent: AuthIntent,
+    registry: &PermissionSetRegistry,
+    appview_did: &str,
+) -> Vec<String> {
+    let aud = if appview_did.is_empty() {
+        Aud::Wildcard
+    } else {
+        Aud::Did(appview_did.to_string())
+    };
+    let request = vec![Scope::Include {
+        nsid: intent.permission_set_nsid().to_string(),
+        aud: Some(aud),
+    }];
+    let expanded = registry.expand(&request);
+    let mut out: Vec<String> = vec!["atproto".to_string()];
+    let mut seen = std::collections::HashSet::new();
+    for s in &expanded {
+        if let Some(token) = scope_to_wire(s)
+            && seen.insert(token.clone())
+        {
+            out.push(token);
+        }
+    }
+    out
+}
+
 /// Build the scope string to send with an OAuth authorization request.
 ///
-/// - `appview_did`: service DID of this AppView, used as `aud` for RPC scopes.
-///   Pass an empty string to emit `aud=*` (useful before the service DID is
-///   provisioned).
-pub fn build_scope_string(intent: AuthIntent, appview_did: &str) -> String {
-    let aud = if appview_did.is_empty() {
-        "*".to_string()
-    } else {
-        urlencoding::encode(appview_did).into_owned()
-    };
-    format!(
-        "atproto include:{}?aud={}",
-        intent.permission_set_nsid(),
-        aud
-    )
+/// Inlined `repo:` / `rpc:` form: see [`scope_to_wire`] for why we don't
+/// emit `include:` references on the wire today.
+pub fn build_scope_string(
+    intent: AuthIntent,
+    registry: &PermissionSetRegistry,
+    appview_did: &str,
+) -> String {
+    expand_intent_to_inline_scopes(intent, registry, appview_did).join(" ")
 }
 
 /// Build the space-separated scope list to advertise in client-metadata.json.
-/// This is a superset: we list every permission-set so the PDS consent screen
-/// can render them, even though a given login will only request one.
-pub fn client_metadata_scope(appview_did: &str) -> String {
-    let aud = if appview_did.is_empty() {
-        "*".to_string()
-    } else {
-        urlencoding::encode(appview_did).into_owned()
-    };
-    let mut parts = vec!["atproto".to_string()];
-    for intent in [
-        AuthIntent::Browse,
-        AuthIntent::Contribute,
-        AuthIntent::Maintain,
-        AuthIntent::Own,
-    ] {
-        parts.push(format!(
-            "include:{}?aud={}",
-            intent.permission_set_nsid(),
-            aud
-        ));
-    }
-    parts.join(" ")
+///
+/// Declares the maximum scope an OAuth login may request (the full
+/// `ownerAccess` expansion). Individual logins request a subset matching
+/// their intent. Single source of truth: the lexicon files under
+/// `packages/lexicons/dev/cospan/auth/`.
+pub fn client_metadata_scope(registry: &PermissionSetRegistry, appview_did: &str) -> String {
+    expand_intent_to_inline_scopes(AuthIntent::Own, registry, appview_did).join(" ")
 }
 
 // -- tests --------------------------------------------------------------------

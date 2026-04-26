@@ -10,6 +10,7 @@
 //!        cargo run -p cospan-codegen -- --check   # breaking change detection
 
 mod emit_rows;
+mod emit_scopes;
 mod emit_sql;
 mod emit_typescript_views;
 mod emit_xrpc;
@@ -297,6 +298,16 @@ fn main() -> Result<()> {
         fs::create_dir_all(&web_gen_dir)?;
         fs::write(web_gen_dir.join("views.ts"), &views_ts)?;
         println!("  generated/typescript/views.ts                   (TypeScript view types)");
+    }
+
+    // OAuth scopes derived from the dev.cospan.auth.*Access permission-sets.
+    {
+        let scopes_ts = emit_scopes::emit_scopes_ts(&lexicons_dir)?;
+        let web_gen_dir = workspace_root.join("apps/web/src/lib/generated");
+        fs::create_dir_all(&web_gen_dir)?;
+        fs::write(web_gen_dir.join("scopes.ts"), &scopes_ts)?;
+        fs::write(generated_dir.join("typescript/scopes.ts"), &scopes_ts)?;
+        println!("  apps/web/src/lib/generated/scopes.ts            (OAuth scope manifest)");
     }
 
     // Write generated files (reference copies in generated/)

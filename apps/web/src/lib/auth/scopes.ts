@@ -1,24 +1,26 @@
 // ATProto OAuth granular scopes — frontend helpers.
 //
-// Mirrors the Rust `auth::scope` module in the appview. Supports the
-// four Cospan intents and checks whether the session's granted scope
-// string covers a required operation. Used to gate UI actions before
-// hitting the backend, and to compute the `?intent=...` value for
-// login-upgrade redirects.
+// Re-exports and thin wrappers around the codegen output at
+// `$lib/generated/scopes.ts`. The generated module is the single source
+// of truth: it reads `packages/lexicons/dev/cospan/auth/*.json`,
+// transitively expands the `includes` chains, and emits one flat
+// `scopes: string[]` array per intent. Run `cargo run -p cospan-codegen`
+// to regenerate after editing the permission-set lexicons.
 
-export type AuthIntent = 'browse' | 'contribute' | 'maintain' | 'own';
+import {
+	PERMISSION_SETS,
+	buildScopeString as buildScopeStringGenerated,
+	type AuthIntent,
+	type PermissionSetMeta,
+} from '$lib/generated/scopes';
 
-const PERMISSION_SET: Record<AuthIntent, string> = {
-	browse: 'dev.cospan.auth.readerAccess',
-	contribute: 'dev.cospan.auth.contributorAccess',
-	maintain: 'dev.cospan.auth.maintainerAccess',
-	own: 'dev.cospan.auth.ownerAccess',
-};
+export type { AuthIntent, PermissionSetMeta };
+export { PERMISSION_SETS };
 
 const INTENT_ORDER: AuthIntent[] = ['browse', 'contribute', 'maintain', 'own'];
 
-// Which permission-sets each intent implies (via `includes:` hierarchy).
-// Must match apps/web/../lexicons/dev/cospan/auth/*.json.
+// Each higher intent fully covers every lower one (the lexicons enforce
+// this via `includes`). Used by `hasIntent` to gate UI affordances.
 const INCLUDES_CHAIN: Record<AuthIntent, AuthIntent[]> = {
 	browse: ['browse'],
 	contribute: ['browse', 'contribute'],
@@ -26,28 +28,44 @@ const INCLUDES_CHAIN: Record<AuthIntent, AuthIntent[]> = {
 	own: ['browse', 'contribute', 'maintain', 'own'],
 };
 
-/** Build the scope string to request at OAuth login for a given intent. */
-export function buildScopeString(intent: AuthIntent, appviewDid: string | null): string {
-	const aud = appviewDid ? encodeURIComponent(appviewDid) : '*';
-	return `atproto include:${PERMISSION_SET[intent]}?aud=${aud}`;
+/**
+ * Build the scope string to request at OAuth login for a given intent.
+ *
+ * The codegen output already contains the fully expanded inline
+ * `repo:`/`rpc:` tokens for each intent, so the frontend never has to
+ * hand-mirror the per-intent scope list. The optional `appviewDid` is
+ * only used when we someday flip back to `include:` references; today's
+ * inline tokens always use `aud=*`.
+ */
+export function buildScopeString(intent: AuthIntent, _appviewDid: string | null = null): string {
+	return buildScopeStringGenerated(intent);
 }
 
 /**
  * Return the highest intent tier fully covered by the given granted scope
  * string, or `null` if only `atproto` (or nothing) was granted.
+ *
+ * Works with both shapes:
+ *   - inline scope strings (today): pattern-matches each intent's full
+ *     scope set against `granted`,
+ *   - `include:` references (future): direct NSID match.
  */
 export function grantedIntent(granted: string | null | undefined): AuthIntent | null {
 	if (!granted) return null;
-	const tokens = granted.split(/\s+/).filter(Boolean);
-	const includes = new Set<string>();
-	for (const tok of tokens) {
-		if (tok.startsWith('include:')) {
-			const head = tok.slice('include:'.length).split('?')[0];
-			includes.add(head);
+	const tokens = new Set(granted.split(/\s+/).filter(Boolean));
+
+	// Fast path: an explicit `include:` reference matched a known intent.
+	for (const intent of [...INTENT_ORDER].reverse()) {
+		const nsid = PERMISSION_SETS[intent].nsid;
+		if (tokens.has(`include:${nsid}`) || tokens.has(`include:${nsid}?aud=*`)) {
+			return intent;
 		}
 	}
+
+	// Inline path: the highest intent whose every scope is in `tokens`.
 	for (const intent of [...INTENT_ORDER].reverse()) {
-		if (includes.has(PERMISSION_SET[intent])) {
+		const required = PERMISSION_SETS[intent].scopes;
+		if (required.every((s) => tokens.has(s))) {
 			return intent;
 		}
 	}
@@ -61,7 +79,6 @@ export function hasIntent(
 ): boolean {
 	const g = grantedIntent(granted);
 	if (!g) return false;
-	// Higher intents include lower ones.
 	return INCLUDES_CHAIN[g].includes(required);
 }
 
@@ -78,4 +95,9 @@ export function buildUpgradeUrl(
 }
 
 export const ALL_INTENTS = INTENT_ORDER;
-export const PERMISSION_SET_NSID = PERMISSION_SET;
+export const PERMISSION_SET_NSID: Record<AuthIntent, string> = {
+	browse: PERMISSION_SETS.browse.nsid,
+	contribute: PERMISSION_SETS.contribute.nsid,
+	maintain: PERMISSION_SETS.maintain.nsid,
+	own: PERMISSION_SETS.own.nsid,
+};

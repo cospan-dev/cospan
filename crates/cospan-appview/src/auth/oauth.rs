@@ -43,7 +43,7 @@ pub fn router() -> Router<Arc<AppState>> {
 
 async fn client_metadata(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let config = &state.oauth_config;
-    let scope = client_metadata_scope(&state.config.appview_did);
+    let scope = client_metadata_scope(&state.permission_sets, &state.config.appview_did);
 
     let metadata = json!({
         "client_id": config.client_id,
@@ -102,7 +102,8 @@ async fn login(
         .as_deref()
         .and_then(AuthIntent::parse)
         .unwrap_or(AuthIntent::Contribute);
-    let requested_scope = build_scope_string(intent, &state.config.appview_did);
+    let requested_scope =
+        build_scope_string(intent, &state.permission_sets, &state.config.appview_did);
     tracing::info!(handle = %handle, ?intent, scope = %requested_scope, "OAuth login initiated");
 
     // Step 1: Resolve handle -> DID -> DID document
