@@ -3,6 +3,7 @@ import {
 	type OAuthSession,
 } from '@atproto/oauth-client-browser';
 import { Agent } from '@atproto/api';
+import { buildScopeString, type AuthIntent } from './scopes';
 
 let oauthClient: BrowserOAuthClient | null = null;
 let clientInitPromise: Promise<BrowserOAuthClient> | null = null;
@@ -38,9 +39,18 @@ export async function getOAuthClient(): Promise<BrowserOAuthClient> {
 	return clientInitPromise;
 }
 
-export async function login(handle: string): Promise<void> {
+export async function login(
+	handle: string,
+	intent: AuthIntent = 'contribute',
+): Promise<void> {
 	const client = await getOAuthClient();
-	const url = await client.authorize(handle, { scope: 'atproto transition:generic' });
+	// Match the granular OAuth scopes advertised in /oauth/client-metadata.json
+	// (panproto issue #49 era; legacy `transition:generic` is no longer in
+	// the manifest and the PDS rejects requests for undeclared scopes).
+	// `appviewDid` is `null` here — the metadata uses `aud=*` and the appview
+	// substitutes its own DID server-side when verifying scopes.
+	const scope = buildScopeString(intent, null);
+	const url = await client.authorize(handle, { scope });
 	window.location.assign(url.toString());
 }
 
