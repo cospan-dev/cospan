@@ -54,6 +54,10 @@ pub async fn diff_commits(
     State(state): State<Arc<NodeState>>,
     Query(params): Query<DiffCommitsParams>,
 ) -> Result<Json<DiffCommitsResult>, NodeError> {
+    // Acquire everything we need from the shared store under one async
+    // lock acquisition; once the guard is dropped the rest of the handler
+    // is fully synchronous and can hold non-`Send` git2 types without
+    // making the handler future itself non-`Send`.
     let store = state.store.lock().await;
     if !store.has_git_mirror(&params.did, &params.repo) {
         return Err(NodeError::RefNotFound(format!(
@@ -64,6 +68,8 @@ pub async fn diff_commits(
     let mirror = store
         .open_or_init_git_mirror(&params.did, &params.repo)
         .map_err(|e| NodeError::Internal(format!("open mirror: {e}")))?;
+    let import_marks = store.load_import_marks(&params.did, &params.repo);
+    let vcs_store = store.open(&params.did, &params.repo).ok();
     drop(store);
 
     let from_oid = git2::Oid::from_str(&params.from)
@@ -254,14 +260,9 @@ pub async fn diff_commits(
     // See panproto/panproto#28 (distribute git-remote-cospan binary).
     let file_paths: Vec<(String, bool)> =
         entries.iter().map(|e| (e.path.clone(), e.binary)).collect();
-    let structural_diffs = try_load_structural_diffs_from_vcs(
-        &state,
-        &params.did,
-        &params.repo,
-        from_oid,
-        to_oid,
-        &file_paths,
-    );
+    let structural_diffs = vcs_store.as_ref().and_then(|store| {
+        try_load_structural_diffs_from_vcs(store, &import_marks, from_oid, to_oid, &file_paths)
+    });
 
     let files: Vec<FileDiff> = entries
         .iter()
@@ -304,22 +305,21 @@ pub async fn diff_commits(
 ///
 /// Walks each commit's `SchemaTree` (panproto issue #49) into a
 /// `path -> FileSchemaObject` map, then diffs per-file schemas natively.
+///
+/// Synchronous: callers obtain `vcs_store` and `import_marks` from the
+/// shared `NodeState.store` lock once at the top of the handler, then
+/// pass them in here so this function does not need to await.
 fn try_load_structural_diffs_from_vcs(
-    state: &Arc<NodeState>,
-    did: &str,
-    repo: &str,
+    vcs_store: &panproto_core::vcs::FsStore,
+    import_marks: &std::collections::HashMap<git2::Oid, panproto_core::vcs::ObjectId>,
     from_git_oid: git2::Oid,
     to_git_oid: git2::Oid,
     file_paths: &[(String, bool)],
 ) -> Option<std::collections::HashMap<String, serde_json::Value>> {
     use panproto_core::vcs::{self, FileSchemaObject, Object, Store};
 
-    let store_guard = state.store.blocking_lock();
-    let marks = store_guard.load_import_marks(did, repo);
-    let from_pp = marks.get(&from_git_oid).copied()?;
-    let to_pp = marks.get(&to_git_oid).copied()?;
-    let vcs_store = store_guard.open(did, repo).ok()?;
-    drop(store_guard);
+    let from_pp = import_marks.get(&from_git_oid).copied()?;
+    let to_pp = import_marks.get(&to_git_oid).copied()?;
 
     fn collect_leaves<S: Store>(
         store: &S,
@@ -338,8 +338,8 @@ fn try_load_structural_diffs_from_vcs(
         Some(out)
     }
 
-    let from_leaves = collect_leaves(&vcs_store, &from_pp)?;
-    let to_leaves = collect_leaves(&vcs_store, &to_pp)?;
+    let from_leaves = collect_leaves(vcs_store, &from_pp)?;
+    let to_leaves = collect_leaves(vcs_store, &to_pp)?;
 
     // Produce an empty schema matching the shape of `template`, used when a
     // file is pure-add or pure-delete (only one side has a leaf).
